@@ -1,0 +1,62 @@
+# General ignores for system files
+.DS_Store
+Thumbs.db
+*.log
+*.pyc
+*.pyo
+__pycache__/
+env/
+venv/
+instance/
+
+# Python-related ignores (Flask backend)
+*.env
+*.sqlite3
+*.db
+*.bak
+*.swp
+migrations/
+*.pyc
+*.pyo
+.coverage
+htmlcov/
+*.egg-info/
+pip-log.txt
+*.cache
+
+# Node.js/React-related ignores (React frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# build/
+dist/
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+
+# IDE/Editor-specific ignores
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Testing and coverage files
+coverage/
+*.cover
+*.gcda
+*.gcno
+*.gcov
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+*.crdownload
+*.lock
+
+# Others
+*.out
+*.pid
+*.gz
