@@ -31,7 +31,13 @@ const WelcomePage = ({ setTrialInfo }) => {
 
             const response = await fetch(
                 `/start_experiment/redgreen?PROLIFIC_PID=${prolific_pid}&STUDY_ID=${study_id}&SESSION_ID=${prolific_session_id}`,
-                { method: "POST" }
+                { method: "POST", 
+                    headers: { 
+                        // "Content-Type": "application/json",
+                        'ngrok-skip-browser-warning': 'true',
+                        'User-Agent': 'React-Experiment-App', // Custom User-Agent header
+                     } 
+                }
             );
             if (!response.ok) {
                 const errorData = await response.json();

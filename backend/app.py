@@ -1,4 +1,5 @@
 from flask import send_from_directory, Flask, request, jsonify, has_request_context
+from flask_cors import CORS
 import numpy as np
 from datetime import datetime, timedelta
 import os
@@ -21,7 +22,7 @@ DATASET_NAME = 'pre_pilot'
 EXPERIMENT_RUN_VERSION = 'debug'
 TIMEOUT_PERIOD = timedelta(hours=2)
 check_TIMEOUT_interval = timedelta(minutes=10)
-NUM_PARTICIPANTS = 20
+NUM_PARTICIPANTS = 50
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -30,6 +31,8 @@ assert NUM_PARTICIPANTS %2 == 0, "NUM_PARTICIPANTS must be even"
 REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/build"))
 
 app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
+CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])  # Allow the header
+
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db'  # Database configuration
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'mysecretkey_redgreen_##$563456#$%^')
@@ -38,14 +41,21 @@ app.config['ADMIN_EMAIL'] = 'arijitdg@mit.edu'
 
 db = SQLAlchemy(app)
 
+@app.after_request
+def add_ngrok_header(response):
+    response.headers['ngrok-skip-browser-warning'] = 'true'
+    return response
+
 # Serve React static files
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve_react(path):
     if path != "" and os.path.exists(os.path.join(REACT_BUILD_DIR, path)):
-        return send_from_directory(REACT_BUILD_DIR, path)
+        response = send_from_directory(REACT_BUILD_DIR, path)
     else:
-        return send_from_directory(REACT_BUILD_DIR, "index.html")
+        response = send_from_directory(REACT_BUILD_DIR, "index.html")
+    response.headers['ngrok-skip-browser-warning'] = 'true'
+    return response
 
 
 class Config(db.Model):
@@ -75,6 +85,8 @@ class Trial(db.Model):
     __tablename__ = 'trial'  # Explicitly define the table name
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False)  # Reference the correct table
+    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime, nullable=True)
     trial_type = db.Column(db.String(20))  # 'ftrial' or 'trial'
     trial_index = db.Column(db.Integer) #ftrial_i or trial_i
     global_trial_name = db.Column(db.String(100), nullable=True) # This will be something like 'F2' or 'E1-1a, or 'E2B-3b'
@@ -171,7 +183,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         return {
             "barriers": data.get("barriers", []).tolist(),
             "occluders": data.get("occluders", []).tolist(),
-            "step_data": {int(k): v for k, v in data.get("step_data", {}).item().items()},
+            "step_data": {int(k): {'x': v['x'], 'y': v['y']} for k, v in data.get("step_data", {}).item().items()},
             "red_sensor": data.get("red_sensor", {}).item(),
             "green_sensor": data.get("green_sensor", {}).item(),
             "timestep": round(data.get("timestep", {}).item(), 2),
@@ -446,6 +458,7 @@ def save_data():
         if not trial or trial.session_id != int(session_id):
             return jsonify({"error": "Trial not found for the current session"}), 405
         trial.completed = True
+        trial.end_time = datetime.utcnow()
         db.session.commit()
         
         # Get recorded key states

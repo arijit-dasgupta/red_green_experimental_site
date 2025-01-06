@@ -197,7 +197,10 @@ const renderCurrentPage = () => {
   
       const response = await fetch('/load_next_scene', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+                  'ngrok-skip-browser-warning': 'true', // Add this header to skip the browser warning
+                  'User-Agent': 'React-Experiment-App', // Custom User-Agent header
+                },
         body: JSON.stringify({ session_id: sessionId }), // Pass sessionId in the body
       });
   
@@ -302,7 +305,10 @@ const animate = (timestamp) => {
 
               const response = await fetch('/save_data', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json',
+                  'ngrok-skip-browser-warning': 'true',
+                  'User-Agent': 'React-Experiment-App', // Custom User-Agent header
+                 },
                 body: JSON.stringify({
                   session_id: sessionId,
                   trial_i: sceneData.trial_i, // Include trial_id in the payload

@@ -19,7 +19,10 @@ const useSessionTimeout = (navigate, currentPage) => {
             try {
                 const response = await fetch("/check_timeout", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json",
+                        'ngrok-skip-browser-warning': 'true',
+                        'User-Agent': 'React-Experiment-App', // Custom User-Agent header
+                     },
                     body: JSON.stringify({ session_id: sessionId }),
                 });
 
