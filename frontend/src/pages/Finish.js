@@ -87,7 +87,7 @@ const FinishPage = ({ averageScore }) => (
       </div>
 
       <p style={{ fontSize: "1rem", color: "#4b5563", marginBottom: "20px" }}>
-        Your familiarization trials have helped prepare you for this experiment. Click the link below to complete your participation on Prolific.
+        Click the link below to complete your participation on Prolific.
       </p>
       <a
         href="https://www.google.com"

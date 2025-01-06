@@ -1,0 +1,8 @@
+APScheduler==3.11.0
+Flask==3.1.0
+flask_sqlalchemy==3.1.1
+numpy==2.2.1
+pandas==2.2.3
+plotly==5.24.1
+Requests==2.32.3
+SQLAlchemy==2.0.36
