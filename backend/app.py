@@ -19,9 +19,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 DATASET_NAME = 'pre_pilot'
-EXPERIMENT_RUN_VERSION = 'debug'
-TIMEOUT_PERIOD = timedelta(hours=2)
-check_TIMEOUT_interval = timedelta(minutes=10)
+EXPERIMENT_RUN_VERSION = 'v0'
+# TIMEOUT_PERIOD = timedelta(hours=2)
+TIMEOUT_PERIOD = timedelta(minutes=30)
+check_TIMEOUT_interval = timedelta(minutes=3)
+# check_TIMEOUT_interval = timedelta(minutes=10)
 NUM_PARTICIPANTS = 10
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)

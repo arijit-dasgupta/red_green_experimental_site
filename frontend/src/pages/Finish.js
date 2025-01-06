@@ -90,7 +90,7 @@ const FinishPage = ({ averageScore }) => (
         Click the link below to complete your participation on Prolific.
       </p>
       <a
-        href="https://www.google.com"
+        href="https://app.prolific.com/submissions/complete?cc=CJ6KMWB1"
         style={{
           display: "inline-block",
           textDecoration: "none",
