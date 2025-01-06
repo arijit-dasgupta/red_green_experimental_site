@@ -7,7 +7,7 @@ Thumbs.db
 __pycache__/
 env/
 venv/
-instance/
+# instance/
 
 # Python-related ignores (Flask backend)
 *.env

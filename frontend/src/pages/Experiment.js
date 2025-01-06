@@ -19,6 +19,7 @@ const ExperimentPage = ({
     handlePlayPause,
     fetchNextScene,
     canvasRef,
+    isStrictMode
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -28,10 +29,9 @@ const ExperimentPage = ({
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
 
     useEffect(() => {
-        ;
         strictModeRenderCount.current += 1;
 
-        if (strictModeRenderCount.current === 2 && !isInitializedRef.current) {
+        if ((strictModeRenderCount.current === 2 | !isStrictMode) && !isInitializedRef.current) {
             // console.log("ExperimentPage initialized (Strict Mode safe)");
             isInitializedRef.current = true;
             fetchNextScene(setdisableCountdownTrigger); // Fetch the first scene

@@ -1,6 +1,6 @@
 // App.js
 import React from 'react';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './App.css';
 import WelcomePage from './pages/Welcome';
 import InstructionsPage from './pages/Instructions';
@@ -17,12 +17,30 @@ import useCancelAnimation from './hooks/useCancelAnimation';
 import useSyncKeyStatesRef from './hooks/useSyncKeyStatesRef';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
+
 const App = () => {
+  const [isStrictMode, setIsStrictMode] = useState(false); // Track Strict Mode
+  const renderCountRef = useRef(0);
+  const enableStrictModeCheck = useRef(true);
+
+  useEffect(() => {
+      // Increment the render count (Strict Mode double-renders components in development)
+      renderCountRef.current += 1;
+
+      if (renderCountRef.current > 1 && enableStrictModeCheck.current) {
+          // If renderCount > 1, Strict Mode is active
+          setIsStrictMode(true);
+          enableStrictModeCheck.current = false; // Disable
+          // console.log("Detected Strict Mode: Double render occurred.");
+      }
+  }, []); // Runs only on initial renders
+
+
   const { currentPage, navigate } = useNavigation(); // Access currentPage and navigate from context
 
   const FPS = 30; // This was kept fixed because of the standard refresh rate of the screen
   const CANVAS_PROPORTION = 0.7;
-  
+
   const [sceneData, setSceneData] = useState(null);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -56,58 +74,72 @@ const App = () => {
   });
 
   const renderFrame = (frameIndex) => {
-    if (!sceneData || !canvasRef.current) return;
-  
+    if (!sceneData || !canvasRef.current) {
+        console.error("Scene data or canvas not available:", { sceneData, canvasRef });
+        return;
+    }
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
+    if (!ctx) {
+        console.error("Failed to get 2D context for canvas.");
+        return;
+    }
+
     const scale = Math.min(
-      canvas.width / sceneData.worldWidth,
-      canvas.height / sceneData.worldHeight
+        canvas.width / sceneData.worldWidth,
+        canvas.height / sceneData.worldHeight
     );
-    
+
+    // console.log("Rendering frame:", frameIndex, "Scale:", scale);
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(1, -1);
     ctx.translate(0, -canvas.height);
-  
-    const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
-  
-    // Draw barriers
-    ctx.fillStyle = "black";
-    barriers.forEach(({ x, y, width, height }) => {
-      ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-    });
-  
-    // Draw sensors
-    if (red_sensor) {
-      ctx.fillStyle = "red";
-      const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;;
-      ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+
+    try {
+        const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
+
+        // Draw barriers
+        ctx.fillStyle = "black";
+        barriers.forEach(({ x, y, width, height }) => {
+            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        });
+
+        // Draw sensors
+        if (red_sensor) {
+            ctx.fillStyle = "red";
+            const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
+            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        }
+
+        if (green_sensor) {
+            ctx.fillStyle = "green";
+            const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
+            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        }
+
+        // Draw target
+        if (step_data[frameIndex]) {
+            ctx.fillStyle = "blue";
+            const { x, y } = step_data[frameIndex];
+            ctx.beginPath();
+            ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Draw occluders
+        ctx.fillStyle = "gray";
+        occluders.forEach(({ x, y, width, height }) => {
+            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        });
+    } catch (error) {
+        console.error("Error rendering frame:", error);
     }
-  
-    if (green_sensor) {
-      ctx.fillStyle = "green";
-      const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;;
-      ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-    }
-  
-    // Draw target
-    if (step_data[frameIndex]) {
-      ctx.fillStyle = "blue";
-      const { x, y } = step_data[frameIndex];
-      ctx.beginPath();
-      ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-  
-    // Draw occluders
-    ctx.fillStyle = "gray";
-    occluders.forEach(({ x, y, width, height }) => {
-      ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-    });
-  
+
     ctx.restore();
-  };
+};
 
   // use several hooks
   useSessionTimeout(navigate, currentPage);
@@ -143,6 +175,7 @@ const renderCurrentPage = () => {
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
         canvasRef={canvasRef}
+        isStrictMode={isStrictMode}
       />;
     case 'timeout': // Add timeout case
       return <TimeoutPage />;
@@ -227,7 +260,10 @@ const renderCurrentPage = () => {
   };
 
 const animate = (timestamp) => {
+  // console.log("calling animate before return");
+  // console.log("sceneData:", sceneData);
   if (!sceneData?.step_data) return;
+
 
   const totalFrames = Object.keys(sceneData.step_data).length;
   const frameDuration = 1000 / FPS;
@@ -236,18 +272,20 @@ const animate = (timestamp) => {
 
   const timeElapsed = timestamp - animate.lastTimestamp;
 
-  console.log("Time elapsed:", timeElapsed);
+  // console.log("Time elapsed:", timeElapsed);
+  // console.log('calling animate')
 
   if (timeElapsed >= frameDuration * 0.98) {
     recordedKeyStates.current.push({
       frame: currentFrameRef.current,
       keys: { ...keyStatesRef.current },
     });
-    console.log("Recorded key states:", keyStatesRef.current);
-
-    setCurrentFrame((prevFrame) => {
-      const nextFrame = prevFrame + 1;
-      currentFrameRef.current = nextFrame;
+    // console.log("Recorded key states:", keyStatesRef.current);
+    // console.log('recording the states of keys')
+    // setCurrentFrame((prevFrame) => {
+      // const nextFrame = prevFrame + 1;
+      const nextFrame = currentFrameRef.current + 1;
+      // currentFrameRef.current = nextFrame;
 
       if (nextFrame >= totalFrames) {
         if (!animate.dataSaved) {
@@ -293,12 +331,14 @@ const animate = (timestamp) => {
           }, 500);
         }
 
-        return prevFrame;
+        // return prevFrame;
+        return;
       }
-
+      currentFrameRef.current = nextFrame;
+      setCurrentFrame(nextFrame);
       renderFrame(nextFrame);
-      return nextFrame;
-    });
+      // return nextFrame;
+    // });
 
     animate.lastTimestamp = timestamp;
   }

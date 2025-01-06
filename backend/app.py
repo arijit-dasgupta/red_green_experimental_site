@@ -76,7 +76,7 @@ class Trial(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False)  # Reference the correct table
     trial_type = db.Column(db.String(20))  # 'ftrial' or 'trial'
-    trial_id = db.Column(db.Integer) #ftrial_i or trial_i
+    trial_index = db.Column(db.Integer) #ftrial_i or trial_i
     global_trial_name = db.Column(db.String(100), nullable=True) # This will be something like 'F2' or 'E1-1a, or 'E2B-3b'
     counterbalance = db.Column(db.Boolean, default=False)
     score = db.Column(db.Float, nullable=True)
@@ -362,10 +362,12 @@ def load_next_scene():
         return jsonify({"error": "Unexpected condition"}), 500
 
     trial_type = 'ftrial' if is_ftrial else 'trial'
-    trial_id = ftrial_i - 1 if is_ftrial else trial_i - 1
-    if (not transition_to_exp_page) or (not finish):
+    trial_index = ftrial_i - 1 if is_ftrial else trial_i - 1
+
+    
+    if (not transition_to_exp_page) and (not finish):
         counterbalance = random.choice([True, False])
-        trial = Trial(session_id=session.id, trial_type=trial_type, trial_id=trial_id, counterbalance=counterbalance)
+        trial = Trial(session_id=session.id, trial_type=trial_type, trial_index=trial_index, counterbalance=counterbalance)
         db.session.add(trial)
         db.session.commit()
         print(f"--- Load Next Scene Request ---")
@@ -375,6 +377,7 @@ def load_next_scene():
         else:
             print(f"Exp Trial Progress: {trial_i}/{config['num_trials']}")
         print(f"-------------------------------")
+
 
     # Update the configuration in the database
     config.update({
@@ -410,7 +413,7 @@ def load_next_scene():
         **npz_data,
         "worldWidth": 20,
         "worldHeight": 20,
-        "counterbalance": counterbalance,
+        "counterbalance": False if (transition_to_exp_page or finish) else counterbalance,
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,
         "ftrial_i": ftrial_i,
@@ -420,7 +423,7 @@ def load_next_scene():
         "fam_to_exp_page": transition_to_exp_page,
         "finish": finish,
         "average_score": avg_score,
-        "unique_trial_id": -1 if transition_to_exp_page else trial.id
+        "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id
     }
 
     return jsonify(scene_data)
@@ -565,7 +568,7 @@ def sessions():
         trials = Trial.query.filter_by(session_id=session.id, trial_type="trial", completed = True).all()
         ftrials = Trial.query.filter_by(session_id=session.id, trial_type="ftrial", completed = True).all()
         
-        trial_scores = [{"trial_id": t.trial_id, "score": t.score} for t in trials]
+        trial_scores = [{"trial_index": t.trial_index, "score": t.score} for t in trials]
 
         key_states = KeyState.query.join(Trial, KeyState.trial_id == Trial.id).filter(
             Trial.session_id == session.id,
@@ -628,7 +631,7 @@ def export_combined_csv():
                         "study_id": session.study_id,
                         "prolific_session_id": session.prolific_session_id,
                         "completed": session.completed,
-                        "trial_id": trial.trial_id,
+                        "trial_index": trial.trial_index,
                         "score": trial.score,
                         "red": red,
                         "green": green,

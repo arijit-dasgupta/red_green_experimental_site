@@ -129,7 +129,7 @@ def update_dashboard(n_intervals, selected_participant, selected_distribution):
             trial_scores_figure = {
                 "data": [
                     go.Scatter(
-                        x=trial_scores_df["trial_id"],
+                        x=trial_scores_df["trial_index"],
                         y=trial_scores_df["score"],
                         mode="lines+markers",
                         name="Trial Scores",
