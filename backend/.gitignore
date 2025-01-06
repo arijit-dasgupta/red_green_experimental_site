@@ -7,12 +7,11 @@ Thumbs.db
 __pycache__/
 env/
 venv/
-# instance/
 
 # Python-related ignores (Flask backend)
 *.env
 *.sqlite3
-*.db
+# *.db
 *.bak
 *.swp
 migrations/
@@ -29,7 +28,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-# build/
 dist/
 .env.local
 .env.development
