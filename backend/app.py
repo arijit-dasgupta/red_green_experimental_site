@@ -24,7 +24,7 @@ EXPERIMENT_RUN_VERSION = 'v0'
 TIMEOUT_PERIOD = timedelta(minutes=30)
 check_TIMEOUT_interval = timedelta(minutes=3)
 # check_TIMEOUT_interval = timedelta(minutes=10)
-NUM_PARTICIPANTS = 30
+NUM_PARTICIPANTS = 50
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
