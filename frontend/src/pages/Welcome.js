@@ -110,7 +110,6 @@ const WelcomePage = ({ setTrialInfo }) => {
           <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
             <li>Ensure that the <strong>Prolific PID</strong> displayed on the top left belongs to you. <span style={{ color: "#f00" }}>(If not, try refreshing this page.)</span></li>
             <li>You will be asked to <strong>press keys</strong> on the keyboard and <strong>click buttons</strong> on the screen.</li>
-            <li>If you feel uncomfortable, you can <strong>exit at any time</strong> by closing the window.</li>
             <li>This experiment will automatically  <u><strong>time-out after 30 minutes.</strong></u></li>
           </ul>
 
@@ -128,7 +127,9 @@ const WelcomePage = ({ setTrialInfo }) => {
             fontWeight: "bold",
             textAlign: "center"
           }}>
-            Click the button below to give your consent and begin the experiment.
+            If you don't feel comfortable, you can back out by
+            closing the window at any time. But if you're okay with all this,
+            click the button below to consent.
           </p>
         </div>
 

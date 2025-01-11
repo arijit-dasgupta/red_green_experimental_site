@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ScoringInstrucPage = ({ handleProceed }) => {
+const ScoringInstrucPage = ({ handleProceed, trialInfo}) => {
     return (
         <div
             style={{
@@ -42,8 +42,9 @@ const ScoringInstrucPage = ({ handleProceed }) => {
                         lineHeight: '1.6',
                     }}
                 >
-                    Great job on finishing your first familiarization trial! You would have noticed that you were given a score at the end of the trial. 
-                    Your score is a measure of how well you have performed on each trial, and <strong> it is based on how accurately and quickly you responded to the stimuli. The faster you hold down on the correct key, the better your score.</strong> 
+                    Great job on finishing your first familiarization trial! In this experiment, 
+                    you will be given a <b>score</b> for <strong> how accurately, quickly (and for how long) you responded to the stimuli. 
+                    The faster and longer you hold down on the correct key, the better your score.</strong> 
                 </p>
                 <p
                     style={{
@@ -67,8 +68,8 @@ const ScoringInstrucPage = ({ handleProceed }) => {
                 >
                     <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
                         Score = 20 + 100 × (
-                        <span style={{ color: 'green', fontWeight: 'bold' }}>Correct Percentage</span> - 
-                        <span style={{ color: 'red', fontWeight: 'bold' }}> Wrong Percentage</span>
+                        Correct Percentage - 
+                         Wrong Percentage
                         )
                     </p>
                 </div>
@@ -80,7 +81,11 @@ const ScoringInstrucPage = ({ handleProceed }) => {
                         lineHeight: '1.6',
                     }}
                 >
-                    A correct guess increases your score significantly, while a wrong guess reduces it. If you are uncertain, pressing a random button may lower your score as an incorrect guess incurs a penalty. However, making a correct guess will improve your score more than remaining uncertain.
+                    Holding down the <b>correct</b> guess for a longer duration increases your score, while holding down a <b>wrong</b> guess for a longer duration 
+                    reduces it. 
+                    Being uncertain for a longer duration will keep your score towards the middle (score = 20).
+                    If you are uncertain, holding down on a random button may lower your score as an incorrect guess incurs a penalty. 
+                    However, making a correct guess will improve your score more than remaining uncertain.
                 </p>
                 <p
                     style={{
@@ -90,7 +95,9 @@ const ScoringInstrucPage = ({ handleProceed }) => {
                         lineHeight: '1.6',
                     }}
                 >
-                    Your scores for the familiarization trial do not contribute to your final score of the experiment, but the main experiment scores will count.
+                    You will have <b>{trialInfo.num_ftrials-1}</b> more familiarization trials, to get used this scoring system.
+                    Your scores for the familiarization trial do not contribute to your final score of the experiment, 
+                    but the main experiment scores will count. Press the button below to continue.
                 </p>
                 <button
                     onClick={handleProceed}

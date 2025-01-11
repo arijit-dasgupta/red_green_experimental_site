@@ -20,12 +20,12 @@ const KeyStateLine = ({ recordedKeyStates }) => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginTop: '20px',
-                width: '80%',
+                width: '100%',
             }}
         >
             <div
                 style={{
-                    height: '20px',
+                    height: '40px',
                     width: '100%',
                     display: 'flex',
                     backgroundColor: '#e0e0e0',

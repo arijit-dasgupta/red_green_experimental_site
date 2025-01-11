@@ -74,6 +74,7 @@ const App = () => {
   });
 
   const renderFrame = (frameIndex) => {
+
     if (!sceneData || !canvasRef.current) {
         console.error("Scene data or canvas not available:", { sceneData, canvasRef });
         return;
@@ -98,42 +99,80 @@ const App = () => {
     ctx.scale(1, -1);
     ctx.translate(0, -canvas.height);
 
+
     try {
         const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
 
-        // Draw barriers
-        ctx.fillStyle = "black";
-        barriers.forEach(({ x, y, width, height }) => {
-            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        });
+        if (frameIndex !==0) { 
+          // Draw barriers
+          ctx.fillStyle = "black";
+          barriers.forEach(({ x, y, width, height }) => {
+              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+          });
 
-        // Draw sensors
-        if (red_sensor) {
-            ctx.fillStyle = "red";
-            const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
-            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+          // Draw sensors
+          if (red_sensor) {
+              ctx.fillStyle = "red";
+              const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
+              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+          }
+
+          if (green_sensor) {
+              ctx.fillStyle = "green";
+              const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
+              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+          }
+
+          // Draw target
+          if (step_data[frameIndex]) {
+              ctx.fillStyle = "blue";
+              const { x, y } = step_data[frameIndex];
+              ctx.beginPath();
+              ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
+              ctx.fill();
+          }
+
+          // Draw occluders
+          ctx.fillStyle = "gray";
+          occluders.forEach(({ x, y, width, height }) => {
+              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+          });
         }
 
-        if (green_sensor) {
-            ctx.fillStyle = "green";
-            const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
-            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+        if (frameIndex ===0) { 
+          if (countdown !== null) {
+            ctx.save();
+            ctx.scale(1, -1); // Flip for proper text rendering
+            ctx.translate(0, -canvas.height);
+        
+            const padding = 10; // Padding around the text
+            const fontSize = 48;
+            ctx.font = `${fontSize}px Helvetica`; // Adjust font size and style
+            const textWidth = ctx.measureText(countdown).width;
+            const textHeight = fontSize; // Approximate height of the text
+        
+            const textX = canvas.width / 2;
+            const textY = canvas.height / 2;
+        
+            // Draw background rectangle
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; // Semi-transparent white background
+            ctx.fillRect(
+              textX - textWidth / 2 - padding, // X position
+              textY - padding, // Y position
+              textWidth + padding * 2, // Width
+              textHeight + padding * 2 // Height
+            );
+            
+            // Draw text
+            ctx.fillStyle = "black"; // Text color
+            ctx.textAlign = "center"; // Center horizontally
+            ctx.textBaseline = "middle"; // Align to the top vertically
+            ctx.fillText(countdown, textX, textY); 
+        
+            ctx.restore();
         }
+      }
 
-        // Draw target
-        if (step_data[frameIndex]) {
-            ctx.fillStyle = "blue";
-            const { x, y } = step_data[frameIndex];
-            ctx.beginPath();
-            ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
-            ctx.fill();
-        }
-
-        // Draw occluders
-        ctx.fillStyle = "gray";
-        occluders.forEach(({ x, y, width, height }) => {
-            ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        });
     } catch (error) {
         console.error("Error rendering frame:", error);
     }
@@ -148,6 +187,12 @@ const App = () => {
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
   useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying); // Use the new hook
+  useEffect(() => {
+    if (countdown !== null) {
+      renderFrame(currentFrame);
+    }
+  }, [countdown, currentFrame]);
+  
 
  // Render current page based on state instead of routes
 const renderCurrentPage = () => {

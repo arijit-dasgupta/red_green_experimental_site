@@ -181,7 +181,8 @@ const InstructionPage3 = ({ handleNext, handleBack }) => (
     }}>
         <h1>Instructions (3/5)</h1>
         <p style={{ fontSize: "1.2rem" }}>Your goal in this experiment is to watch a video like the one below, and <b>continuously predict as fast as possible</b> (in real time as you watch the video)
-         whether the moving object will hit the <span style={{ color: "red" }}><strong> red </strong></span> region or the <span style={{ color: "green" }}><strong> green </strong></span> region first. There will always be 2 goals, <span style={{ color: "red" }}><strong> red </strong></span> and <span style={{ color: "green" }}><strong> green </strong></span>.</p>
+         whether the moving object will hit the <span style={{ color: "red" }}><strong> red </strong></span> region or the <span style={{ color: "green" }}><strong> green </strong></span> region first. 
+         The trial will end once the ball will hit one of the 2 regions, <span style={{ color: "red" }}><strong> red </strong></span> or <span style={{ color: "green" }}><strong> green </strong></span>.</p>
         <img src="/instruc3.gif" alt="Example 1" style={{ width: "100%", maxWidth: "400px", marginBottom: "0px" }} />
         <p style={{ fontSize: "1.2rem"}}>In this example, the ball hit the red region.</p>
         <InstrucNavigationButtons handleNext={handleNext} handleBack={handleBack} />
@@ -265,8 +266,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
             {renderEmptyKeyState(keyStates, canvasSize)}
         <p style={{ fontSize: "1.2rem" }}>
             It is okay for you to be uncertain at any point of the object's movement. It is also okay for you 
-            to change your mind during the course of a video. The experiment is design such that such moments
-            are expected.
+            to change your mind during the course of a video. Such moments may happen.
         </p>
         <InstrucNavigationButtons handleNext={handleNext} handleBack={handleBack} />
     </div>
@@ -289,7 +289,7 @@ const InstructionPage5 = ({ handleNext, handleBack, trialInfo }) => (
             You will now begin the <strong>familiarization trials</strong> to get used to the task (practice rounds). 
             These trials will help you understand the task before proceeding to the main experiment. 
         </p>
-        <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
+        {/* <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
             The familiarization phase consists of <strong>{trialInfo.num_ftrials}</strong> trials. 
             Afterward, you will complete <strong>{trialInfo.num_trials}</strong> trials for the main experiment.
         </p>
@@ -299,6 +299,9 @@ const InstructionPage5 = ({ handleNext, handleBack, trialInfo }) => (
         the higher you will score, <b>however</b> making the wrong decision leads to a penalty. 
         <strong> Remember to hold down on the key continuously when you decide on red or green, 
         even if you change your mind</strong>. 
+        </p> */}
+        <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
+            Remember to hold down <span style={{ color: "red" }}><strong> "F" for Red</strong></span> or <span style={{ color: "green" }}><strong>"J" for Green</strong></span> as the object motion happens in real-time.
         </p>
         <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
             Click the button below to begin the first familiarization trial.

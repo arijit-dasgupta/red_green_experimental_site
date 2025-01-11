@@ -103,7 +103,7 @@ const ExperimentPage = ({
     }, [fetchNextScene, finished, isTransitionPage, showScoringInstruc]);
     
     if (showScoringInstruc) {
-        return <ScoringInstrucPage handleProceed={handleProceed} />;
+        return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
     }
 
     if (isTransitionPage) {
@@ -118,7 +118,8 @@ const ExperimentPage = ({
 
     return (
         <div>
-            {countdown && (
+            {/* Countdown is handled directly in render frame now */}
+            {/* {countdown && (
                 <div style={{
                     position: "absolute",
                     top: "50%",
@@ -134,7 +135,7 @@ const ExperimentPage = ({
                 }}>
                     {countdown}
                 </div>
-            )}
+            )} */}
 
             <div style={{
                 position: "absolute",
@@ -153,7 +154,7 @@ const ExperimentPage = ({
                 </p>
             </div>
 
-            {finished && (
+            {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{
                     position: "absolute",
                     top: 0,
@@ -248,6 +249,37 @@ const ExperimentPage = ({
                     </div>
                 </div>
             )}
+            
+            {/* Only after the first trial ends */}
+            {finished && (trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
+               <div style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                backgroundColor: "rgba(255, 255, 255, 0.8)",
+                backdropFilter: "blur(5px)",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                alignItems: "center",
+                zIndex: 20,
+            }}>
+
+                <div>
+                    <p style={{
+                        fontSize: "1.2rem",
+                        fontWeight: "bold",
+                        color: "#555",
+                        marginTop: "10px",
+                        textAlign: "center"
+                    }}>
+                    Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             <div style={{
                 display: "flex",
@@ -293,13 +325,14 @@ const ExperimentPage = ({
                     flexDirection: "column",
                     alignItems: "center",
                     position: "relative",
-                    width: `${canvasSize.width * 0.3}px`,
+                    width: "30vw",
                     minWidth: "200px",
+                    marginTop: "20vh",
                 }}>
                     {/* Key State Indicators */}
                     <div style={{
                         display: "flex",
-                        gap: `${canvasSize.width * 0.02}px`,
+                        gap: `${canvasSize.width * 0.1}px`,
                         padding: `${canvasSize.width * 0.02}px`,
                         border: "1px solid #ddd",
                         borderRadius: "8px",
@@ -308,7 +341,7 @@ const ExperimentPage = ({
                         justifyContent: "center",
                     }}>
                         <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <p style={{ margin: 0, fontWeight: "bold" }}>F</p>
+                            <h2 style={{ margin: 0, fontWeight: "bold" }}>F</h2>
                             <div style={{
                                 width: `${canvasSize.width * 0.04}px`,
                                 height: `${canvasSize.width * 0.04}px`,
@@ -317,7 +350,7 @@ const ExperimentPage = ({
                             }} />
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <p style={{ margin: 0, fontWeight: "bold" }}>J</p>
+                            <h2 style={{ margin: 0, fontWeight: "bold" }}>J</h2>
                             <div style={{
                                 width: `${canvasSize.width * 0.04}px`,
                                 height: `${canvasSize.width * 0.04}px`,
@@ -343,11 +376,11 @@ const ExperimentPage = ({
 
                     {/* Add a Spacer to Separate the KeyStateLine */}
                     <div style={{
-                        marginTop: `${canvasSize.height * 0.5}px`, // Add space between renderKeyState and KeyStateLine
+                        marginTop: `${canvasSize.height * 0.3}px`, // Add space between renderKeyState and KeyStateLine
                         width: "100%",
                     }}>
                         {/* Render KeyStateLine */}
-                        <p>Current Frame: <strong>{currentFrame}</strong></p>
+                        {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
                         <p>Proportions so far ↓</p>
                         <KeyStateLine recordedKeyStates={recordedKeyStates} />
                     </div>

@@ -18,13 +18,13 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DATASET_NAME = 'pre_pilot'
+DATASET_NAME = 'pilot'
 EXPERIMENT_RUN_VERSION = 'v0'
 # TIMEOUT_PERIOD = timedelta(hours=2)
 TIMEOUT_PERIOD = timedelta(minutes=30)
 check_TIMEOUT_interval = timedelta(minutes=3)
 # check_TIMEOUT_interval = timedelta(minutes=10)
-NUM_PARTICIPANTS = 10
+NUM_PARTICIPANTS = 30
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,7 +151,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         # Build file paths
         f_paths = [os.path.join(os.path.join(directory_path, entry), 'data.npz') for entry in participants_f_assignments]
         e_paths = [os.path.join(os.path.join(directory_path, entry), 'data.npz') for entry in participants_e_assignments[randomized_profile_id]]
-        
+        # ONLY USING F1 to F3 (after Kevin's advice)
         return f_paths, e_paths, participants_e_assignments[randomized_profile_id]
 
     except (FileNotFoundError, PermissionError) as e:
@@ -381,7 +381,8 @@ def load_next_scene():
     
     if (not transition_to_exp_page) and (not finish):
         counterbalance = random.choice([True, False])
-        trial = Trial(session_id=session.id, trial_type=trial_type, trial_index=trial_index, counterbalance=counterbalance)
+        trial = Trial(session_id=session.id, trial_type=trial_type, trial_index=trial_index, counterbalance=counterbalance,
+                      global_trial_name = session.randomized_trial_order[trial_index])
         db.session.add(trial)
         db.session.commit()
         print(f"--- Load Next Scene Request ---")
@@ -469,9 +470,13 @@ def save_data():
             return jsonify({"error": "No key state data provided"}), 406
         num_red = num_green = 0
 
+        counterbalance = request.json.get('counterbalance', False)
+        
         for entry in data:
             f_pressed = entry['keys']['f']
             j_pressed = entry['keys']['j']
+            if counterbalance:
+                f_pressed, j_pressed = j_pressed, f_pressed
             key_state = KeyState(trial_id=trial.id, frame=entry['frame'], f_pressed=f_pressed, j_pressed=j_pressed)
             db.session.add(key_state)
 
@@ -480,9 +485,8 @@ def save_data():
             elif j_pressed and not f_pressed:
                 num_green += 1
 
-        counterbalance = request.json.get('counterbalance', False)
-        if counterbalance:
-            num_red, num_green = num_green, num_red
+        # if counterbalance:
+        #     num_red, num_green = num_green, num_red
 
         # Retrieve the experiment configuration from the database
         config_entry = db.session.query(Config).filter_by(session_id=session_id).first()
