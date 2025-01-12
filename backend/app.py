@@ -18,7 +18,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DATASET_NAME = 'pilot'
+DATASET_NAME = 'pilot2'
 EXPERIMENT_RUN_VERSION = 'v0'
 # TIMEOUT_PERIOD = timedelta(hours=2)
 TIMEOUT_PERIOD = timedelta(minutes=30)
@@ -104,10 +104,30 @@ class KeyState(db.Model):
     f_pressed = db.Column(db.Boolean)
     j_pressed = db.Column(db.Boolean)
 
+def print_active_sessions():
+    current_time = datetime.utcnow()
+    active_profile_ids = db.session.query(REDGREEN_Session.randomized_profile_id).filter(
+        or_(
+            REDGREEN_Session.completed == True,
+            and_( # Check if any session has timed out (even if it is not explicitly marked -- because the user may have just closed it)
+                REDGREEN_Session.completed == False,
+                REDGREEN_Session.start_time > current_time - TIMEOUT_PERIOD
+            )
+        )
+    ).all()
+    active_profile_ids = list(set([active_profile_id[0] for active_profile_id in active_profile_ids])) 
+    remaining_ids = [i for i in range(NUM_PARTICIPANTS) if i not in active_profile_ids]
+
+    print("=== Remaining Sessions ===")
+    print(f"Remaining Randomized Profile IDs: {remaining_ids}")
+    print("========================")
+    print(app.config['SQLALCHEMY_DATABASE_URI'])
+
 # Initialize the database
 with app.app_context():
     db.create_all()
     print("Database initialized.")
+    print_active_sessions()
 
 def get_all_trial_paths(directory_path, randomized_profile_id):
     try:
@@ -116,9 +136,9 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         random_ = random.Random(314159)  # Set consistent local random object
 
         # Separate F and E folders
-        participants_f_assignments = [entry for entry in entries if entry.startswith('F')]
+        participants_f_assignments = [entry for entry in entries if entry.startswith('F--')] # TODO: CHANGE
         participants_f_assignments.sort()
-        e_folders = [entry for entry in entries if entry.startswith('E')]
+        e_folders = [entry for entry in entries if entry.startswith('E5')] # TODO: CHANGE
 
         # Split E folders into 'a' and 'b' versions
         e_a_folders = [folder for folder in e_folders if folder.endswith('a')]
@@ -183,8 +203,8 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     def parse_npz(file_path):
         data = np.load(file_path, allow_pickle=True)
         return {
-            "barriers": data.get("barriers", []).tolist(),
-            "occluders": data.get("occluders", []).tolist(),
+            "barriers": [{key: round(value, 2) for key, value in item.items()} for item in data.get("barriers", []).tolist()],
+            "occluders": [{key: round(value, 2) for key, value in item.items()} for item in data.get("occluders", []).tolist()],
             "step_data": {int(k): {'x': v['x'], 'y': v['y']} for k, v in data.get("step_data", {}).item().items()},
             "red_sensor": data.get("red_sensor", {}).item(),
             "green_sensor": data.get("green_sensor", {}).item(),
@@ -381,8 +401,12 @@ def load_next_scene():
     
     if (not transition_to_exp_page) and (not finish):
         counterbalance = random.choice([True, False])
+        if is_trial:
+            global_trial_name = session.randomized_trial_order[trial_index]
+        else:
+            global_trial_name = f"F{trial_index+1}"
         trial = Trial(session_id=session.id, trial_type=trial_type, trial_index=trial_index, counterbalance=counterbalance,
-                      global_trial_name = session.randomized_trial_order[trial_index])
+                      global_trial_name = global_trial_name)
         db.session.add(trial)
         db.session.commit()
         print(f"--- Load Next Scene Request ---")

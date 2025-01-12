@@ -68,9 +68,14 @@ const App = () => {
   const currentFrameRef = useRef(0);
   const keyStatesRef = useRef({ f: false, j: false });
   
+  // const [canvasSize, setCanvasSize] = useState({
+  //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
+  //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
+  // });
+
   const [canvasSize, setCanvasSize] = useState({
-    width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
-    height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
+    width: 400,
+    height: 400,
   });
 
   const renderFrame = (frameIndex) => {
@@ -92,8 +97,13 @@ const App = () => {
         canvas.height / sceneData.worldHeight
     );
 
-    // console.log("Rendering frame:", frameIndex, "Scale:", scale);
+    // const scale = 20;
 
+    console.log("Rendering frame:", frameIndex, "Scale:", scale);
+    console.log("Canvas size:", canvas.width, canvas.height);
+    console.log("window size:", window.innerWidth, window.innerHeight);
+
+    // ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(1, -1);
@@ -186,7 +196,7 @@ const App = () => {
   useUpdateKeyStates(keyStates, setKeyStates);
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
-  useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying); // Use the new hook
+  // useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying); // Use the new hook
   useEffect(() => {
     if (countdown !== null) {
       renderFrame(currentFrame);
@@ -292,11 +302,11 @@ const renderCurrentPage = () => {
   
       const worldWidth = data.worldWidth || 20;
       const worldHeight = data.worldHeight || 20;
-      const newCanvasSize = {
-        width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldWidth) * worldWidth,
-        height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldHeight) * worldHeight,
-      };
-      setCanvasSize(newCanvasSize);
+      // const newCanvasSize = {
+      //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldWidth) * worldWidth,
+      //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldHeight) * worldHeight,
+      // };
+      // setCanvasSize(newCanvasSize);
 
       if (isPlaying) {
         renderFrame(0);
