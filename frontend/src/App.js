@@ -73,6 +73,7 @@ const App = () => {
   //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
   // });
 
+  // NOTE: TODO: CONDITIONAL WINDOW SIZE
   const [canvasSize, setCanvasSize] = useState({
     width: 400,
     height: 400,

@@ -209,7 +209,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
         </p>
         <p style={{ fontSize: "1.2rem" }}>
             To test this. <i><b>Try holding down either one of the buttons right now to see how they are registered</b></i>. You should see the 
-            response appear on your screen. Try holding down both at the same time, you should see the response disappear.
+            response appear on your screen in the form or a red or green box. Try holding down both at the same time, you should see the response disappear.
         </p>
         <div style={{justifyContent: "center", display: "flex", gap: "20px"}}>
         <div style={{
@@ -265,8 +265,12 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
             {renderKeyState("j", "green", keyStates, canvasSize)}
             {renderEmptyKeyState(keyStates, canvasSize)}
         <p style={{ fontSize: "1.2rem" }}>
-            It is okay for you to be uncertain at any point of the object's movement. It is also okay for you 
-            to change your mind during the course of a video. Such moments may happen.
+            <b>If you DO NOT see a <span style={{ color: "red" }}> red </span> or <span style={{ color: "green" }}> green </span> box</b>, then your 'f' and 'j' keys are not being registered. In this case (very unlikely), we kindly request for 
+            you to return the study as no data will be logged otherwise, and let us know via message immediately. Thank you.
+        </p>
+        <p style={{ fontSize: "1.2rem" }}>
+            It is okay for you to be uncertain at any point of the object's movement. It is also 
+            okay for you to change your mind during the course of a video. Such moments may happen.
         </p>
         <InstrucNavigationButtons handleNext={handleNext} handleBack={handleBack} />
     </div>

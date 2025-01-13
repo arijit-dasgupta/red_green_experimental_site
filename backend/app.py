@@ -19,9 +19,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 DATASET_NAME = 'pilot2'
-EXPERIMENT_RUN_VERSION = 'v0'
+EXPERIMENT_RUN_VERSION = 'debug'
 # TIMEOUT_PERIOD = timedelta(hours=2)
-TIMEOUT_PERIOD = timedelta(minutes=30)
+TIMEOUT_PERIOD = timedelta(minutes=35)
 check_TIMEOUT_interval = timedelta(minutes=3)
 # check_TIMEOUT_interval = timedelta(minutes=10)
 NUM_PARTICIPANTS = 50
@@ -71,17 +71,18 @@ class REDGREEN_Session(db.Model):
     __tablename__ = 'redgreen_session'
     id = db.Column(db.Integer, primary_key=True)
     randomized_profile_id = db.Column(db.Integer)
-    randomized_trial_order = db.Column(JSON)
-    experiment_name = db.Column(db.String(100))
-    has_timed_out = db.Column(db.Boolean, default=False)  # New field for timeout status
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     prolific_pid = db.Column(db.String(100))  # Prolific Participant ID
+    average_score = db.Column(db.Float, nullable=True)
+    time_taken = db.Column(db.Float, nullable=True)
+    randomized_trial_order = db.Column(JSON)
     study_id = db.Column(db.String(100))  # Prolific Study ID
     prolific_session_id = db.Column(db.String(100))  # Prolific Session ID
+    ignore_data = db.Column(db.Boolean, default=False)  # New field for completion status
     completed = db.Column(db.Boolean, default=False)  # New field for completion status
+    has_timed_out = db.Column(db.Boolean, default=False)  # New field for timeout status
     end_time = db.Column(db.DateTime, nullable=True)
-    time_taken = db.Column(db.Float, nullable=True)
-    average_score = db.Column(db.Float, nullable=True)
+    experiment_name = db.Column(db.String(100))
 
 class Trial(db.Model):
     __tablename__ = 'trial'  # Explicitly define the table name
@@ -103,15 +104,19 @@ class KeyState(db.Model):
     frame = db.Column(db.Integer)
     f_pressed = db.Column(db.Boolean)
     j_pressed = db.Column(db.Boolean)
+    session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False)  # Reference the correct table
 
 def print_active_sessions():
     current_time = datetime.utcnow()
     active_profile_ids = db.session.query(REDGREEN_Session.randomized_profile_id).filter(
         or_(
-            REDGREEN_Session.completed == True,
-            and_( # Check if any session has timed out (even if it is not explicitly marked -- because the user may have just closed it)
-                REDGREEN_Session.completed == False,
-                REDGREEN_Session.start_time > current_time - TIMEOUT_PERIOD
+            REDGREEN_Session.ignore_data == True,
+            or_(
+                REDGREEN_Session.completed == True,
+                and_( # Check if any session has timed out (even if it is not explicitly marked -- because the user may have just closed it)
+                    REDGREEN_Session.completed == False,
+                    REDGREEN_Session.start_time > current_time - TIMEOUT_PERIOD
+                )
             )
         )
     ).all()
@@ -136,9 +141,9 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         random_ = random.Random(314159)  # Set consistent local random object
 
         # Separate F and E folders
-        participants_f_assignments = [entry for entry in entries if entry.startswith('F--')] # TODO: CHANGE
+        participants_f_assignments = [entry for entry in entries if entry.startswith('F')] # TODO: CHANGE
         participants_f_assignments.sort()
-        e_folders = [entry for entry in entries if entry.startswith('E5')] # TODO: CHANGE
+        e_folders = [entry for entry in entries if entry.startswith('E')] # TODO: CHANGE
 
         # Split E folders into 'a' and 'b' versions
         e_a_folders = [folder for folder in e_folders if folder.endswith('a')]
@@ -230,10 +235,13 @@ def start_experiment(experiment_name):
     # find all active sessions and assignm the next randomized_profile_id accordingly
     active_profile_ids = db.session.query(REDGREEN_Session.randomized_profile_id).filter(
         or_(
-            REDGREEN_Session.completed == True,
-            and_( # Check if any session has timed out (even if it is not explicitly marked -- because the user may have just closed it)
-                REDGREEN_Session.completed == False,
-                REDGREEN_Session.start_time > current_time - TIMEOUT_PERIOD
+            REDGREEN_Session.ignore_data == True,
+            or_(
+                REDGREEN_Session.completed == True,
+                and_( # Check if any session has timed out (even if it is not explicitly marked -- because the user may have just closed it)
+                    REDGREEN_Session.completed == False,
+                    REDGREEN_Session.start_time > current_time - TIMEOUT_PERIOD
+                )
             )
         )
     ).all()
@@ -501,7 +509,7 @@ def save_data():
             j_pressed = entry['keys']['j']
             if counterbalance:
                 f_pressed, j_pressed = j_pressed, f_pressed
-            key_state = KeyState(trial_id=trial.id, frame=entry['frame'], f_pressed=f_pressed, j_pressed=j_pressed)
+            key_state = KeyState(trial_id=trial.id, frame=entry['frame'], f_pressed=f_pressed, j_pressed=j_pressed, session_id=session_id)
             db.session.add(key_state)
 
             if f_pressed and not j_pressed:
