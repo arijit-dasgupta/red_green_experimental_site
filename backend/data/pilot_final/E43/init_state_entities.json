@@ -1,0 +1,112 @@
+[
+    {
+        "id": 1737763160858,
+        "type": "barrier",
+        "x": 4,
+        "y": 3.5999999999999983,
+        "width": 1.5,
+        "height": 7.6000000000000005,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737763167039,
+        "type": "occluder",
+        "x": 5.5,
+        "y": 4,
+        "width": 8.5,
+        "height": 14.200000000000001,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737763174847,
+        "type": "green_sensor",
+        "x": 1,
+        "y": 12.200000000000001,
+        "width": 3.8000000000000003,
+        "height": 6,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737763197024,
+        "type": "red_sensor",
+        "x": 17.599999999999998,
+        "y": 1.4999999999999982,
+        "width": 1.6,
+        "height": 17.6,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737763205080,
+        "type": "barrier",
+        "x": 4.7,
+        "y": 1,
+        "width": 5,
+        "height": 2.6,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737763214899,
+        "type": "target",
+        "x": 14.7,
+        "y": 0.8999999999999986,
+        "width": 1,
+        "height": 1,
+        "direction": 2.324573960031856,
+        "speed": 1
+    },
+    {
+        "id": 1737775720396,
+        "type": "barrier",
+        "x": 16.299999999999997,
+        "y": 0.3000000000000007,
+        "width": 2.7,
+        "height": 1,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737775792891,
+        "type": "occluder",
+        "x": 10.5,
+        "y": 2.5,
+        "width": 5.9,
+        "height": 1.5,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737775934764,
+        "type": "barrier",
+        "x": 4.6000000000000005,
+        "y": 18.8,
+        "width": 12.200000000000001,
+        "height": 0.9,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737775947655,
+        "type": "barrier",
+        "x": 2,
+        "y": 1.5,
+        "width": 1.2000000000000002,
+        "height": 2.2,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737788144736,
+        "type": "barrier",
+        "x": 0.6000000000000001,
+        "y": 8.1,
+        "width": 2.2,
+        "height": 3.6,
+        "direction": 0,
+        "speed": 1
+    }
+]

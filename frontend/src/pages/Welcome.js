@@ -110,7 +110,7 @@ const WelcomePage = ({ setTrialInfo }) => {
           <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
             <li>Ensure that the <strong>Prolific PID</strong> displayed on the top left belongs to you. <span style={{ color: "#f00" }}>(If not, try refreshing this page.)</span></li>
             <li>You will be asked to <strong>press keys</strong> on the keyboard and <strong>click buttons</strong> on the screen.</li>
-            <li>This experiment will automatically  <u><strong>time-out after 35 minutes.</strong></u></li>
+            <li>This experiment will automatically  <u><strong>time-out after 45 minutes.</strong></u></li>
           </ul>
 
           <p><strong>Important:</strong></p>

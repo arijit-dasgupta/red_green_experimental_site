@@ -1,0 +1,82 @@
+[
+    {
+        "id": 1736184547812,
+        "type": "barrier",
+        "x": 3.2,
+        "y": 2.7,
+        "width": 2.2,
+        "height": 7.300000000000001,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1736184558056,
+        "type": "red_sensor",
+        "x": 18.8,
+        "y": 3.9000000000000004,
+        "width": 0.9,
+        "height": 15.8,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1736184565688,
+        "type": "green_sensor",
+        "x": 1.8,
+        "y": 9.8,
+        "width": 0.8,
+        "height": 9.600000000000001,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1736184572365,
+        "type": "target",
+        "x": 16.8,
+        "y": 1,
+        "width": 1,
+        "height": 1,
+        "direction": 2.498870471933011,
+        "speed": 1
+    },
+    {
+        "id": 1736658023585,
+        "type": "occluder",
+        "x": 5.4,
+        "y": 3.7,
+        "width": 11.4,
+        "height": 12,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737768009994,
+        "type": "barrier",
+        "x": 3.7,
+        "y": 1.7000000000000002,
+        "width": 10.200000000000001,
+        "height": 1,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737768019184,
+        "type": "barrier",
+        "x": 4.6000000000000005,
+        "y": 17.5,
+        "width": 11.700000000000001,
+        "height": 2,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737768032054,
+        "type": "occluder",
+        "x": 16.8,
+        "y": 7.5,
+        "width": 1.1,
+        "height": 2.4000000000000004,
+        "direction": 0,
+        "speed": 1
+    }
+]

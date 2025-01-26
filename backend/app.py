@@ -18,18 +18,19 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DATASET_NAME = 'pilot2'
+DATASET_NAME = 'pilot_final'
 EXPERIMENT_RUN_VERSION = 'debug'
 # TIMEOUT_PERIOD = timedelta(hours=2)
-TIMEOUT_PERIOD = timedelta(minutes=35)
-check_TIMEOUT_interval = timedelta(minutes=3)
+TIMEOUT_PERIOD = timedelta(minutes=45)
+check_TIMEOUT_interval = timedelta(minutes=5)
 # check_TIMEOUT_interval = timedelta(minutes=10)
-NUM_PARTICIPANTS = 50
+NUM_PARTICIPANTS = 30
+PARTICIPANT_BUFFER = 15
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-assert NUM_PARTICIPANTS %2 == 0, "NUM_PARTICIPANTS must be even"
+# assert NUM_PARTICIPANTS %2 == 0, "NUM_PARTICIPANTS must be even"
 REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/build"))
 
 app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
@@ -121,7 +122,7 @@ def print_active_sessions():
         )
     ).all()
     active_profile_ids = list(set([active_profile_id[0] for active_profile_id in active_profile_ids])) 
-    remaining_ids = [i for i in range(NUM_PARTICIPANTS) if i not in active_profile_ids]
+    remaining_ids = [i for i in range(NUM_PARTICIPANTS + PARTICIPANT_BUFFER) if i not in active_profile_ids]
 
     print("=== Remaining Sessions ===")
     print(f"Remaining Randomized Profile IDs: {remaining_ids}")
@@ -144,34 +145,22 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         participants_f_assignments = [entry for entry in entries if entry.startswith('F')] # TODO: CHANGE
         participants_f_assignments.sort()
         e_folders = [entry for entry in entries if entry.startswith('E')] # TODO: CHANGE
-
-        # Split E folders into 'a' and 'b' versions
-        e_a_folders = [folder for folder in e_folders if folder.endswith('a')]
-        e_b_folders = [folder for folder in e_folders if folder.endswith('b')]
-
-        # Ensure the number of participants is even
-        if NUM_PARTICIPANTS % 2 != 0:
-            raise ValueError("NUM_PARTICIPANTS must be an even number.")
-
-        # Ensure every `a` version has a corresponding `b` version
-        paired_folders = []
-        for folder_a in e_a_folders:
-            base_name = folder_a[:-1]  # Remove the 'a'
-            corresponding_b = f"{base_name}b"
-            if corresponding_b in e_b_folders:
-                paired_folders.append((folder_a, corresponding_b))
-
-        # Randomly assign 'a' or 'b' versions evenly across participants
-        participants_e_assignments = {i: [] for i in range(NUM_PARTICIPANTS)}
-        for pair in paired_folders:
-            assigned_versions = NUM_PARTICIPANTS//2 * [0] + NUM_PARTICIPANTS//2 * [1]
-            random_.shuffle(assigned_versions)
-            for i in range(NUM_PARTICIPANTS):
-                participants_e_assignments[i].append(pair[assigned_versions[i]])
-
+        participants_e_assignments = [e_folders for _ in range(NUM_PARTICIPANTS + PARTICIPANT_BUFFER)]
         # Shuffle the assigned trial order for variability
-        for i in range(NUM_PARTICIPANTS):
-            random_.shuffle(participants_e_assignments[i])
+        for i in range(NUM_PARTICIPANTS + PARTICIPANT_BUFFER):
+            e_assignment = participants_e_assignments[i]
+            randomizer_cond = True
+            counter = 0
+            while randomizer_cond:
+                random_.shuffle(e_assignment)
+                intters = [int(e_assignment[i][1:]) for i in range(len(e_assignment))]
+                randomizer_list = [((intters[i]+1 != intters[i+1]) and (intters[i] %2 == 1)) or (intters[i]-1 != intters[i+1] and (intters[i] %2 ==0)) for i in range(len(intters)-1)]
+                randomizer_cond = not all(randomizer_list)
+                counter += 1
+                if counter > 200:
+                    break
+            print(f"Participant {i} took {counter} iterations to randomize")
+            participants_e_assignments[i] = e_assignment
 
         # Build file paths
         f_paths = [os.path.join(os.path.join(directory_path, entry), 'data.npz') for entry in participants_f_assignments]
@@ -247,8 +236,8 @@ def start_experiment(experiment_name):
     ).all()
     active_profile_ids = list(set([active_profile_id[0] for active_profile_id in active_profile_ids])) # unwrap out of list
     randomized_profile_id = min(
-        [i for i in range(NUM_PARTICIPANTS) if i not in active_profile_ids],
-        default = NUM_PARTICIPANTS
+        [i for i in range(NUM_PARTICIPANTS + PARTICIPANT_BUFFER) if i not in active_profile_ids],
+        default = NUM_PARTICIPANTS + PARTICIPANT_BUFFER
     )
     
     # Check if the prolific_pid already exists in the database
@@ -259,7 +248,7 @@ def start_experiment(experiment_name):
                 "error": "duplicate_pid",
                 "message": "Oops! According to our records, it seems you have already done this experiment or had started an incomplete session. We apologise, as you may not be allowed to attempt the experiment. If you think this is a mistake, please reach out on Prolific."
             }), 403
-    if randomized_profile_id >= NUM_PARTICIPANTS:
+    if randomized_profile_id >= NUM_PARTICIPANTS + PARTICIPANT_BUFFER:
         return jsonify({
             "error": "max_participants_reached",
             "message": "Oops! It seems the maximum number of participants have already started the experiment. We apologise, as you may not be allowed to attempt the experiment. If you think this is a mistake, please reach out on Prolific."
