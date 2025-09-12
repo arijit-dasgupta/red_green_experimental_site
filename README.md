@@ -1,4 +1,9 @@
-# Code to run the Red-Green Experiment on Humans
+# Code to run the Red-Green Experiment Locally
+
+Requirements:
+- Desktop/Laptop
+- Conda
+- Git
 
 Step 1: First clone the repo
 ```bash
@@ -7,7 +12,7 @@ git clone ...
 
 Then install the python requirements in conda
 
-```python
+```bash
 conda create -n redgreen_exp python=3.11
 conda activate redgreen_exp
 pip install -r requirements.txt
