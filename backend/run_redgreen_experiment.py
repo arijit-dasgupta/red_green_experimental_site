@@ -82,9 +82,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 #=============================================================================
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
-PATH_TO_DATA_FOLDER = 'trial_data'  # Root folder containing all trial datasets
+PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
 DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-EXPERIMENT_RUN_VERSION = 'v0'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'debug_mode'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
 NUM_PARTICIPANTS = 60  # Target number of participants to recruit
@@ -250,7 +250,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
     Generate file paths for familiarization and experimental trials for a given participant.
     
     Args:
-        directory_path: Path to the dataset folder containing trial subdirectories
+        directory_path: Relative path to the dataset folder containing trial subdirectories (relative to this Python file)
         randomized_profile_id: Unique ID determining this participant's trial assignment
     
     Returns:
@@ -265,8 +265,12 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
     - Randomization avoids consecutive trials of the same type where possible
     """
     try:
+        # Convert relative path to absolute path based on this Python file's location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        absolute_directory_path = os.path.join(script_dir, directory_path)
+        
         # Get all trial folders in the dataset directory
-        entries = os.listdir(directory_path)
+        entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
         # Separate familiarization (F) and experimental (E) trial folders
@@ -307,15 +311,15 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
             participants_e_assignments[i] = e_assignment
 
         # Build full file paths to data.npz files in each trial folder
-        f_paths = [os.path.join(os.path.join(directory_path, entry), 'data.npz') 
+        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
                   for entry in participants_f_assignments]
-        e_paths = [os.path.join(os.path.join(directory_path, entry), 'data.npz') 
+        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
                   for entry in participants_e_assignments[randomized_profile_id]]
         
         return f_paths, e_paths, participants_e_assignments[randomized_profile_id]
 
     except (FileNotFoundError, PermissionError) as e:
-        print(f"Error accessing {directory_path}: {e}")
+        print(f"Error accessing {absolute_directory_path}: {e}")
         return [], [], []
 
 #=============================================================================
@@ -589,6 +593,10 @@ def load_next_scene():
     fscores = config['fscores']
     tscores = config['tscores']
     transition_to_exp_page = config['transition_to_exp_page']
+
+    print(f"trial_i: {trial_i}, ftrial_i: {ftrial_i}, is_ftrial: {is_ftrial}, is_trial: {is_trial}, transition_to_exp_page: {transition_to_exp_page}")
+
+    print(f"num_ftrials: {config['num_ftrials']}, num_trials: {config['num_trials']}")
 
     # Ensure indices don't exceed available scores (handles edge cases)
     if len(fscores) < ftrial_i:
