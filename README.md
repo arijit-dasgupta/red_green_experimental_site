@@ -5,9 +5,9 @@ Requirements:
 - Conda
 - Git
 
-Step 1: First clone the repo
+Step 1: First clone the repo (use https cloning if no ssh key)
 ```bash
-git clone ...
+git clone git@github.com:arijit-dasgupta/red_green_experimental_site.git
 ```
 
 Then install the python requirements in conda
