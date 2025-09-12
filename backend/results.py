@@ -327,10 +327,14 @@ def extract_occlusion_data(path_to_data, participant_FPS=30):
                 T, M, N, _ = video_data.shape
                 all_periods_seconds[trial_name] = T/participant_FPS
 
-                # Find occluded frames (where there are no blue pixels)
+                num_blue_pixels = [
+                    np.sum(np.logical_and(np.logical_and(video_data[t,...,2]>200 , video_data[t,...,0]<50), video_data[t,...,1]<50)) for t in range(T)
+                ]
+
+                # Find occluded/occluding frames
                 occluded_frames = [
                     t for t in range(T) 
-                    if not np.any(np.logical_and(np.logical_and(video_data[t,...,2]>200 , video_data[t,...,0]<50), video_data[t,...,1]<50))
+                    if num_blue_pixels[t] < 1900  # Threshold for occluding
                 ]
                 
                 # Calculate duration of occlusion in seconds

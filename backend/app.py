@@ -3,6 +3,7 @@ from flask_cors import CORS
 import numpy as np
 from datetime import datetime, timedelta
 import os
+import copy
 import random
 import pandas as pd
 from flask_sqlalchemy import SQLAlchemy
@@ -19,12 +20,12 @@ from apscheduler.triggers.interval import IntervalTrigger
 #NOTE: ONLY HAVE TO DEFINE THESE VARIABLES
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 DATASET_NAME = 'pilot_final'
-EXPERIMENT_RUN_VERSION = 'debug'
+EXPERIMENT_RUN_VERSION = 'v0'
 # TIMEOUT_PERIOD = timedelta(hours=2)
 TIMEOUT_PERIOD = timedelta(minutes=45)
 check_TIMEOUT_interval = timedelta(minutes=5)
 # check_TIMEOUT_interval = timedelta(minutes=10)
-NUM_PARTICIPANTS = 30
+NUM_PARTICIPANTS = 60
 PARTICIPANT_BUFFER = 15
 # TIMEOUT_PERIOD = timedelta(minutes = 0, seconds=30)
 # check_TIMEOUT_interval = timedelta(seconds=10)
@@ -159,7 +160,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
                 counter += 1
                 if counter > 200:
                     break
-            print(f"Participant {i} took {counter} iterations to randomize")
+            # print(f"Participant {i} took {counter} iterations to randomize")
             participants_e_assignments[i] = e_assignment
 
         # Build file paths
