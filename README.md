@@ -34,7 +34,7 @@ Step 2: Install Node.js and npm (if not already installed)
 - Update your package index: `sudo apt update`
 - Install Node.js and npm: `sudo apt install nodejs npm`
 
-Step 3: Build the frontend
+Step 3: Build the frontend (ignore the barrage of deprecation warnings)
 
 ```bash
 npm --prefix frontend install
@@ -46,6 +46,7 @@ Step 4: Run the experiment and go to the localhost link shown in the terminal (d
 ```bash
 python backend/run_redgreen_experiment.py
 ```
+The data will be automatically saved in a SQLite database `.db` in a folder named `instance` from the folder where the experiment python file is run (in the example above, it will be in the root folder).
 
 ## Notes on running experiment (from Arijit)
 
