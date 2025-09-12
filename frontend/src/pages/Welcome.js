@@ -5,7 +5,7 @@ import { useNavigation } from '../contexts/NavigationContext';
 const parseUrlParams = () => {
   const queryParams = new URLSearchParams(window.location.search);
   return {
-      prolific_pid: queryParams.get("PROLIFIC_PID") || "debug_pid",
+      prolific_pid: queryParams.get("PROLIFIC_PID") || "default_pid",
       study_id: queryParams.get("STUDY_ID") || "debug_study",
       prolific_session_id: queryParams.get("SESSION_ID") || "debug_session",
   };

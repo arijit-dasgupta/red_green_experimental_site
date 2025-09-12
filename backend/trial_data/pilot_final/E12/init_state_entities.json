@@ -1,0 +1,102 @@
+[
+    {
+        "id": 1737764757366,
+        "type": "target",
+        "x": 7.5,
+        "y": 18.1,
+        "width": 1,
+        "height": 1,
+        "direction": -1.0691523059583297,
+        "speed": 1
+    },
+    {
+        "id": 1737764762578,
+        "type": "barrier",
+        "x": 10.9,
+        "y": 6.300000000000001,
+        "width": 1.1,
+        "height": 9.5,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764770086,
+        "type": "barrier",
+        "x": 6,
+        "y": 4.2,
+        "width": 2,
+        "height": 11.5,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764780593,
+        "type": "occluder",
+        "x": 1,
+        "y": 15,
+        "width": 4.6000000000000005,
+        "height": 3.7,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764794308,
+        "type": "red_sensor",
+        "x": 12.600000000000001,
+        "y": 0.7000000000000001,
+        "width": 6.1000000000000005,
+        "height": 5.5,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764800439,
+        "type": "green_sensor",
+        "x": 2.6,
+        "y": 0.6000000000000001,
+        "width": 2.6,
+        "height": 4.6000000000000005,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764823111,
+        "type": "barrier",
+        "x": 10.9,
+        "y": 15.8,
+        "width": 7.6000000000000005,
+        "height": 3.6,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764988994,
+        "type": "occluder",
+        "x": 14,
+        "y": 7.9,
+        "width": 5.2,
+        "height": 6.6000000000000005,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764994989,
+        "type": "barrier",
+        "x": 1.1,
+        "y": 7,
+        "width": 1,
+        "height": 6,
+        "direction": 0,
+        "speed": 1
+    },
+    {
+        "id": 1737764999842,
+        "type": "barrier",
+        "x": 2.1,
+        "y": 8.8,
+        "width": 3.1,
+        "height": 1,
+        "direction": 0,
+        "speed": 1
+    }
+]
