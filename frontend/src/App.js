@@ -1,5 +1,5 @@
 // App.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import WelcomePage from './pages/Welcome';
 import InstructionsPage from './pages/Instructions';
@@ -57,6 +57,11 @@ const App = () => {
   const [averageScore, setAverageScore] = useState(null);
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
   const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
+  
+  // Audio context and tones for precise timing
+  const audioContextRef = useRef(null);
+  const startToneRef = useRef(null);
+  const endToneRef = useRef(null);
 
   // Refs
   const animationRef = useRef(null);
@@ -173,11 +178,90 @@ const App = () => {
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
 
+  // Initialize audio context and pre-generate tones for precise timing
+  const initializeAudio = useCallback(() => {
+    if (!audioContextRef.current) {
+      try {
+        // Create AudioContext
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        console.log("Audio context initialized for trial synchronization");
+        
+        // Pre-generate start tone (1000Hz, 10ms)
+        const sampleRate = audioContextRef.current.sampleRate;
+        const duration = 50; // in milli-seconds
+        const frameCount = sampleRate * duration / 1000;
+        const startBuffer = audioContextRef.current.createBuffer(1, frameCount, sampleRate);
+        const startData = startBuffer.getChannelData(0);
+        
+        for (let i = 0; i < frameCount; i++) {
+          startData[i] = Math.sin(2 * Math.PI * 1000 * i / sampleRate) * 0.3; // 1000Hz at 30% volume
+        }
+        startToneRef.current = startBuffer;
+        
+        // Pre-generate end tone (500Hz, 10ms)
+        const endBuffer = audioContextRef.current.createBuffer(1, frameCount, sampleRate);
+        const endData = endBuffer.getChannelData(0);
+        
+        for (let i = 0; i < frameCount; i++) {
+          endData[i] = Math.sin(2 * Math.PI * 500 * i / sampleRate) * 0.3; // 500Hz at 30% volume
+        }
+        endToneRef.current = endBuffer;
+        
+      } catch (error) {
+        console.warn("Audio context initialization failed:", error);
+      }
+    }
+  }, []);
+
+  // Play audio tone with minimal latency
+  const playTone = useCallback((toneType) => {
+    if (!audioContextRef.current || !startToneRef.current || !endToneRef.current) {
+      console.warn("Audio not initialized, skipping tone");
+      return;
+    }
+
+    try {
+      // Resume audio context if it was suspended (browser autoplay policy)
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = toneType === 'start' ? startToneRef.current : endToneRef.current;
+      source.connect(audioContextRef.current.destination);
+      
+      // Play immediately - this is the most time-critical part
+      source.start(0);
+      
+      console.log(`${toneType} tone played at:`, new Date().toISOString());
+    } catch (error) {
+      console.warn("Failed to play tone:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (countdown !== null) {
       renderFrame(currentFrame);
     }
   }, [countdown, currentFrame]);
+
+  // Initialize audio context on first user interaction (to comply with browser autoplay policies)
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      initializeAudio();
+      // Remove listeners after first interaction
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [initializeAudio]);
 
   // Render the current page
   const renderCurrentPage = () => {
@@ -320,6 +404,7 @@ const App = () => {
       if (!animate.firstFrameUtc) {
         animate.firstFrameUtc = currentUtcTime;
         setPhotodiodeColor("black"); // Set to black on first frame
+        playTone("start"); // Play start tone immediately with photodiode change
       }
       
       recordedKeyStates.current.push({
@@ -335,6 +420,7 @@ const App = () => {
           isPlayingRef.current = false;
           setIsPlaying(false);
           setPhotodiodeColor("white"); // Set to white on last frame
+          playTone("end"); // Play end tone immediately with photodiode change
           animate.dataSaved = true;
 
           setTimeout(async () => {
