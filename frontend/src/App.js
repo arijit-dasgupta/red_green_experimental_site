@@ -56,6 +56,7 @@ const App = () => {
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
+  const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
 
   // Refs
   const animationRef = useRef(null);
@@ -201,6 +202,7 @@ const App = () => {
             waitingForScoreSpacebar={waitingForScoreSpacebar}
             setWaitingForScoreSpacebar={setWaitingForScoreSpacebar}
             setFinished={setFinished}
+            photodiodeColor={photodiodeColor}
             canvasSize={canvasSize}
             handlePlayPause={handlePlayPause}
             fetchNextScene={fetchNextScene}
@@ -287,6 +289,7 @@ const App = () => {
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
       setWaitingForScoreSpacebar(false); // Reset score spacebar state for new trial
+      setPhotodiodeColor("white"); // Reset photodiode to white for new trial
       animate.firstFrameUtc = null; // Reset timing data for new trial
 
       // Optionally update canvas size here if needed
@@ -313,9 +316,10 @@ const App = () => {
     if (timeElapsed >= frameDuration * 0.98) {
       const currentUtcTime = new Date().toISOString();
       
-      // Store first frame UTC time for reference
+      // Store first frame UTC time for reference and set photodiode to black
       if (!animate.firstFrameUtc) {
         animate.firstFrameUtc = currentUtcTime;
+        setPhotodiodeColor("black"); // Set to black on first frame
       }
       
       recordedKeyStates.current.push({
@@ -330,6 +334,7 @@ const App = () => {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
+          setPhotodiodeColor("white"); // Set to white on last frame
           animate.dataSaved = true;
 
           setTimeout(async () => {

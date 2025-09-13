@@ -18,6 +18,7 @@ const ExperimentPage = ({
     waitingForScoreSpacebar,
     setWaitingForScoreSpacebar,
     setFinished,
+    photodiodeColor,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
@@ -185,7 +186,7 @@ const ExperimentPage = ({
 
             <div style={{
                 position: "absolute",
-                top: "10px",
+                bottom: "10px",
                 right: "10px",
                 backgroundColor: "rgba(255, 255, 255, 0.8)",
                 padding: "10px",
@@ -199,6 +200,18 @@ const ExperimentPage = ({
                         `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
                 </p>
             </div>
+
+            {/* Photodiode Sensor Box - Top Right Corner */}
+            <div style={{
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+                width: "96px",  // ~1 inch at 96 DPI
+                height: "192px", // ~2 inches at 96 DPI
+                backgroundColor: photodiodeColor,
+                border: "2px solid black",
+                zIndex: 150, // Higher than trial number display
+            }} />
 
             {/* Pause Button */}
             <div style={{
@@ -309,7 +322,7 @@ const ExperimentPage = ({
                     zIndex: 20,
                 }}>
                     <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "20px" }}>
-                        Finished. You scored {score.toFixed(0)}
+                        You scored {score.toFixed(0)}
                     </h1>
 
                     <div style={{
@@ -441,7 +454,11 @@ const ExperimentPage = ({
                             textAlign: "center"
                         }}>
                             {waitingForScoreSpacebar ? (
-                                <>Press the <span style={{ color: "green" }}>Spacebar</span> to see score.</>
+                                trialInfo.is_ftrial && trialInfo.ftrial_i === 1 ? (
+                                    <>Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.</>
+                                ) : (
+                                    <>Press the <span style={{ color: "green" }}>Spacebar</span> to see score.</>
+                                )
                             ) : (
                                 <>Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
                             )}
