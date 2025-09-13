@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
-import KeyStateLine from '../components/KeyStateLine'; 
 import TransitionPage from './Transition';
 
 const ExperimentPage = ({
@@ -68,8 +67,9 @@ const ExperimentPage = ({
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault(); // Prevent default spacebar behavior (scrolling)
+            // Accept both spacebar and numpad 0 for gamepad compatibility
+            if (e.code === 'Space' || e.key === '0' || e.keyCode === 48 || e.keyCode === 96) {
+                e.preventDefault(); // Prevent default behavior
                 
                 const currentState = stateRef.current;
                 
@@ -281,119 +281,101 @@ const ExperimentPage = ({
                 </div>
             )}
 
+            {/* Improved layout for ECoG patients: single vertical scan direction, maximized canvas */}
             <div style={{
                 display: "flex",
-                justifyContent: "center",
-                padding: "20px",
-                gap: "40px"
+                flexDirection: "column",
+                alignItems: "center",
+                padding: "5px",
+                height: "100vh",
+                justifyContent: "space-between"
             }}>
+                {/* Instructions at top */}
+                <div style={{ marginBottom: "8px" }}>
+                    <p style={{
+                        fontSize: "1.1rem",
+                        fontWeight: "bold",
+                        color: "#555",
+                        textAlign: "center",
+                        margin: 0
+                    }}>
+                        {waitingForScoreSpacebar ? (
+                            trialInfo.trial_i === trialInfo.num_trials ? (
+                                <>Almost done! Press <span style={{ color: "red" }}>0</span> to finish the experiment.</>
+                            ) : (
+                                <>Press <span style={{ color: "orange" }}>0</span> to move to the next trial.</>
+                            )
+                        ) : (
+                            <>Press <span style={{ color: "blue" }}>0</span> to begin the trial.</>
+                        )}
+                    </p>
+                </div>
+
+                {/* Control indicators above canvas */}
                 <div style={{
                     display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "20px"
+                    gap: "30px",
+                    marginBottom: "8px",
+                    padding: "10px 20px",
+                    border: "2px solid #ddd",
+                    borderRadius: "8px",
+                    backgroundColor: "#f9f9f9",
                 }}>
-                    <div>
-                        <p style={{
-                            fontSize: "1.2rem",
-                            fontWeight: "bold",
-                            color: "#555",
-                            marginTop: "10px",
-                            textAlign: "center"
-                        }}>
-                            {waitingForScoreSpacebar ? (
-                                trialInfo.is_ftrial && trialInfo.ftrial_i === 1 ? (
-                                    <>Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.</>
-                                ) : trialInfo.trial_i === trialInfo.num_trials ? (
-                                    <>Almost done! Press the <span style={{ color: "red" }}>Spacebar to finish the experiment.</span></>
-                                ) : (
-                                    <>Press the <span style={{ color: "blue" }}>Spacebar</span> to move to the next trial.</>
-                                )
-                            ) : (
-                                <>Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
-                            )}
-                        </p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "1.5rem" }}>2</h2>
+                        <div style={{
+                            width: "20px",
+                            height: "20px",
+                            backgroundColor: "red",
+                            borderRadius: "50%",
+                        }} />
                     </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "1.5rem" }}>8</h2>
+                        <div style={{
+                            width: "20px",
+                            height: "20px",
+                            backgroundColor: "green",
+                            borderRadius: "50%",
+                        }} />
+                    </div>
+                </div>
 
+                {/* Maximized canvas - adjusted for space */}
+                <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: 1,
+                    width: "100%",
+                    minHeight: "60vh"
+                }}>
                     <canvas
                         ref={canvasRef}
                         width={canvasSize.width}
                         height={canvasSize.height}
                         style={{
-                            border: "1px solid black",
+                            border: "2px solid black",
                             backgroundColor: "white",
-                            width: `${canvasSize.width}px`,
-                            height: `${canvasSize.height}px`,
+                            maxWidth: "95%",
+                            maxHeight: "95%",
+                            width: `${Math.min(canvasSize.width, window.innerWidth * 0.9)}px`,
+                            height: `${Math.min(canvasSize.height, window.innerHeight * 0.65)}px`,
                         }}
                     />
-
-                    {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
                 </div>
 
+                {/* Key states indicators below canvas - compact */}
                 <div style={{
                     display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    position: "relative",
-                    width: "30vw",
-                    minWidth: "200px",
-                    marginTop: "20vh",
+                    gap: "15px",
+                    justifyContent: "center",
+                    marginTop: "5px",
+                    marginBottom: "5px",
                 }}>
-                    {/* Key State Indicators */}
-                    <div style={{
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.1}px`,
-                        padding: `${canvasSize.width * 0.02}px`,
-                        border: "1px solid #ddd",
-                        borderRadius: "8px",
-                        backgroundColor: "#f9f9f9",
-                        width: "100%",
-                        justifyContent: "center",
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>F</h2>
-                            <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "red",
-                                borderRadius: "50%",
-                            }} />
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>J</h2>
-                            <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "green",
-                                borderRadius: "50%",
-                            }} />
-                        </div>
-                    </div>
-
-                    {/* Render Key States */}
-                    <div style={{
-                        position: "absolute",
-                        top: `${canvasSize.width * 0.15}px`,
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.03}px`,
-                        justifyContent: "center",
-                        width: "100%",
-                    }}>
-                        {renderKeyState("f", "red", keyStates, canvasSize)}
-                        {renderKeyState("j", "green", keyStates, canvasSize)}
-                        {renderEmptyKeyState(keyStates, canvasSize)}
-                    </div>
-
-                    {/* Add a Spacer to Separate the KeyStateLine */}
-                    <div style={{
-                        marginTop: `${canvasSize.height * 0.3}px`, // Add space between renderKeyState and KeyStateLine
-                        width: "100%",
-                    }}>
-                        {/* Render KeyStateLine */}
-                        {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
-                        <p>Proportions so far ↓</p>
-                        <KeyStateLine recordedKeyStates={recordedKeyStates} />
-                    </div>
+                    {renderKeyState("f", "red", keyStates, canvasSize)}
+                    {renderKeyState("j", "green", keyStates, canvasSize)}
+                    {renderEmptyKeyState(keyStates, canvasSize)}
                 </div>
             </div>
         </div>
