@@ -22,6 +22,8 @@ pip install -r requirements.txt
 
 Step 2: Install Node.js and npm (if not already installed)
 
+My `npm` version is `10.9.0` and Node.js version is `v23.3.0`. To be safe, please install these versions
+
 **For Windows:**
 - Download and install Node.js from https://nodejs.org/
 - This will automatically include npm
