@@ -461,7 +461,7 @@ const App = () => {
               }
               const trialResult = await response.json();
               setScore(trialResult.score);
-              setWaitingForScoreSpacebar(true); // Show "press spacebar to see score" message
+              setWaitingForScoreSpacebar(true); // Show "press spacebar to continue" message
             } catch (error) {
               console.error("Error saving data or fetching score:", error);
               setScore(0);

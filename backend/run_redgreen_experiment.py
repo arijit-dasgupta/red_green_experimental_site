@@ -91,7 +91,7 @@ NUM_PARTICIPANTS = 800  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
-PARTICIPANT_BUFFER = 15000
+PARTICIPANT_BUFFER = 1500
 #=============================================================================
 
 # Calculate maximum participants (target + buffer)
@@ -593,8 +593,8 @@ def load_next_scene():
     
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
-    if (not config.get('is_resume_mode', False) and 
-        resume_from_trial is None and 
+    if (resume_from_trial is None and 
+        not config.get('is_resume_mode', False) and 
         not config.get('was_resumed', False)):
         if len(fscores) < ftrial_i:
             ftrial_i -= 1

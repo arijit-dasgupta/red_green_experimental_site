@@ -44,12 +44,13 @@ const ExperimentPage = ({
         }
     }, [fetchNextScene]);
 
-    useEffect(() => {
-        if (trialInfo.is_ftrial && trialInfo.ftrial_i === 2 && !activatedScoringInstruc.current) {
-            activatedScoringInstruc.current = true;
-            setShowScoringInstruc(true); // Show explanation page after first familiarization trial
-        }
-    }, [trialInfo]);
+    // Scoring instruction page disabled - skip directly to F2
+    // useEffect(() => {
+    //     if (trialInfo.is_ftrial && trialInfo.ftrial_i === 2 && !activatedScoringInstruc.current) {
+    //         activatedScoringInstruc.current = true;
+    //         setShowScoringInstruc(true); // Show explanation page after first familiarization trial
+    //     }
+    // }, [trialInfo]);
 
     const handleProceed = () => {
         setShowScoringInstruc(false); // Hide explanation page
@@ -68,90 +69,48 @@ const ExperimentPage = ({
         setShowPauseConfirmation(false);
     };
 
+    // Use refs to avoid stale closure issues
+    const stateRef = useRef({});
+    stateRef.current = {
+        isPlaying,
+        finished,
+        disableCountdownTrigger,
+        waitingForScoreSpacebar,
+        isTransitionPage
+    };
+
     useEffect(() => {
-        let isSpacePressed = false; // Tracks whether the Spacebar is pressed
-    
-        const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && !isPlaying && !finished 
-                && !disableCountdownTrigger && !isTransitionPage && !showScoringInstruc) {
-                // console.log("Spacebar pressed. Starting countdown...");
-                isSpacePressed = false; // Set flag to true when Spacebar is pressed
-                handlePlayPause(setdisableCountdownTrigger); // Start countdown
-            }
-        };
-    
         const handleKeyDown = (e) => {
             if (e.code === 'Space') {
-                isSpacePressed = true; // Reset flag when Spacebar is released
+                e.preventDefault(); // Prevent default spacebar behavior (scrolling)
+                
+                const currentState = stateRef.current;
+                
+                // Priority 1: Start trial countdown
+                if (!currentState.isPlaying && !currentState.finished && 
+                    !currentState.disableCountdownTrigger && !currentState.waitingForScoreSpacebar && 
+                    !currentState.isTransitionPage) {
+                    handlePlayPause(setdisableCountdownTrigger); // Start countdown
+                }
+                // Priority 2: Continue after trial (skip score display)
+                else if (currentState.waitingForScoreSpacebar && !currentState.isTransitionPage) {
+                    setWaitingForScoreSpacebar(false);
+                    fetchNextScene(setdisableCountdownTrigger);
+                }
             }
         };
     
         window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
     
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [handlePlayPause, isPlaying, finished, disableCountdownTrigger, isTransitionPage, showScoringInstruc]);
+    }, [handlePlayPause, setWaitingForScoreSpacebar, fetchNextScene, setdisableCountdownTrigger]); // Reduced dependencies
     
-    useEffect(() => {
-        let isSpacePressed = false; // Tracks whether the Spacebar is pressed
-    
-        const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage && !showScoringInstruc) {
-                // console.log("Spacebar pressed. Fetching next scene...");
-                isSpacePressed = false; // Set flag to true when Spacebar is pressed
-                fetchNextScene(setdisableCountdownTrigger);
-            }
-        };
-    
-        const handleKeyDown = (e) => {
-            if (e.code === 'Space') {
-                isSpacePressed = true; // Reset flag when Spacebar is released
-            }
-        };
-    
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-    
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-        };
-    }, [fetchNextScene, finished, isTransitionPage, showScoringInstruc]);
-    
-    // Handle spacebar for showing score after trial completes
-    useEffect(() => {
-        let isSpacePressed = false; // Tracks whether the Spacebar is pressed
-    
-        const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && waitingForScoreSpacebar && !isTransitionPage && !showScoringInstruc) {
-                // console.log("Spacebar pressed. Showing score...");
-                isSpacePressed = false;
-                setWaitingForScoreSpacebar(false);
-                setFinished(true); // Show the score overlay
-            }
-        };
-    
-        const handleKeyDown = (e) => {
-            if (e.code === 'Space') {
-                isSpacePressed = true;
-            }
-        };
-    
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
-    
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-            window.removeEventListener('keyup', handleKeyUp);
-        };
-    }, [waitingForScoreSpacebar, setWaitingForScoreSpacebar, setFinished, isTransitionPage, showScoringInstruc]);
-    
-    if (showScoringInstruc) {
-        return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
-    }
+    // Scoring instruction page disabled
+    // if (showScoringInstruc) {
+    //     return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
+    // }
 
     if (isTransitionPage) {
         return (
@@ -306,101 +265,6 @@ const ExperimentPage = ({
                 </div>
             )}
 
-            {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
-                <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    backdropFilter: "blur(5px)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 20,
-                }}>
-                    <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "20px" }}>
-                        You scored {score.toFixed(0)}
-                    </h1>
-
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        width: "80%",
-                        marginTop: "20px",
-                    }}>
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginRight: "10px",
-                            color: "#333"
-                        }}>
-                            -80
-                        </span>
-
-                        <div style={{
-                            flexGrow: 1,
-                            height: "30px",
-                            backgroundColor: "#e0e0e0",
-                            borderRadius: "15px",
-                            overflow: "hidden",
-                            position: "relative",
-                            boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
-                        }}>
-                            <div style={{
-                                width: `${((score + 80) / 200) * 100}%`,
-                                height: "100%",
-                                backgroundColor: (() => {
-                                    const normalizedScore = (score + 80) / 200;
-                                    if (normalizedScore <= 1 / 3) {
-                                        return "#f44336";
-                                    } else if (normalizedScore <= 2 / 3) {
-                                        return "#ffeb3b";
-                                    } else {
-                                        return "#4caf50";
-                                    }
-                                })(),
-                                transition: "width 0.5s ease-in-out, background-color 0.5s ease-in-out",
-                            }} />
-                        </div>
-
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginLeft: "10px",
-                            color: "#333"
-                        }}>
-                            120
-                        </span>
-                    </div>
-
-                    <div>
-                        <p style={{
-                            fontSize: "1.2rem",
-                            fontWeight: "bold",
-                            color: "#555",
-                            marginTop: "10px",
-                            textAlign: "center"
-                        }}>
-                            {trialInfo.is_ftrial && trialInfo.ftrial_i === 1 ? (
-                                <>
-                                    To understand how your score is calculated, press the <span style={{ color: "blue" }}>Spacebar</span>.
-                                </>
-                            ) : trialInfo.trial_i === trialInfo.num_trials ? (
-                                <>
-                                    Almost done! Press the <span style={{ color: "red" }}>Spacebar to finish the experiment.</span>
-                                </>
-                            ) : (
-                                <>
-                                    Press the <span style={{ color: "blue" }}>Spacebar</span> to move to the next trial.
-                                </>
-                            )}
-                        </p>
-                    </div>
-                </div>
-            )}
             
             {/* Only after the first trial ends */}
             {finished && (trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
@@ -456,8 +320,10 @@ const ExperimentPage = ({
                             {waitingForScoreSpacebar ? (
                                 trialInfo.is_ftrial && trialInfo.ftrial_i === 1 ? (
                                     <>Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.</>
+                                ) : trialInfo.trial_i === trialInfo.num_trials ? (
+                                    <>Almost done! Press the <span style={{ color: "red" }}>Spacebar to finish the experiment.</span></>
                                 ) : (
-                                    <>Press the <span style={{ color: "green" }}>Spacebar</span> to see score.</>
+                                    <>Press the <span style={{ color: "blue" }}>Spacebar</span> to move to the next trial.</>
                                 )
                             ) : (
                                 <>Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
