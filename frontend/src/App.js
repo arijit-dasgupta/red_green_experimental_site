@@ -33,7 +33,7 @@ const App = () => {
   const { currentPage, navigate } = useNavigation();
 
   // Constants
-  const FPS = 30;
+  const FPS = 20;
   const CANVAS_PROPORTION = 0.7;
 
   // State
