@@ -189,6 +189,8 @@ class Trial(db.Model):
     counterbalance = db.Column(db.Boolean, default=False)  # Whether Red/Green goals were randomly swapped in stimuli (need to account for this when scoring, for example, depending on the counterbalance, either the F or J key was the correct choice)
     score = db.Column(db.Float, nullable=True)  # Calculated performance score for this trial
     completed = db.Column(db.Boolean, default=False)  # Whether trial finished successfully
+    first_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of frame 0 (when ball starts moving)
+    last_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of final frame
 
 class KeyState(db.Model):
     """
@@ -203,6 +205,7 @@ class KeyState(db.Model):
     f_pressed = db.Column(db.Boolean)  # State of F key (typically red choice) True if F key was pressed, False otherwise
     j_pressed = db.Column(db.Boolean)  # State of J key (typically green choice) True if J key was pressed, False otherwise
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False) # foreign key to the session record
+    relative_time_ms = db.Column(db.Float, nullable=True)  # Time in milliseconds relative to frame 0 of the trial
 
 #=============================================================================
 # UTILITY FUNCTIONS
@@ -287,8 +290,6 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
                   for entry in participants_f_assignments]
         e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
                   for entry in e_folders_shuffled]
-
-        print (e_paths)
         
         return f_paths, e_paths, e_folders_shuffled
 
@@ -563,7 +564,6 @@ def load_next_scene():
     
     # Handle resume functionality
     if resume_from_trial is not None:
-        print(f"🔄 RESUME: Processing resume request for trial {resume_from_trial}")
         # Reset to familiarization phase and set trial to resume from
         # Convert from 1-based user input to 0-based internal indexing
         config['trial_i'] = resume_from_trial - 1
@@ -581,10 +581,6 @@ def load_next_scene():
         # Update the configuration in database IMMEDIATELY
         config_entry.config_data = config
         db.session.commit()
-        
-        print(f"🔄 RESUME: Set trial_i to {config['trial_i']} (0-based), is_resume_mode=True, target={config['resume_target_trial']}")
-        print(f"🔄 RESUME: Set ftrial_i to 0, is_ftrial=True to force familiarization")
-        print(f"Resuming experiment from trial {resume_from_trial}")
     
     # Extract current progress from configuration
     trial_i = config['trial_i']
@@ -595,31 +591,15 @@ def load_next_scene():
     tscores = config['tscores']
     transition_to_exp_page = config['transition_to_exp_page']
     
-    print(f"📊 INITIAL STATE: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}, transition_to_exp_page={transition_to_exp_page}")
-    print(f"📊 RESUME MODE: {config.get('is_resume_mode', False)}, WAS_RESUMED: {config.get('was_resumed', False)}")
-    print(f"📊 SCORES: fscores={len(fscores)}, tscores={len(tscores)}")
-    print(f"📊 LIMITS: num_ftrials={config['num_ftrials']}, num_trials={config['num_trials']}")
-
-    print(f"trial_i: {trial_i}, ftrial_i: {ftrial_i}, is_ftrial: {is_ftrial}, is_trial: {is_trial}, transition_to_exp_page: {transition_to_exp_page}")
-
-    print(f"num_ftrials: {config['num_ftrials']}, num_trials: {config['num_trials']}")
-
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
     if (not config.get('is_resume_mode', False) and 
         resume_from_trial is None and 
         not config.get('was_resumed', False)):
-        print(f"🔧 EDGE CASE CHECK: Checking if scores match indices")
-        print(f"🔧 Before: fscores={len(fscores)}, ftrial_i={ftrial_i}, tscores={len(tscores)}, trial_i={trial_i}")
         if len(fscores) < ftrial_i:
             ftrial_i -= 1
-            print(f"🔧 ADJUSTED: ftrial_i decremented to {ftrial_i}")
         if len(tscores) < trial_i:
             trial_i -= 1
-            print(f"🔧 ADJUSTED: trial_i decremented to {trial_i}")
-        print(f"🔧 After: ftrial_i={ftrial_i}, trial_i={trial_i}")
-    else:
-        print(f"🔧 EDGE CASE CHECK: SKIPPED due to resume mode, resume request, or was_resumed flag")
 
     # Calculate and update average score
     avg_score = sum(tscores) / len(tscores) if tscores else 0
@@ -627,50 +607,34 @@ def load_next_scene():
     db.session.commit()
 
     # Determine which trial/scene to show next based on current progress
-    print(f"🎯 TRIAL LOGIC: Determining which trial to show")
-    print(f"🎯 Conditions: ftrial_i={ftrial_i} < num_ftrials={config['num_ftrials']} = {ftrial_i < config['num_ftrials']}")
-    print(f"🎯 Conditions: trial_i={trial_i} < num_trials={config['num_trials']} = {trial_i < config['num_trials']}")
-    print(f"🎯 Conditions: trial_i={trial_i} == num_trials={config['num_trials']} = {trial_i == config['num_trials']}")
-    
     if ftrial_i < config["num_ftrials"]:
-        print(f"🎯 BRANCH: Familiarization phase")
         # Still in familiarization phase
         npz_data = config["ftrial_datas"][ftrial_i]
         ftrial_i += 1
         is_ftrial = True
         finish = False
-        print(f"🎯 FAMILIARIZATION: Loading ftrial {ftrial_i-1}, new ftrial_i={ftrial_i}")
     elif ftrial_i == config["num_ftrials"] and is_ftrial:
-        print(f"🎯 BRANCH: Transition page")
         # Just finished familiarization - show transition page
         transition_to_exp_page = True
         is_ftrial = False
         npz_data = config["trial_datas"][0]  # Dummy data for transition
         finish = False
-        print(f"🎯 TRANSITION: Showing transition page")
     elif trial_i < config["num_trials"]:
-        print(f"🎯 BRANCH: Experimental phase")
         # In experimental phase
         transition_to_exp_page = False
-        print(f"🎯 EXPERIMENTAL: Loading trial_datas[{trial_i}] (0-based)")
         npz_data = config["trial_datas"][trial_i]
         old_trial_i = trial_i
         trial_i += 1
         is_trial = True
         finish = False
-        print(f"🎯 EXPERIMENTAL: Loaded trial {old_trial_i}, incremented trial_i to {trial_i}")
         # Clear resume mode flag when we start experimental trials
         if config.get('is_resume_mode', False):
-            print(f"🎯 EXPERIMENTAL: Clearing resume mode flag")
             config['is_resume_mode'] = False
     elif trial_i == config["num_trials"]:
-        print(f"🎯 BRANCH: Experiment complete")
         # Experiment complete
         finish = True
         npz_data = config["trial_datas"][-1]  # Dummy data for finish screen
-        print(f"🎯 COMPLETE: Experiment finished")
     else:
-        print(f"🎯 ERROR: Unexpected condition - trial_i={trial_i}, num_trials={config['num_trials']}")
         return jsonify({"error": "Unexpected condition"}), 500
 
     # Determine trial metadata for database record
@@ -709,7 +673,6 @@ def load_next_scene():
         print(f"-------------------------------")
 
     # Update configuration with new progress state
-    print(f"💾 SAVING STATE: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}, transition_to_exp_page={transition_to_exp_page}")
     config.update({
         'trial_i': trial_i,
         'ftrial_i': ftrial_i,
@@ -720,7 +683,6 @@ def load_next_scene():
     config_entry.config_data = config
     flag_modified(config_entry, "config_data")  # Mark as dirty for SQLAlchemy
     db.session.commit()
-    print(f"💾 STATE SAVED: Configuration committed to database")
 
     # Handle experiment completion
     if finish:
@@ -806,6 +768,17 @@ def save_data():
         # Mark trial as completed
         trial.completed = True
         trial.end_time = datetime.utcnow()
+        
+        # Extract timing data from frontend
+        first_frame_utc_str = request.json.get('first_frame_utc')
+        last_frame_utc_str = request.json.get('last_frame_utc')
+        
+        # Parse and store trial timing
+        if first_frame_utc_str:
+            trial.first_frame_utc = datetime.fromisoformat(first_frame_utc_str.replace('Z', '+00:00'))
+        if last_frame_utc_str:
+            trial.last_frame_utc = datetime.fromisoformat(last_frame_utc_str.replace('Z', '+00:00'))
+        
         db.session.commit()
         
         # Process keypress data
@@ -816,6 +789,11 @@ def save_data():
         num_red = num_green = 0
         counterbalance = request.json.get('counterbalance', False)
         
+        # Parse first frame time for relative timing calculations
+        first_frame_time = None
+        if first_frame_utc_str:
+            first_frame_time = datetime.fromisoformat(first_frame_utc_str.replace('Z', '+00:00'))
+        
         # Process each frame of keypress data
         for entry in data:
             f_pressed = entry['keys']['f']
@@ -824,6 +802,12 @@ def save_data():
             # Apply counterbalancing if active (swap key meanings)
             if counterbalance:
                 f_pressed, j_pressed = j_pressed, f_pressed
+            
+            # Calculate relative time from frame 0
+            relative_time_ms = None
+            if first_frame_time and 'utc_timestamp' in entry:
+                frame_time = datetime.fromisoformat(entry['utc_timestamp'].replace('Z', '+00:00'))
+                relative_time_ms = (frame_time - first_frame_time).total_seconds() * 1000
                 
             # Store keypress state for this frame
             key_state = KeyState(
@@ -831,7 +815,8 @@ def save_data():
                 frame=entry['frame'], 
                 f_pressed=f_pressed, 
                 j_pressed=j_pressed, 
-                session_id=session_id
+                session_id=session_id,
+                relative_time_ms=relative_time_ms
             )
             db.session.add(key_state)
 

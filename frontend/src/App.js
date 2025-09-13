@@ -282,6 +282,7 @@ const App = () => {
       setFinished(false);
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
+      animate.firstFrameUtc = null; // Reset timing data for new trial
 
       // Optionally update canvas size here if needed
 
@@ -305,9 +306,17 @@ const App = () => {
     const timeElapsed = timestamp - animate.lastTimestamp;
 
     if (timeElapsed >= frameDuration * 0.98) {
+      const currentUtcTime = new Date().toISOString();
+      
+      // Store first frame UTC time for reference
+      if (!animate.firstFrameUtc) {
+        animate.firstFrameUtc = currentUtcTime;
+      }
+      
       recordedKeyStates.current.push({
         frame: currentFrameRef.current,
         keys: { ...keyStatesRef.current },
+        utc_timestamp: currentUtcTime,
       });
 
       const nextFrame = currentFrameRef.current + 1;
@@ -322,6 +331,11 @@ const App = () => {
             try {
               const sessionId = sessionStorage.getItem('sessionId');
               if (!sessionId) throw new Error('Session ID not found.');
+
+              // Get last frame UTC time
+              const lastFrameUtc = recordedKeyStates.current.length > 0 
+                ? recordedKeyStates.current[recordedKeyStates.current.length - 1].utc_timestamp 
+                : animate.firstFrameUtc;
 
               const response = await fetch('/save_data', {
                 method: 'POST',
@@ -339,6 +353,8 @@ const App = () => {
                   is_trial: sceneData.is_trial,
                   recordedKeyStates: recordedKeyStates.current,
                   counterbalance: sceneData.counterbalance,
+                  first_frame_utc: animate.firstFrameUtc,
+                  last_frame_utc: lastFrameUtc,
                 }),
               });
 
