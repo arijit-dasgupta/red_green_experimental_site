@@ -206,8 +206,8 @@ const ExperimentPage = ({
                 position: "absolute",
                 top: "10px",
                 right: "10px",
-                width: "96px",  // ~1 inch at 96 DPI
-                height: "192px", // ~2 inches at 96 DPI
+                width: "96px",  // 
+                height: "192px", // 
                 backgroundColor: photodiodeColor,
                 border: "2px solid black",
                 zIndex: 150, // Higher than trial number display
