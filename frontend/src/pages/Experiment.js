@@ -19,7 +19,8 @@ const ExperimentPage = ({
     handlePlayPause,
     fetchNextScene,
     canvasRef,
-    isStrictMode
+    isStrictMode,
+    onPause
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -27,6 +28,7 @@ const ExperimentPage = ({
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
+    const [showPauseConfirmation, setShowPauseConfirmation] = useState(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -47,6 +49,19 @@ const ExperimentPage = ({
 
     const handleProceed = () => {
         setShowScoringInstruc(false); // Hide explanation page
+    };
+
+    const handlePauseClick = () => {
+        setShowPauseConfirmation(true);
+    };
+
+    const handlePauseConfirm = () => {
+        setShowPauseConfirmation(false);
+        onPause();
+    };
+
+    const handlePauseCancel = () => {
+        setShowPauseConfirmation(false);
     };
 
     useEffect(() => {
@@ -153,6 +168,99 @@ const ExperimentPage = ({
                         `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
                 </p>
             </div>
+
+            {/* Pause Button */}
+            <div style={{
+                position: "absolute",
+                bottom: "10px",
+                left: "10px",
+                zIndex: 100,
+            }}>
+                <button
+                    onClick={handlePauseClick}
+                    style={{
+                        padding: "8px 16px",
+                        fontSize: "14px",
+                        color: "white",
+                        backgroundColor: "#dc3545",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                        transition: "background-color 0.3s ease",
+                    }}
+                    onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
+                    onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
+                >
+                    Pause Experiment
+                </button>
+            </div>
+
+            {/* Pause Confirmation Dialog */}
+            {showPauseConfirmation && (
+                <div style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 1000,
+                }}>
+                    <div style={{
+                        backgroundColor: "white",
+                        padding: "30px",
+                        borderRadius: "10px",
+                        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)",
+                        textAlign: "center",
+                        maxWidth: "400px",
+                    }}>
+                        <h2 style={{ marginTop: 0, color: "#333" }}>Pause Experiment?</h2>
+                        <p style={{ fontSize: "16px", color: "#666", marginBottom: "30px" }}>
+                            Are you sure you want to pause the experiment? You can resume from where you left off later.
+                        </p>
+                        <div style={{ display: "flex", gap: "15px", justifyContent: "center" }}>
+                            <button
+                                onClick={handlePauseCancel}
+                                style={{
+                                    padding: "10px 20px",
+                                    fontSize: "16px",
+                                    color: "#333",
+                                    backgroundColor: "#f8f9fa",
+                                    border: "1px solid #dee2e6",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    transition: "background-color 0.3s ease",
+                                }}
+                                onMouseOver={(e) => (e.target.style.backgroundColor = "#e9ecef")}
+                                onMouseOut={(e) => (e.target.style.backgroundColor = "#f8f9fa")}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handlePauseConfirm}
+                                style={{
+                                    padding: "10px 20px",
+                                    fontSize: "16px",
+                                    color: "white",
+                                    backgroundColor: "#dc3545",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    transition: "background-color 0.3s ease",
+                                }}
+                                onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
+                                onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
+                            >
+                                Yes, Pause
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{

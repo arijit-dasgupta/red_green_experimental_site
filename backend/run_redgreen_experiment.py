@@ -60,7 +60,7 @@ DEPLOYMENT NOTES:
 """
 
 from flask import send_from_directory, Flask, request, jsonify, has_request_context
-from flask_cors import CORS
+# from flask_cors import CORS
 import numpy as np
 from datetime import datetime, timedelta
 import os
@@ -87,7 +87,7 @@ DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=10000000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=500)  # How often to check for timeouts
-NUM_PARTICIPANTS = 300  # Target number of participants to recruit
+NUM_PARTICIPANTS = 1000  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -104,7 +104,7 @@ REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../fr
 app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 
 # Enable CORS for frontend-backend communication, with ngrok compatibility
-CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
+# CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
 # Database configuration using SQLite with experiment-specific filename
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db'
@@ -546,6 +546,8 @@ def load_next_scene():
         JSON containing scene data, trial metadata, and progress information
     """
     session_id = request.json.get('session_id')
+    resume_from_trial = request.json.get('resume_from_trial')
+    
     if not session_id:
         return jsonify({"error": "Session not found"}), 400
 
@@ -558,6 +560,25 @@ def load_next_scene():
     if not config_entry:
         return jsonify({"error": "Experiment configuration not found"}), 500
     config = config_entry.config_data
+    
+    # Handle resume functionality
+    if resume_from_trial is not None:
+        # Reset to familiarization phase and set trial to resume from
+        config['trial_i'] = resume_from_trial
+        config['ftrial_i'] = 0  # Start from beginning of familiarization
+        config['is_ftrial'] = True
+        config['is_trial'] = False
+        config['transition_to_exp_page'] = False
+        config['is_resume_mode'] = True  # Flag to indicate we're in resume mode
+        # Don't reset scores - keep existing progress to avoid edge case issues
+        # config['fscores'] = []
+        # config['tscores'] = []
+        
+        # Update the configuration in database
+        config_entry.config_data = config
+        db.session.commit()
+        
+        print(f"Resuming experiment from trial {resume_from_trial}")
     
     # Extract current progress from configuration
     trial_i = config['trial_i']
@@ -573,10 +594,12 @@ def load_next_scene():
     print(f"num_ftrials: {config['num_ftrials']}, num_trials: {config['num_trials']}")
 
     # Ensure indices don't exceed available scores (handles edge cases)
-    if len(fscores) < ftrial_i:
-        ftrial_i -= 1
-    if len(tscores) < trial_i:
-        trial_i -= 1
+    # Skip this logic if we're in resume mode
+    if not config.get('is_resume_mode', False):
+        if len(fscores) < ftrial_i:
+            ftrial_i -= 1
+        if len(tscores) < trial_i:
+            trial_i -= 1
 
     # Calculate and update average score
     avg_score = sum(tscores) / len(tscores) if tscores else 0
@@ -599,10 +622,14 @@ def load_next_scene():
     elif trial_i < config["num_trials"]:
         # In experimental phase
         transition_to_exp_page = False
-        npz_data = config["trial_datas"][trial_i]
-        trial_i += 1
+        npz_data = config["trial_datas"][trial_i - 1]  # Convert from 1-based to 0-based indexing
         is_trial = True
         finish = False
+        # Clear resume mode flag when we start experimental trials
+        if config.get('is_resume_mode', False):
+            config['is_resume_mode'] = False
+        # Only increment trial_i after we've used it for the current trial
+        trial_i += 1
     elif trial_i == config["num_trials"]:
         # Experiment complete
         finish = True
@@ -678,6 +705,9 @@ def load_next_scene():
         print("=============================")
 
     # Prepare scene data for frontend
+    # For experimental trials, send the actual trial number (before increment)
+    display_trial_i = trial_i - 1 if is_trial and not transition_to_exp_page and not finish else trial_i
+    
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": 20,
@@ -686,7 +716,7 @@ def load_next_scene():
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,
         "ftrial_i": ftrial_i,
-        "trial_i": trial_i,
+        "trial_i": display_trial_i,  # Send the correct trial number to frontend
         "num_ftrials": config["num_ftrials"],
         "num_trials": config["num_trials"],
         "fam_to_exp_page": transition_to_exp_page,

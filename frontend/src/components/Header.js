@@ -1,9 +1,9 @@
 import React from 'react';
 
-const Header = () => {
-  const prolificPid = sessionStorage.getItem("prolific_pid") || 
-    new URLSearchParams(window.location.search).get("PROLIFIC_PID") || 
-    "default_pid";
+const Header = ({ sessionId }) => {
+  // const prolificSessionId = sessionStorage.getItem("SESSION_ID") || 
+  //   new URLSearchParams(window.location.search).get("SESSION_ID") || 
+  //   "default_session";
 
   return (
     <div
@@ -20,7 +20,7 @@ const Header = () => {
         zIndex: 1000,
       }}
     >
-      Prolific PID: {prolificPid}
+      Session ID: {sessionId}
     </div>
   );
 };
