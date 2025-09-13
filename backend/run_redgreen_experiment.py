@@ -84,10 +84,10 @@ from apscheduler.triggers.interval import IntervalTrigger
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
 DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-EXPERIMENT_RUN_VERSION = 'debug_mode'  # Version identifier for this experiment run
-TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
-check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
-NUM_PARTICIPANTS = 60  # Target number of participants to recruit
+EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+TIMEOUT_PERIOD = timedelta(minutes=10000000)  # Maximum time before session expires
+check_TIMEOUT_interval = timedelta(minutes=500)  # How often to check for timeouts
+NUM_PARTICIPANTS = 300  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -235,7 +235,7 @@ def print_active_sessions():
     remaining_ids = [i for i in range(MAX_NUM_PARTICIPANTS) if i not in active_profile_ids]
 
     print("=== Remaining Sessions ===")
-    print(f"Remaining Randomized Profile IDs: {remaining_ids}")
+    # print(f"Remaining Randomized Profile IDs: {remaining_ids}")
     print("========================")
     print(app.config['SQLALCHEMY_DATABASE_URI'])
 
@@ -261,8 +261,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
     
     The function ensures proper randomization while maintaining experimental constraints:
     - All participants get the same familiarization trials in order
-    - Experimental trials are randomized per participant using a seeded random generator
-    - Randomization avoids consecutive trials of the same type where possible
+    - Experimental trials are randomized ONCE (same order for all participants)
     """
     try:
         # Convert relative path to absolute path based on this Python file's location
@@ -278,45 +277,20 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         participants_f_assignments.sort()  # F1, F2, F3, etc. in order
         
         e_folders = [entry for entry in entries if entry.startswith('E')]
-        
-        # Create randomized trial orders for each possible participant
-        participants_e_assignments = [e_folders for _ in range(MAX_NUM_PARTICIPANTS)]
-        
-        # Generate unique randomized order for each participant profile
-        for i in range(MAX_NUM_PARTICIPANTS):
-            e_assignment = participants_e_assignments[i]
-            randomizer_cond = True
-            counter = 0
-            
-            # Keep shuffling until we meet randomization constraints
-            while randomizer_cond:
-                random_.shuffle(e_assignment)
-                # Extract trial numbers from folder names (e.g., 'E1-1a' -> 1)
-                intters = [int(e_assignment[i][1:]) for i in range(len(e_assignment))]
-                
-                # Check if consecutive trials avoid problematic patterns
-                # This ensures good counterbalancing across trial types
-                randomizer_list = [
-                    ((intters[i]+1 != intters[i+1]) and (intters[i] %2 == 1)) or 
-                    (intters[i]-1 != intters[i+1] and (intters[i] %2 == 0)) 
-                    for i in range(len(intters)-1)
-                ]
-                randomizer_cond = not all(randomizer_list)
-                counter += 1
-                
-                # Prevent infinite loops with safety break
-                if counter > 200:
-                    break
-                    
-            participants_e_assignments[i] = e_assignment
 
-        # Build full file paths to data.npz files in each trial folder
+        # Shuffle e_folders ONCE for all participants
+        e_folders_shuffled = e_folders[:]
+        random_.shuffle(e_folders_shuffled)
+
+        # All participants get the same shuffled order
         f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
                   for entry in participants_f_assignments]
         e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
-                  for entry in participants_e_assignments[randomized_profile_id]]
+                  for entry in e_folders_shuffled]
+
+        print (e_paths)
         
-        return f_paths, e_paths, participants_e_assignments[randomized_profile_id]
+        return f_paths, e_paths, e_folders_shuffled
 
     except (FileNotFoundError, PermissionError) as e:
         print(f"Error accessing {absolute_directory_path}: {e}")
