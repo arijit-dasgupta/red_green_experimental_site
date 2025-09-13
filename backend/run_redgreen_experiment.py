@@ -85,13 +85,13 @@ from apscheduler.triggers.interval import IntervalTrigger
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
 DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
-TIMEOUT_PERIOD = timedelta(minutes=10000000)  # Maximum time before session expires
-check_TIMEOUT_interval = timedelta(minutes=500)  # How often to check for timeouts
-NUM_PARTICIPANTS = 300  # Target number of participants to recruit
+TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
+check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
+NUM_PARTICIPANTS = 800  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
-PARTICIPANT_BUFFER = 15 
+PARTICIPANT_BUFFER = 15000
 #=============================================================================
 
 # Calculate maximum participants (target + buffer)

@@ -146,16 +146,12 @@ const WelcomePage = ({ setTrialInfo }) => {
         }}>
           <p><strong>Before you begin:</strong></p>
           <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
-            <li>Ensure that the <strong>Prolific PID</strong> displayed on the top left belongs to you. <span style={{ color: "#f00" }}>(If not, try refreshing this page.)</span></li>
             <li>You will be asked to <strong>press keys</strong> on the keyboard and <strong>click buttons</strong> on the screen.</li>
-            <li>This experiment will automatically  <u><strong>time-out after 45 minutes.</strong></u></li>
           </ul>
 
           <p><strong>Important:</strong></p>
           <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
-            <li>Once you begin, <strong>you cannot navigate backward or refresh</strong> the page. Doing so will bring you back to this screen, and you will not be able to able to reattempt the experiment.</li>
-            <li>If you close the browser, you will not be able to reattempt the session.</li>
-            <li>For best results, complete the experiment in <strong>one sitting without interruptions</strong>.</li>
+            <li>Once you begin, <strong>you cannot navigate backward or refresh</strong> the page. You can pause and resume the experiment at any time.</li>
             <li>If you are color-blind, we kindly request you not to participate.</li>
           </ul>
 
