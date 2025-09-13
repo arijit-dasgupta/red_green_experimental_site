@@ -60,7 +60,7 @@ DEPLOYMENT NOTES:
 """
 
 from flask import send_from_directory, Flask, request, jsonify, has_request_context
-# from flask_cors import CORS
+from flask_cors import CORS
 import numpy as np
 from datetime import datetime, timedelta
 import os
@@ -87,7 +87,7 @@ DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=10000000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=500)  # How often to check for timeouts
-NUM_PARTICIPANTS = 1000  # Target number of participants to recruit
+NUM_PARTICIPANTS = 300  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -104,7 +104,7 @@ REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../fr
 app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 
 # Enable CORS for frontend-backend communication, with ngrok compatibility
-# CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
+CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
 # Database configuration using SQLite with experiment-specific filename
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db'
@@ -563,21 +563,27 @@ def load_next_scene():
     
     # Handle resume functionality
     if resume_from_trial is not None:
+        print(f"🔄 RESUME: Processing resume request for trial {resume_from_trial}")
         # Reset to familiarization phase and set trial to resume from
-        config['trial_i'] = resume_from_trial
+        # Convert from 1-based user input to 0-based internal indexing
+        config['trial_i'] = resume_from_trial - 1
         config['ftrial_i'] = 0  # Start from beginning of familiarization
         config['is_ftrial'] = True
         config['is_trial'] = False
         config['transition_to_exp_page'] = False
         config['is_resume_mode'] = True  # Flag to indicate we're in resume mode
+        config['resume_target_trial'] = resume_from_trial - 1  # Store the target trial
+        config['was_resumed'] = True  # Permanent flag to indicate this session was resumed
         # Don't reset scores - keep existing progress to avoid edge case issues
         # config['fscores'] = []
         # config['tscores'] = []
         
-        # Update the configuration in database
+        # Update the configuration in database IMMEDIATELY
         config_entry.config_data = config
         db.session.commit()
         
+        print(f"🔄 RESUME: Set trial_i to {config['trial_i']} (0-based), is_resume_mode=True, target={config['resume_target_trial']}")
+        print(f"🔄 RESUME: Set ftrial_i to 0, is_ftrial=True to force familiarization")
         print(f"Resuming experiment from trial {resume_from_trial}")
     
     # Extract current progress from configuration
@@ -588,18 +594,32 @@ def load_next_scene():
     fscores = config['fscores']
     tscores = config['tscores']
     transition_to_exp_page = config['transition_to_exp_page']
+    
+    print(f"📊 INITIAL STATE: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}, transition_to_exp_page={transition_to_exp_page}")
+    print(f"📊 RESUME MODE: {config.get('is_resume_mode', False)}, WAS_RESUMED: {config.get('was_resumed', False)}")
+    print(f"📊 SCORES: fscores={len(fscores)}, tscores={len(tscores)}")
+    print(f"📊 LIMITS: num_ftrials={config['num_ftrials']}, num_trials={config['num_trials']}")
 
     print(f"trial_i: {trial_i}, ftrial_i: {ftrial_i}, is_ftrial: {is_ftrial}, is_trial: {is_trial}, transition_to_exp_page: {transition_to_exp_page}")
 
     print(f"num_ftrials: {config['num_ftrials']}, num_trials: {config['num_trials']}")
 
     # Ensure indices don't exceed available scores (handles edge cases)
-    # Skip this logic if we're in resume mode
-    if not config.get('is_resume_mode', False):
+    # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
+    if (not config.get('is_resume_mode', False) and 
+        resume_from_trial is None and 
+        not config.get('was_resumed', False)):
+        print(f"🔧 EDGE CASE CHECK: Checking if scores match indices")
+        print(f"🔧 Before: fscores={len(fscores)}, ftrial_i={ftrial_i}, tscores={len(tscores)}, trial_i={trial_i}")
         if len(fscores) < ftrial_i:
             ftrial_i -= 1
+            print(f"🔧 ADJUSTED: ftrial_i decremented to {ftrial_i}")
         if len(tscores) < trial_i:
             trial_i -= 1
+            print(f"🔧 ADJUSTED: trial_i decremented to {trial_i}")
+        print(f"🔧 After: ftrial_i={ftrial_i}, trial_i={trial_i}")
+    else:
+        print(f"🔧 EDGE CASE CHECK: SKIPPED due to resume mode, resume request, or was_resumed flag")
 
     # Calculate and update average score
     avg_score = sum(tscores) / len(tscores) if tscores else 0
@@ -607,34 +627,50 @@ def load_next_scene():
     db.session.commit()
 
     # Determine which trial/scene to show next based on current progress
+    print(f"🎯 TRIAL LOGIC: Determining which trial to show")
+    print(f"🎯 Conditions: ftrial_i={ftrial_i} < num_ftrials={config['num_ftrials']} = {ftrial_i < config['num_ftrials']}")
+    print(f"🎯 Conditions: trial_i={trial_i} < num_trials={config['num_trials']} = {trial_i < config['num_trials']}")
+    print(f"🎯 Conditions: trial_i={trial_i} == num_trials={config['num_trials']} = {trial_i == config['num_trials']}")
+    
     if ftrial_i < config["num_ftrials"]:
+        print(f"🎯 BRANCH: Familiarization phase")
         # Still in familiarization phase
         npz_data = config["ftrial_datas"][ftrial_i]
         ftrial_i += 1
         is_ftrial = True
         finish = False
+        print(f"🎯 FAMILIARIZATION: Loading ftrial {ftrial_i-1}, new ftrial_i={ftrial_i}")
     elif ftrial_i == config["num_ftrials"] and is_ftrial:
+        print(f"🎯 BRANCH: Transition page")
         # Just finished familiarization - show transition page
         transition_to_exp_page = True
         is_ftrial = False
         npz_data = config["trial_datas"][0]  # Dummy data for transition
         finish = False
+        print(f"🎯 TRANSITION: Showing transition page")
     elif trial_i < config["num_trials"]:
+        print(f"🎯 BRANCH: Experimental phase")
         # In experimental phase
         transition_to_exp_page = False
-        npz_data = config["trial_datas"][trial_i - 1]  # Convert from 1-based to 0-based indexing
+        print(f"🎯 EXPERIMENTAL: Loading trial_datas[{trial_i}] (0-based)")
+        npz_data = config["trial_datas"][trial_i]
+        old_trial_i = trial_i
+        trial_i += 1
         is_trial = True
         finish = False
+        print(f"🎯 EXPERIMENTAL: Loaded trial {old_trial_i}, incremented trial_i to {trial_i}")
         # Clear resume mode flag when we start experimental trials
         if config.get('is_resume_mode', False):
+            print(f"🎯 EXPERIMENTAL: Clearing resume mode flag")
             config['is_resume_mode'] = False
-        # Only increment trial_i after we've used it for the current trial
-        trial_i += 1
     elif trial_i == config["num_trials"]:
+        print(f"🎯 BRANCH: Experiment complete")
         # Experiment complete
         finish = True
         npz_data = config["trial_datas"][-1]  # Dummy data for finish screen
+        print(f"🎯 COMPLETE: Experiment finished")
     else:
+        print(f"🎯 ERROR: Unexpected condition - trial_i={trial_i}, num_trials={config['num_trials']}")
         return jsonify({"error": "Unexpected condition"}), 500
 
     # Determine trial metadata for database record
@@ -673,6 +709,7 @@ def load_next_scene():
         print(f"-------------------------------")
 
     # Update configuration with new progress state
+    print(f"💾 SAVING STATE: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}, transition_to_exp_page={transition_to_exp_page}")
     config.update({
         'trial_i': trial_i,
         'ftrial_i': ftrial_i,
@@ -683,6 +720,7 @@ def load_next_scene():
     config_entry.config_data = config
     flag_modified(config_entry, "config_data")  # Mark as dirty for SQLAlchemy
     db.session.commit()
+    print(f"💾 STATE SAVED: Configuration committed to database")
 
     # Handle experiment completion
     if finish:
@@ -705,8 +743,6 @@ def load_next_scene():
         print("=============================")
 
     # Prepare scene data for frontend
-    # For experimental trials, send the actual trial number (before increment)
-    display_trial_i = trial_i - 1 if is_trial and not transition_to_exp_page and not finish else trial_i
     
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
@@ -716,7 +752,7 @@ def load_next_scene():
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,
         "ftrial_i": ftrial_i,
-        "trial_i": display_trial_i,  # Send the correct trial number to frontend
+        "trial_i": trial_i,
         "num_ftrials": config["num_ftrials"],
         "num_trials": config["num_trials"],
         "fam_to_exp_page": transition_to_exp_page,

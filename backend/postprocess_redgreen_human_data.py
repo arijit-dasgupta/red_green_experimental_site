@@ -189,7 +189,7 @@ def print_demo_data(session_df, demographic_path):
 
 import os
 import numpy as np
-def extract_occlusion_data(path_to_data, participant_FPS=30):
+def extract_occlusion_data(path_to_data, participant_FPS=15):
     # Initialize dictionaries to store results
     occlusion_durations = {}
     occlusion_frames = {}
