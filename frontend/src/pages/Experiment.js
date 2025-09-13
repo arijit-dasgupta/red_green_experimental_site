@@ -322,7 +322,7 @@ const ExperimentPage = ({
                     backgroundColor: "#f9f9f9",
                 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "1.5rem" }}>2</h2>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>2</h2>
                         <div style={{
                             width: "20px",
                             height: "20px",
@@ -331,7 +331,7 @@ const ExperimentPage = ({
                         }} />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "1.5rem" }}>8</h2>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>8</h2>
                         <div style={{
                             width: "20px",
                             height: "20px",
