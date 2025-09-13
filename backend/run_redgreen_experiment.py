@@ -564,19 +564,23 @@ def load_next_scene():
     
     # Handle resume functionality
     if resume_from_trial is not None:
-        # Reset to familiarization phase and set trial to resume from
-        # Convert from 1-based user input to 0-based internal indexing
-        config['trial_i'] = resume_from_trial - 1
-        config['ftrial_i'] = 0  # Start from beginning of familiarization
-        config['is_ftrial'] = True
-        config['is_trial'] = False
-        config['transition_to_exp_page'] = False
-        config['is_resume_mode'] = True  # Flag to indicate we're in resume mode
-        config['resume_target_trial'] = resume_from_trial - 1  # Store the target trial
-        config['was_resumed'] = True  # Permanent flag to indicate this session was resumed
-        # Don't reset scores - keep existing progress to avoid edge case issues
-        # config['fscores'] = []
-        # config['tscores'] = []
+        print(f"RESUME DEBUG: Requested trial {resume_from_trial}")
+        # COMPLETELY RESET config state for reliable resume behavior
+        # This prevents any stale state from interfering with resume logic
+        config.update({
+            'trial_i': resume_from_trial - 1,    # Convert from 1-based user input to 0-based internal indexing
+            'ftrial_i': 0,                       # Start from beginning of familiarization
+            'is_ftrial': True,                   # Currently in familiarization phase
+            'is_trial': False,                   # Not in experimental phase yet
+            'transition_to_exp_page': False,     # No transition page yet
+            'is_resume_mode': True,              # Flag to indicate we're in resume mode
+            'resume_target_trial': resume_from_trial - 1,  # Store the target trial
+            'was_resumed': True,                 # Permanent flag to indicate this session was resumed
+            'fscores': [],                       # Reset familiarization scores for clean state
+            'tscores': []                        # Reset trial scores for clean state
+        })
+        
+        print(f"RESUME DEBUG: Set config trial_i to {config['trial_i']} for trial {resume_from_trial}")
         
         # Update the configuration in database IMMEDIATELY
         config_entry.config_data = config
@@ -587,6 +591,16 @@ def load_next_scene():
     ftrial_i = config['ftrial_i']
     is_ftrial = config['is_ftrial']
     is_trial = config['is_trial']
+    
+    print(f"STATE DEBUG: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
+    
+    # Validate config state integrity
+    if resume_from_trial is not None:
+        expected_trial_i = resume_from_trial - 1
+        if trial_i != expected_trial_i:
+            print(f"CONFIG ERROR: trial_i={trial_i} but expected {expected_trial_i} for resume trial {resume_from_trial}")
+            return jsonify({"error": f"Config state corruption detected"}), 500
+    
     fscores = config['fscores']
     tscores = config['tscores']
     transition_to_exp_page = config['transition_to_exp_page']
@@ -624,7 +638,9 @@ def load_next_scene():
         transition_to_exp_page = False
         npz_data = config["trial_datas"][trial_i]
         old_trial_i = trial_i
+        print(f"EXP PHASE DEBUG: Loading trial_datas[{trial_i}] (1-based trial {trial_i + 1})")
         trial_i += 1
+        print(f"EXP PHASE DEBUG: After increment, trial_i={trial_i} (will be sent to frontend)")
         is_trial = True
         finish = False
         # Clear resume mode flag when we start experimental trials

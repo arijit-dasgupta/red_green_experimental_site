@@ -298,9 +298,8 @@ const InstructionPage5 = ({ handleNext, handleBack, trialInfo }) => (
             Afterward, you will complete <strong>{trialInfo.num_trials}</strong> trials for the main experiment.
         </p>
         <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
-        <b>You will be scored based on how quickly and accurately you perform per trial.</b> Details of how 
-        you are scored will be shown soon. The faster you make the correct decision, 
-        the higher you will score, <b>however</b> making the wrong decision leads to a penalty. 
+        <b>Please respond as quickly and accurately as possible per trial.</b> 
+        The faster you make the correct decision, the better, <b>however</b> making the wrong decision should be avoided. 
         <strong> Remember to hold down on the key continuously when you decide on red or green, 
         even if you change your mind</strong>. 
         </p> */}

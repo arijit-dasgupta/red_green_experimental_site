@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import KeyStateLine from '../components/KeyStateLine'; 
 import TransitionPage from './Transition';
-import ScoringInstrucPage from './ScoringInstruc';
 
 const ExperimentPage = ({
     sceneData,
@@ -28,10 +27,8 @@ const ExperimentPage = ({
 }) => {
 
     const isInitializedRef = useRef(false);
-    const activatedScoringInstruc = useRef(false);
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
-    const [showScoringInstruc, setShowScoringInstruc] = useState(false);
     const [showPauseConfirmation, setShowPauseConfirmation] = useState(false);
 
     useEffect(() => {
@@ -45,16 +42,6 @@ const ExperimentPage = ({
     }, [fetchNextScene]);
 
     // Scoring instruction page disabled - skip directly to F2
-    // useEffect(() => {
-    //     if (trialInfo.is_ftrial && trialInfo.ftrial_i === 2 && !activatedScoringInstruc.current) {
-    //         activatedScoringInstruc.current = true;
-    //         setShowScoringInstruc(true); // Show explanation page after first familiarization trial
-    //     }
-    // }, [trialInfo]);
-
-    const handleProceed = () => {
-        setShowScoringInstruc(false); // Hide explanation page
-    };
 
     const handlePauseClick = () => {
         setShowPauseConfirmation(true);
@@ -108,9 +95,6 @@ const ExperimentPage = ({
     }, [handlePlayPause, setWaitingForScoreSpacebar, fetchNextScene, setdisableCountdownTrigger]); // Reduced dependencies
     
     // Scoring instruction page disabled
-    // if (showScoringInstruc) {
-    //     return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
-    // }
 
     if (isTransitionPage) {
         return (
