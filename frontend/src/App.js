@@ -55,6 +55,7 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
+  const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
 
   // Refs
   const animationRef = useRef(null);
@@ -197,6 +198,9 @@ const App = () => {
             countdown={countdown}
             finished={finished}
             score={score}
+            waitingForScoreSpacebar={waitingForScoreSpacebar}
+            setWaitingForScoreSpacebar={setWaitingForScoreSpacebar}
+            setFinished={setFinished}
             canvasSize={canvasSize}
             handlePlayPause={handlePlayPause}
             fetchNextScene={fetchNextScene}
@@ -282,6 +286,7 @@ const App = () => {
       setFinished(false);
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
+      setWaitingForScoreSpacebar(false); // Reset score spacebar state for new trial
       animate.firstFrameUtc = null; // Reset timing data for new trial
 
       // Optionally update canvas size here if needed
@@ -365,13 +370,13 @@ const App = () => {
               }
               const trialResult = await response.json();
               setScore(trialResult.score);
-              setFinished(true);
+              setWaitingForScoreSpacebar(true); // Show "press spacebar to see score" message
             } catch (error) {
               console.error("Error saving data or fetching score:", error);
               setScore(0);
-              setFinished(true);
+              setWaitingForScoreSpacebar(true); // Show message even on error
             }
-          }, 500);
+          }, 1000);
         }
         return;
       }

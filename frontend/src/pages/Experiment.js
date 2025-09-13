@@ -15,6 +15,9 @@ const ExperimentPage = ({
     countdown,
     finished,
     score,
+    waitingForScoreSpacebar,
+    setWaitingForScoreSpacebar,
+    setFinished,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
@@ -116,6 +119,34 @@ const ExperimentPage = ({
             window.removeEventListener('keyup', handleKeyUp);
         };
     }, [fetchNextScene, finished, isTransitionPage, showScoringInstruc]);
+    
+    // Handle spacebar for showing score after trial completes
+    useEffect(() => {
+        let isSpacePressed = false; // Tracks whether the Spacebar is pressed
+    
+        const handleKeyUp = (e) => {
+            if (e.code === 'Space' && isSpacePressed && waitingForScoreSpacebar && !isTransitionPage && !showScoringInstruc) {
+                // console.log("Spacebar pressed. Showing score...");
+                isSpacePressed = false;
+                setWaitingForScoreSpacebar(false);
+                setFinished(true); // Show the score overlay
+            }
+        };
+    
+        const handleKeyDown = (e) => {
+            if (e.code === 'Space') {
+                isSpacePressed = true;
+            }
+        };
+    
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+    
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [waitingForScoreSpacebar, setWaitingForScoreSpacebar, setFinished, isTransitionPage, showScoringInstruc]);
     
     if (showScoringInstruc) {
         return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
@@ -409,7 +440,11 @@ const ExperimentPage = ({
                             marginTop: "10px",
                             textAlign: "center"
                         }}>
-                            Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.
+                            {waitingForScoreSpacebar ? (
+                                <>Press the <span style={{ color: "green" }}>Spacebar</span> to see score.</>
+                            ) : (
+                                <>Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
+                            )}
                         </p>
                     </div>
 
