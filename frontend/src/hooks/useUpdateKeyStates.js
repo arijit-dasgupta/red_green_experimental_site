@@ -3,8 +3,8 @@ import { useEffect } from "react";
 const useUpdateKeyStates = (keyStates, setKeyStates) => {
   useEffect(() => {
     const handleKey = (isDown) => (e) => {
-      if (e.key === "f" || e.key === "j") {
-        setKeyStates((prev) => ({ ...prev, [e.key]: isDown }));
+      if (e.key === "f" || e.key === "F" || e.key === "j" || e.key === "J") {
+        setKeyStates((prev) => ({ ...prev, [e.key.toLowerCase()]: isDown }));
       }
     };
 
