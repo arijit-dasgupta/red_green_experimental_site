@@ -1,6 +1,8 @@
 # in this file, we have re-usable code and functions to fetch and visualize the results of the REDGREEN experiment. 
 # the code here is primarily used for the analysis of the HUMAN empirical data
 
+from typing import Any
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine
@@ -70,8 +72,15 @@ def extract_human_data(db_path, path_to_data): # the second is raw data path to 
 
     entries = os.listdir(path_to_data)
     e_folders = sorted([entry for entry in entries if entry.startswith('E')])
-    e_paths = [os.path.join(os.path.join(path_to_data, entry), 'data.npz') for entry in e_folders]
-    rg_outcomes = [np.load(e_paths[i], allow_pickle=True).get("rg_outcome", {}).item() for i in range(len(e_folders))]
+    e_paths = [os.path.join(os.path.join(path_to_data, entry), 'simulation_data.json') for entry in e_folders]
+    
+    # Parse JSON files to get rg_outcome
+    rg_outcomes = []
+    for file_path in e_paths:
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+            rg_outcomes.append(data.get("rg_outcome", ""))
+    
     rg_outcome_df = pd.DataFrame({
         "global_trial_name": e_folders,
         "rg_outcome": rg_outcomes,
@@ -87,7 +96,42 @@ def extract_human_data(db_path, path_to_data): # the second is raw data path to 
 
     return session_df, trial_df, keystate_df, rgplot_df, valid_trial_ids, global_trial_names
 
+def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
+    """
+    Save human keystate data as separate CSV files for each trial.
+    
+    Args:
+        trial_df: DataFrame containing trial information with trial_id and session_id
+        keystate_df: DataFrame containing keystate data with trial_id
+        path_to_data: Path to the directory containing trial folders
+    
+    Returns:
+        dict: Dictionary of dataframes, one for each global_trial_name
+    """
+    # Create a new dataframe by joining keystate_df with trial_df to add session_id
+    keystate_with_session = keystate_df.merge(
+        trial_df[['trial_id', 'session_id']], 
+        on='trial_id', 
+        how='inner'
+    )[['frame', 'red', 'green', 'uncertain', 'session_id', 'rg_outcome', 'trial_id', 'global_trial_name']].sort_values(['global_trial_name', 'session_id'])
 
+    # Assert that each row has a unique combination of frame, global_trial_name, and session_id
+    assert keystate_with_session.duplicated(subset=['frame', 'global_trial_name', 'session_id']).sum() == 0, "Found duplicate rows with same frame, global_trial_name, and session_id"
+
+    # Create a dictionary of dataframes, one for each global_trial_name
+    keystate_by_trial = {}
+    for trial_name in keystate_with_session['global_trial_name'].unique():
+        keystate_by_trial[trial_name] = keystate_with_session[keystate_with_session['global_trial_name'] == trial_name].copy()
+
+    # Save each trial as a separate CSV file in path_to_data
+    for trial_name, trial_data in keystate_by_trial.items():
+        csv_filename = "human_data.csv"
+        csv_filepath = os.path.join(path_to_data, trial_name, csv_filename)
+        trial_data.to_csv(csv_filepath, index=False)
+    
+    print(f"Saved human data as CSV files in {path_to_data}")
+    
+    return keystate_by_trial
 
 def find_duplicate_completed_trials(trial_df):
     """
@@ -186,113 +230,3 @@ def print_demo_data(session_df, demographic_path):
     print(f"The STDDEV of age is: {np.std(np.array([int(x) for x in valid_demo_df['Age'].to_list()])):.2f}")
     print("\nGender Profile Counts:")
     print(gender_counts)
-
-import os
-import numpy as np
-def extract_occlusion_data(path_to_data, participant_FPS=30):
-    # Initialize dictionaries to store results
-    occlusion_durations = {}
-    occlusion_frames = {}
-    continuous_occlusion_periods = {}
-    all_periods_seconds = {}
-
-    # Loop through each folder in the directory
-    for trial_name in tqdm(sorted(os.listdir(path_to_data))):
-        trial_path = os.path.join(path_to_data, trial_name)
-        if os.path.isdir(trial_path):
-            npz_path = os.path.join(trial_path, "high_res_obs.npz")
-            if os.path.exists(npz_path):
-                # print(f"Processing trial: {trial_name}")
-                # Load the video data
-                video_data = np.load(npz_path)["arr_0"]  # Replace "arr_0" if array name differs
-                T, M, N, _ = video_data.shape
-                all_periods_seconds[trial_name] = T/participant_FPS
-
-                num_blue_pixels = [
-                    np.sum(np.logical_and(np.logical_and(video_data[t,...,2]>200 , video_data[t,...,0]<50), video_data[t,...,1]<50)) for t in range(T)
-                ]
-
-                # Find occluded/occluding frames
-                occluded_frames = [
-                    t for t in range(T) 
-                    if num_blue_pixels[t] < 1900  # Threshold for occluding
-                ]
-                
-                # Calculate duration of occlusion in seconds
-                duration = len(occluded_frames) / participant_FPS  # 30 FPS
-                
-                # Store results
-                if occluded_frames:  # Only store if occlusion is present
-                    occlusion_durations[trial_name] = duration
-                    occlusion_frames[trial_name] = occluded_frames
-                    continuous_periods = []
-                    current_period = [occluded_frames[0]]
-
-                    for i in range(1, len(occluded_frames)):
-                        if occluded_frames[i] == occluded_frames[i-1] + 1:  # Consecutive frame
-                            current_period.append(occluded_frames[i])
-                        else:
-                            # Save the completed period and start a new one
-                            continuous_periods.append(len(current_period))
-                            current_period = [occluded_frames[i]]
-
-                    # Add the last period
-                    continuous_periods.append(len(current_period))
-
-                    # Convert to duration in seconds
-                    continuous_occlusion_periods[trial_name] = [period / participant_FPS for period in continuous_periods]
-
-
-    # Calculate summary statistics for occlusion durations (scenes with occlusion)
-    if occlusion_durations:
-        durations = list(occlusion_durations.values())
-        summary_stats = {
-            "mean_duration": np.mean(durations),
-            "median_duration": np.median(durations),
-            "max_duration": np.max(durations),
-            "min_duration": np.min(durations),
-            "total_scenes_with_occlusion": len(durations)
-        }
-
-        # Print summary statistics
-        print("Summary Statistics of Occlusion Durations:")
-        for stat, value in summary_stats.items():
-            print(f"{stat}: {value:.2f}")
-    else:
-        print("No occlusion detected in any scene.")
-
-    # Print the occlusion data dictionaries
-    print("\nOcclusion Durations (in seconds):")
-    print(occlusion_durations)
-
-    # Summary statistics for continuous occlusion periods
-    if continuous_occlusion_periods:
-        all_periods = [duration for periods in continuous_occlusion_periods.values() for duration in periods]
-        continuous_summary_stats = {
-            "mean_continuous_duration": np.mean(all_periods),
-            "median_continuous_duration": np.median(all_periods),
-            "max_continuous_duration": np.max(all_periods),
-            "min_continuous_duration": np.min(all_periods),
-            "total_continuous_periods": len(all_periods)
-        }
-
-        # Print summary statistics for continuous occlusion periods
-        print("\nSummary Statistics of Continuous Occlusion Periods:")
-        for stat, value in continuous_summary_stats.items():
-            print(f"{stat}: {value:.2f}")
-
-    if all_periods_seconds:
-        all_periods = list(all_periods_seconds.values())
-        continuous_summary_stats = {
-            "mean_duration": np.mean(all_periods),
-            "median_duration": np.median(all_periods),
-            "max_duration": np.max(all_periods),
-            "min_duration": np.min(all_periods),
-            "total_periods": len(all_periods)
-        }
-
-        # Print summary statistics for continuous occlusion periods
-        print("\nSummary Statistics of All Periods:")
-        for stat, value in continuous_summary_stats.items():
-            print(f"{stat}: {value:.2f}")
-    return occlusion_durations, occlusion_frames, continuous_occlusion_periods, all_periods_seconds

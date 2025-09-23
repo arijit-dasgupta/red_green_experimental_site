@@ -13,7 +13,7 @@ The experiment consists of two phases:
 CORE FUNCTIONALITY:
 - Serves a React frontend from the build directory
 - Manages participant sessions with unique profile IDs and Prolific integration
-- Loads trial data from NPZ files containing scene information (barriers, occluders, sensor data)
+- Loads trial data from JSON files containing scene information (barriers, occluders, sensor data)
 - Tracks keypress data (F and J keys) frame-by-frame during trials
 - Calculates scores based on participant responses vs. ground truth outcomes
 - Handles session timeouts and data validation
@@ -61,7 +61,7 @@ DEPLOYMENT NOTES:
 
 from flask import send_from_directory, Flask, request, jsonify, has_request_context
 from flask_cors import CORS
-import numpy as np
+import json
 from datetime import datetime, timedelta
 import os
 import copy
@@ -83,15 +83,15 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-EXPERIMENT_RUN_VERSION = 'debug_mode'  # Version identifier for this experiment run
-TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
-check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
-NUM_PARTICIPANTS = 60  # Target number of participants to recruit
+DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
+check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
+NUM_PARTICIPANTS = 800  # Target number of participants to recruit
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
-PARTICIPANT_BUFFER = 15 
+PARTICIPANT_BUFFER = 1500
 #=============================================================================
 
 # Calculate maximum participants (target + buffer)
@@ -189,6 +189,8 @@ class Trial(db.Model):
     counterbalance = db.Column(db.Boolean, default=False)  # Whether Red/Green goals were randomly swapped in stimuli (need to account for this when scoring, for example, depending on the counterbalance, either the F or J key was the correct choice)
     score = db.Column(db.Float, nullable=True)  # Calculated performance score for this trial
     completed = db.Column(db.Boolean, default=False)  # Whether trial finished successfully
+    first_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of frame 0 (when ball starts moving)
+    last_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of final frame
 
 class KeyState(db.Model):
     """
@@ -203,6 +205,7 @@ class KeyState(db.Model):
     f_pressed = db.Column(db.Boolean)  # State of F key (typically red choice) True if F key was pressed, False otherwise
     j_pressed = db.Column(db.Boolean)  # State of J key (typically green choice) True if J key was pressed, False otherwise
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False) # foreign key to the session record
+    relative_time_ms = db.Column(db.Float, nullable=True)  # Time in milliseconds relative to frame 0 of the trial
 
 #=============================================================================
 # UTILITY FUNCTIONS
@@ -235,7 +238,7 @@ def print_active_sessions():
     remaining_ids = [i for i in range(MAX_NUM_PARTICIPANTS) if i not in active_profile_ids]
 
     print("=== Remaining Sessions ===")
-    print(f"Remaining Randomized Profile IDs: {remaining_ids}")
+    # print(f"Remaining Randomized Profile IDs: {remaining_ids}")
     print("========================")
     print(app.config['SQLALCHEMY_DATABASE_URI'])
 
@@ -261,8 +264,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
     
     The function ensures proper randomization while maintaining experimental constraints:
     - All participants get the same familiarization trials in order
-    - Experimental trials are randomized per participant using a seeded random generator
-    - Randomization avoids consecutive trials of the same type where possible
+    - Experimental trials are randomized ONCE (same order for all participants)
     """
     try:
         # Convert relative path to absolute path based on this Python file's location
@@ -278,45 +280,18 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         participants_f_assignments.sort()  # F1, F2, F3, etc. in order
         
         e_folders = [entry for entry in entries if entry.startswith('E')]
-        
-        # Create randomized trial orders for each possible participant
-        participants_e_assignments = [e_folders for _ in range(MAX_NUM_PARTICIPANTS)]
-        
-        # Generate unique randomized order for each participant profile
-        for i in range(MAX_NUM_PARTICIPANTS):
-            e_assignment = participants_e_assignments[i]
-            randomizer_cond = True
-            counter = 0
-            
-            # Keep shuffling until we meet randomization constraints
-            while randomizer_cond:
-                random_.shuffle(e_assignment)
-                # Extract trial numbers from folder names (e.g., 'E1-1a' -> 1)
-                intters = [int(e_assignment[i][1:]) for i in range(len(e_assignment))]
-                
-                # Check if consecutive trials avoid problematic patterns
-                # This ensures good counterbalancing across trial types
-                randomizer_list = [
-                    ((intters[i]+1 != intters[i+1]) and (intters[i] %2 == 1)) or 
-                    (intters[i]-1 != intters[i+1] and (intters[i] %2 == 0)) 
-                    for i in range(len(intters)-1)
-                ]
-                randomizer_cond = not all(randomizer_list)
-                counter += 1
-                
-                # Prevent infinite loops with safety break
-                if counter > 200:
-                    break
-                    
-            participants_e_assignments[i] = e_assignment
 
-        # Build full file paths to data.npz files in each trial folder
-        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
+        # Shuffle e_folders ONCE for all participants
+        e_folders_shuffled = e_folders[:]
+        random_.shuffle(e_folders_shuffled)
+
+        # All participants get the same shuffled order
+        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
                   for entry in participants_f_assignments]
-        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
-                  for entry in participants_e_assignments[randomized_profile_id]]
+        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
+                  for entry in e_folders_shuffled]
         
-        return f_paths, e_paths, participants_e_assignments[randomized_profile_id]
+        return f_paths, e_paths, e_folders_shuffled
 
     except (FileNotFoundError, PermissionError) as e:
         print(f"Error accessing {absolute_directory_path}: {e}")
@@ -343,7 +318,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     
     This function:
     1. Gets trial file paths for the participant's assigned profile
-    2. Loads and parses NPZ trial data files 
+    2. Loads and parses JSON trial data files 
     3. Prepares trial data in format expected by frontend
     4. Returns configuration object and randomized trial order
     
@@ -361,11 +336,11 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     major_path = config["major_path"]
     ftrial_paths, trial_paths, randomized_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
 
-    def parse_npz(file_path):
+    def parse_json(file_path):
         """
-        Parse a single NPZ trial data file into frontend-compatible format.
+        Parse a single JSON trial data file into frontend-compatible format.
         
-        NPZ files contain:
+        JSON files contain:
         - barriers: Physical obstacles in the scene
         - occluders: Visual occlusion elements  
         - step_data: Frame-by-frame position data for moving objects
@@ -374,30 +349,34 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         - target: Information about the target object
         - rg_outcome: Ground truth answer ('red' or 'green')
         """
-        data = np.load(file_path, allow_pickle=True)
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        
         return {
             # Convert barrier/occluder data to list of dicts with rounded coordinates
-            "barriers": [{key: round(value, 2) for key, value in item.items()} 
-                        for item in data.get("barriers", []).tolist()],
-            "occluders": [{key: round(value, 2) for key, value in item.items()} 
-                         for item in data.get("occluders", []).tolist()],
+            "barriers": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                         for key, value in item.items()} 
+                        for item in data.get("barriers", [])],
+            "occluders": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                          for key, value in item.items()} 
+                         for item in data.get("occluders", [])],
             # Convert step data to frame-indexed position dictionary
             "step_data": {int(k): {'x': v['x'], 'y': v['y']} 
-                         for k, v in data.get("step_data", {}).item().items()},
+                         for k, v in data.get("step_data", {}).items()},
             # Sensor configuration data
-            "red_sensor": data.get("red_sensor", {}).item(),
-            "green_sensor": data.get("green_sensor", {}).item(),
+            "red_sensor": data.get("red_sensor", {}),
+            "green_sensor": data.get("green_sensor", {}),
             # Animation timing
-            "timestep": round(data.get("timestep", {}).item(), 2),
+            "timestep": round(data.get("timestep", 0), 2),
             # Target object radius (from size)
-            "radius": data['target'].item()['size'] / 2,
+            "radius": data.get('target', {}).get('size', 0) / 2,
             # Ground truth outcome for scoring
-            "rg_outcome": data.get("rg_outcome", {}).item(),
+            "rg_outcome": data.get("rg_outcome", ""),
         }
 
     # Parse all trial data files for this participant
-    config["ftrial_datas"] = [parse_npz(file_path) for file_path in ftrial_paths]
-    config["trial_datas"] = [parse_npz(file_path) for file_path in trial_paths]
+    config["ftrial_datas"] = [parse_json(file_path) for file_path in ftrial_paths]
+    config["trial_datas"] = [parse_json(file_path) for file_path in trial_paths]
     config["num_ftrials"] = len(ftrial_paths)
     config["num_trials"] = len(trial_paths)
 
@@ -572,6 +551,8 @@ def load_next_scene():
         JSON containing scene data, trial metadata, and progress information
     """
     session_id = request.json.get('session_id')
+    resume_from_trial = request.json.get('resume_from_trial')
+    
     if not session_id:
         return jsonify({"error": "Session not found"}), 400
 
@@ -585,24 +566,58 @@ def load_next_scene():
         return jsonify({"error": "Experiment configuration not found"}), 500
     config = config_entry.config_data
     
+    # Handle resume functionality
+    if resume_from_trial is not None:
+        print(f"RESUME DEBUG: Requested trial {resume_from_trial}")
+        # COMPLETELY RESET config state for reliable resume behavior
+        # This prevents any stale state from interfering with resume logic
+        config.update({
+            'trial_i': resume_from_trial - 1,    # Convert from 1-based user input to 0-based internal indexing
+            'ftrial_i': 0,                       # Start from beginning of familiarization
+            'is_ftrial': True,                   # Currently in familiarization phase
+            'is_trial': False,                   # Not in experimental phase yet
+            'transition_to_exp_page': False,     # No transition page yet
+            'is_resume_mode': True,              # Flag to indicate we're in resume mode
+            'resume_target_trial': resume_from_trial - 1,  # Store the target trial
+            'was_resumed': True,                 # Permanent flag to indicate this session was resumed
+            'fscores': [],                       # Reset familiarization scores for clean state
+            'tscores': []                        # Reset trial scores for clean state
+        })
+        
+        print(f"RESUME DEBUG: Set config trial_i to {config['trial_i']} for trial {resume_from_trial}")
+        
+        # Update the configuration in database IMMEDIATELY
+        config_entry.config_data = config
+        db.session.commit()
+    
     # Extract current progress from configuration
     trial_i = config['trial_i']
     ftrial_i = config['ftrial_i']
     is_ftrial = config['is_ftrial']
     is_trial = config['is_trial']
+    
+    print(f"STATE DEBUG: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
+    
+    # Validate config state integrity
+    if resume_from_trial is not None:
+        expected_trial_i = resume_from_trial - 1
+        if trial_i != expected_trial_i:
+            print(f"CONFIG ERROR: trial_i={trial_i} but expected {expected_trial_i} for resume trial {resume_from_trial}")
+            return jsonify({"error": f"Config state corruption detected"}), 500
+    
     fscores = config['fscores']
     tscores = config['tscores']
     transition_to_exp_page = config['transition_to_exp_page']
-
-    print(f"trial_i: {trial_i}, ftrial_i: {ftrial_i}, is_ftrial: {is_ftrial}, is_trial: {is_trial}, transition_to_exp_page: {transition_to_exp_page}")
-
-    print(f"num_ftrials: {config['num_ftrials']}, num_trials: {config['num_trials']}")
-
+    
     # Ensure indices don't exceed available scores (handles edge cases)
-    if len(fscores) < ftrial_i:
-        ftrial_i -= 1
-    if len(tscores) < trial_i:
-        trial_i -= 1
+    # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
+    if (resume_from_trial is None and 
+        not config.get('is_resume_mode', False) and 
+        not config.get('was_resumed', False)):
+        if len(fscores) < ftrial_i:
+            ftrial_i -= 1
+        if len(tscores) < trial_i:
+            trial_i -= 1
 
     # Calculate and update average score
     avg_score = sum(tscores) / len(tscores) if tscores else 0
@@ -626,9 +641,15 @@ def load_next_scene():
         # In experimental phase
         transition_to_exp_page = False
         npz_data = config["trial_datas"][trial_i]
+        old_trial_i = trial_i
+        print(f"EXP PHASE DEBUG: Loading trial_datas[{trial_i}] (1-based trial {trial_i + 1})")
         trial_i += 1
+        print(f"EXP PHASE DEBUG: After increment, trial_i={trial_i} (will be sent to frontend)")
         is_trial = True
         finish = False
+        # Clear resume mode flag when we start experimental trials
+        if config.get('is_resume_mode', False):
+            config['is_resume_mode'] = False
     elif trial_i == config["num_trials"]:
         # Experiment complete
         finish = True
@@ -704,6 +725,7 @@ def load_next_scene():
         print("=============================")
 
     # Prepare scene data for frontend
+    
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": 20,
@@ -766,6 +788,17 @@ def save_data():
         # Mark trial as completed
         trial.completed = True
         trial.end_time = datetime.utcnow()
+        
+        # Extract timing data from frontend
+        first_frame_utc_str = request.json.get('first_frame_utc')
+        last_frame_utc_str = request.json.get('last_frame_utc')
+        
+        # Parse and store trial timing
+        if first_frame_utc_str:
+            trial.first_frame_utc = datetime.fromisoformat(first_frame_utc_str.replace('Z', '+00:00'))
+        if last_frame_utc_str:
+            trial.last_frame_utc = datetime.fromisoformat(last_frame_utc_str.replace('Z', '+00:00'))
+        
         db.session.commit()
         
         # Process keypress data
@@ -776,6 +809,11 @@ def save_data():
         num_red = num_green = 0
         counterbalance = request.json.get('counterbalance', False)
         
+        # Parse first frame time for relative timing calculations
+        first_frame_time = None
+        if first_frame_utc_str:
+            first_frame_time = datetime.fromisoformat(first_frame_utc_str.replace('Z', '+00:00'))
+        
         # Process each frame of keypress data
         for entry in data:
             f_pressed = entry['keys']['f']
@@ -784,6 +822,12 @@ def save_data():
             # Apply counterbalancing if active (swap key meanings)
             if counterbalance:
                 f_pressed, j_pressed = j_pressed, f_pressed
+            
+            # Calculate relative time from frame 0
+            relative_time_ms = None
+            if first_frame_time and 'utc_timestamp' in entry:
+                frame_time = datetime.fromisoformat(entry['utc_timestamp'].replace('Z', '+00:00'))
+                relative_time_ms = (frame_time - first_frame_time).total_seconds() * 1000
                 
             # Store keypress state for this frame
             key_state = KeyState(
@@ -791,7 +835,8 @@ def save_data():
                 frame=entry['frame'], 
                 f_pressed=f_pressed, 
                 j_pressed=j_pressed, 
-                session_id=session_id
+                session_id=session_id,
+                relative_time_ms=relative_time_ms
             )
             db.session.add(key_state)
 
