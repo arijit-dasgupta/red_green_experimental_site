@@ -1,7 +1,14 @@
 // KeyStateLine.js
 import React from 'react';
 
-const KeyStateLine = ({ recordedKeyStates }) => {
+// Calculate scaling factor to keep components at reasonable size
+const getScaleFactor = (canvasSize) => {
+  const baseSize = 400;
+  const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
+  return Math.min(1, baseSize / maxCanvasDim);
+};
+
+const KeyStateLine = ({ recordedKeyStates, canvasSize }) => {
     // Count the occurrences of 'f' (red) and 'j' (green)
     const redCount = recordedKeyStates.current.filter((state) => state.keys.f && !state.keys.j).length;
     const greenCount = recordedKeyStates.current.filter((state) => state.keys.j && !state.keys.f).length;
@@ -13,23 +20,26 @@ const KeyStateLine = ({ recordedKeyStates }) => {
     const greenProportion = totalCount > 0 ? (greenCount / totalCount) * 100 : 0;
     const uncertainProportion = totalCount > 0 ? 100 - redProportion - greenProportion : 0;
 
+    // Calculate scaling factor
+    const scaleFactor = canvasSize ? getScaleFactor(canvasSize) : 1;
+
     return (
         <div
             style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginTop: '20px',
+                marginTop: `${20 * scaleFactor}px`,
                 width: '100%',
             }}
         >
             <div
                 style={{
-                    height: '40px',
+                    height: `${40 * scaleFactor}px`,
                     width: '100%',
                     display: 'flex',
                     backgroundColor: '#e0e0e0',
-                    borderRadius: '10px',
+                    borderRadius: `${10 * scaleFactor}px`,
                     overflow: 'hidden',
                     position: 'relative', // Ensure relative positioning for children
                 }}
@@ -59,7 +69,7 @@ const KeyStateLine = ({ recordedKeyStates }) => {
                             style={{
                                 position: 'absolute',
                                 color: 'white',
-                                fontSize: '12px',
+                                fontSize: `${Math.max(12 * scaleFactor, 16)}px`, // Minimum font size of 10px
                                 fontWeight: 'bold',
                             }}
                         >

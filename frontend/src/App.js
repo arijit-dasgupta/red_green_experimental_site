@@ -37,8 +37,18 @@ const App = () => {
 
   const { currentPage, navigate } = useNavigation(); // Access currentPage and navigate from context
 
-  const FPS = 30; // This was kept fixed because of the standard refresh rate of the screen
+  // FPS override - set to null to use FPS from JSON files, or set a number to override
+  const OVERRIDE_FPS = null; // Set to null to use JSON FPS, or set to a number (e.g., 30) to override
   const CANVAS_PROPORTION = 0.7;
+  const MAX_CANVAS_SIZE = 1000; // Maximum canvas width/height in pixels
+  
+  // Get FPS from sceneData if available, otherwise use override or default
+  const getFPS = () => {
+    if (OVERRIDE_FPS !== null) {
+      return OVERRIDE_FPS;
+    }
+    return sceneData?.fps || 30; // Use FPS from JSON, default to 30
+  };
 
   const [sceneData, setSceneData] = useState(null);
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -58,8 +68,11 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
+  const [showKeyStateLine, setShowKeyStateLine] = useState(true); // Default to showing keystate line
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
   const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
+  const [enableAudio, setEnableAudio] = useState(true); // Default to enabling audio
+  const [enablePhotodiode, setEnablePhotodiode] = useState(true); // Default to enabling photodiode
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -78,11 +91,37 @@ const App = () => {
   //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
   // });
 
-  // NOTE: TODO: CONDITIONAL WINDOW SIZE
+  // Canvas size will be calculated dynamically based on world dimensions
   const [canvasSize, setCanvasSize] = useState({
     width: 400,
     height: 400,
   });
+  
+  // Calculate canvas size based on world dimensions with max size constraint
+  // Multipliers: 20, 10, or 5 (multiples of 5)
+  const calculateCanvasSize = (worldWidth, worldHeight) => {
+    const maxWorldDim = Math.max(worldWidth, worldHeight);
+    
+    // Try multipliers in order: 20, 10, 5
+    let multiplier = 20;
+    if (maxWorldDim > 20) {
+      multiplier = 10;
+    }
+    if (maxWorldDim * multiplier > MAX_CANVAS_SIZE) {
+      multiplier = 5;
+    }
+    // If still too large, use 5 (smallest multiplier)
+    // This ensures we always get a valid size, even for very large worlds
+    
+    const canvasWidth = worldWidth * multiplier;
+    const canvasHeight = worldHeight * multiplier;
+    
+    // Ensure we don't exceed max size (shouldn't happen with multiplier 5, but safety check)
+    return {
+      width: Math.min(canvasWidth, MAX_CANVAS_SIZE),
+      height: Math.min(canvasHeight, MAX_CANVAS_SIZE),
+    };
+  };
 
   const renderFrame = (frameIndex) => {
 
@@ -202,7 +241,7 @@ const App = () => {
   useUpdateKeyStates(keyStates, setKeyStates);
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
-  // useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying); // Use the new hook
+  // useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying, MAX_CANVAS_SIZE); // Use the new hook
   
   // Initialize audio context and pre-generate tones for precise timing
   const initializeAudio = useCallback(() => {
@@ -296,7 +335,13 @@ const renderCurrentPage = () => {
   switch (currentPage) {
     case 'welcome':
       return <WelcomePage
-      setTrialInfo={setTrialInfo} 
+      setTrialInfo={setTrialInfo}
+      setShowKeyStateLine={setShowKeyStateLine}
+      showKeyStateLine={showKeyStateLine}
+      setEnableAudio={setEnableAudio}
+      enableAudio={enableAudio}
+      setEnablePhotodiode={setEnablePhotodiode}
+      enablePhotodiode={enablePhotodiode}
     />;
     case 'instructions':
       return <InstructionsPage keyStates={keyStates} canvasSize={canvasSize} trialInfo={trialInfo} />
@@ -322,13 +367,15 @@ const renderCurrentPage = () => {
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
         onPause={handlePause}
+        showKeyStateLine={showKeyStateLine}
+        enablePhotodiode={enablePhotodiode}
       />;
     case 'timeout': // Add timeout case
       return <TimeoutPage />;
     case 'finish':
       return <FinishPage averageScore={averageScore} />;
     default:
-      return <WelcomePage setTrialInfo={setTrialInfo} />;
+      return <WelcomePage setTrialInfo={setTrialInfo} setShowKeyStateLine={setShowKeyStateLine} showKeyStateLine={showKeyStateLine} setEnableAudio={setEnableAudio} enableAudio={enableAudio} setEnablePhotodiode={setEnablePhotodiode} enablePhotodiode={enablePhotodiode} />;
   }
 };
 
@@ -404,13 +451,11 @@ const renderCurrentPage = () => {
       setPhotodiodeColor("white"); // Reset photodiode to white for new trial
       animate.firstFrameUtc = null; // Reset timing data for new trial
 
+      // Calculate and set canvas size based on world dimensions
       const worldWidth = data.worldWidth || 20;
       const worldHeight = data.worldHeight || 20;
-      // const newCanvasSize = {
-      //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldWidth) * worldWidth,
-      //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / worldHeight) * worldHeight,
-      // };
-      // setCanvasSize(newCanvasSize);
+      const newCanvasSize = calculateCanvasSize(worldWidth, worldHeight);
+      setCanvasSize(newCanvasSize);
 
       if (isPlaying) {
         renderFrame(0);
@@ -425,7 +470,8 @@ const animate = (timestamp) => {
   if (!sceneData?.step_data) return;
 
   const totalFrames = Object.keys(sceneData.step_data).length;
-  const frameDuration = 1000 / FPS;
+  const fps = getFPS();
+  const frameDuration = 1000 / fps;
 
   if (!animate.lastTimestamp) animate.lastTimestamp = timestamp;
   const timeElapsed = timestamp - animate.lastTimestamp;
@@ -436,8 +482,12 @@ const animate = (timestamp) => {
     // Store first frame UTC time for reference and set photodiode to black
     if (!animate.firstFrameUtc) {
       animate.firstFrameUtc = currentUtcTime;
-      setPhotodiodeColor("black"); // Set to black on first frame
-      playTone("start"); // Play start tone immediately with photodiode change
+      if (enablePhotodiode) {
+        setPhotodiodeColor("black"); // Set to black on first frame
+      }
+      if (enableAudio) {
+        playTone("start"); // Play start tone immediately with photodiode change
+      }
     }
     
     recordedKeyStates.current.push({
@@ -456,8 +506,12 @@ const animate = (timestamp) => {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
-          setPhotodiodeColor("white"); // Set to white on last frame
-          playTone("end"); // Play end tone immediately with photodiode change
+          if (enablePhotodiode) {
+            setPhotodiodeColor("white"); // Set to white on last frame
+          }
+          if (enableAudio) {
+            playTone("end"); // Play end tone immediately with photodiode change
+          }
           animate.dataSaved = true;
 
           setTimeout(async () => {

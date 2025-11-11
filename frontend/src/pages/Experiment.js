@@ -24,7 +24,9 @@ const ExperimentPage = ({
     fetchNextScene,
     canvasRef,
     isStrictMode,
-    onPause
+    onPause,
+    showKeyStateLine,
+    enablePhotodiode
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -156,42 +158,31 @@ const ExperimentPage = ({
                 </div>
             )} */}
 
-            <div style={{
-                position: "absolute",
-                bottom: "10px",
-                right: "10px",
-                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                padding: "10px",
-                borderRadius: "8px",
-                boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
-                zIndex: 100,
-            }}>
-                <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>
-                    {trialInfo.is_ftrial ?
-                        `Familiarization Trial: ${trialInfo.ftrial_i}/${trialInfo.num_ftrials}` :
-                        `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
-                </p>
-            </div>
-
             {/* Photodiode Sensor Box - Top Right Corner */}
-            <div style={{
-                position: "absolute",
-                top: "10px",
-                right: "10px",
-                width: "96px",
-                height: "192px",
-                backgroundColor: photodiodeColor,
-                border: "2px solid black",
-                zIndex: 150, // Higher than trial number display
-            }} />
+            {enablePhotodiode && (
+                <div style={{
+                    position: "absolute",
+                    top: "10px",
+                    right: "10px",
+                    width: "96px",
+                    height: "192px",
+                    backgroundColor: photodiodeColor,
+                    border: "2px solid black",
+                    zIndex: 150, // Higher than trial number display
+                }} />
+            )}
 
-            {/* Pause Button */}
+            {/* Trial Number and Pause Button - Bottom Right */}
             <div style={{
                 position: "absolute",
                 bottom: "10px",
-                left: "10px",
+                right: "10px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
                 zIndex: 100,
             }}>
+                {/* Pause Button */}
                 <button
                     onClick={handlePauseClick}
                     style={{
@@ -210,6 +201,20 @@ const ExperimentPage = ({
                 >
                     Pause Experiment
                 </button>
+                
+                {/* Trial Number */}
+                <div style={{
+                    backgroundColor: "rgba(255, 255, 255, 0.8)",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                }}>
+                    <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>
+                        {trialInfo.is_ftrial ?
+                            `Familiarization Trial: ${trialInfo.ftrial_i}/${trialInfo.num_ftrials}` :
+                            `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
+                    </p>
+                </div>
             </div>
 
             {/* Pause Confirmation Dialog */}
@@ -448,60 +453,82 @@ const ExperimentPage = ({
                     marginTop: "20vh",
                 }}>
                     {/* Key State Indicators */}
-                    <div style={{
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.1}px`,
-                        padding: `${canvasSize.width * 0.02}px`,
-                        border: "1px solid #ddd",
-                        borderRadius: "8px",
-                        backgroundColor: "#f9f9f9",
-                        width: "100%",
-                        justifyContent: "center",
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>F</h2>
+                    {(() => {
+                        // Calculate scaling factor to keep components at reasonable size
+                        const baseSize = 400;
+                        const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
+                        const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                        return (
                             <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "red",
-                                borderRadius: "50%",
-                            }} />
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>J</h2>
-                            <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "green",
-                                borderRadius: "50%",
-                            }} />
-                        </div>
-                    </div>
+                                display: "flex",
+                                gap: `${canvasSize.width * 0.1 * scaleFactor}px`,
+                                padding: `${canvasSize.width * 0.02 * scaleFactor}px`,
+                                border: "1px solid #ddd",
+                                borderRadius: "8px",
+                                backgroundColor: "#f9f9f9",
+                                width: "100%",
+                                justifyContent: "center",
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01 * scaleFactor}px` }}>
+                                    <h2 style={{ margin: 0, fontWeight: "bold", fontSize: `${Math.max(24 * scaleFactor, 18)}px` }}>F</h2>
+                                    <div style={{
+                                        width: `${canvasSize.width * 0.04 * scaleFactor}px`,
+                                        height: `${canvasSize.width * 0.04 * scaleFactor}px`,
+                                        backgroundColor: "red",
+                                        borderRadius: "50%",
+                                    }} />
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01 * scaleFactor}px` }}>
+                                    <h2 style={{ margin: 0, fontWeight: "bold", fontSize: `${Math.max(24 * scaleFactor, 18)}px` }}>J</h2>
+                                    <div style={{
+                                        width: `${canvasSize.width * 0.04 * scaleFactor}px`,
+                                        height: `${canvasSize.width * 0.04 * scaleFactor}px`,
+                                        backgroundColor: "green",
+                                        borderRadius: "50%",
+                                    }} />
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {/* Render Key States */}
-                    <div style={{
-                        position: "absolute",
-                        top: `${canvasSize.width * 0.15}px`,
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.03}px`,
-                        justifyContent: "center",
-                        width: "100%",
-                    }}>
-                        {renderKeyState("f", "red", keyStates, canvasSize)}
-                        {renderKeyState("j", "green", keyStates, canvasSize)}
-                        {renderEmptyKeyState(keyStates, canvasSize)}
-                    </div>
+                    {(() => {
+                        const baseSize = 400;
+                        const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
+                        const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                        return (
+                            <div style={{
+                                position: "absolute",
+                                top: `${canvasSize.width * 0.15 * scaleFactor}px`,
+                                display: "flex",
+                                gap: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                justifyContent: "center",
+                                width: "100%",
+                            }}>
+                                {renderKeyState("f", "red", keyStates, canvasSize)}
+                                {renderKeyState("j", "green", keyStates, canvasSize)}
+                                {renderEmptyKeyState(keyStates, canvasSize)}
+                            </div>
+                        );
+                    })()}
 
                     {/* Add a Spacer to Separate the KeyStateLine */}
-                    <div style={{
-                        marginTop: `${canvasSize.height * 0.3}px`, // Add space between renderKeyState and KeyStateLine
-                        width: "100%",
-                    }}>
-                        {/* Render KeyStateLine */}
-                        {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
-                        <p>Proportions so far ↓</p>
-                        <KeyStateLine recordedKeyStates={recordedKeyStates} />
-                    </div>
+                    {showKeyStateLine && (() => {
+                        const baseSize = 400;
+                        const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
+                        const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                        return (
+                            <div style={{
+                                marginTop: `${canvasSize.height * 0.3 * scaleFactor}px`, // Add space between renderKeyState and KeyStateLine
+                                width: "100%",
+                            }}>
+                                {/* Render KeyStateLine */}
+                                {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
+                                <p style={{ fontSize: `${Math.max(14 * scaleFactor, 16)}px` }}>Proportions so far ↓</p>
+                                <KeyStateLine recordedKeyStates={recordedKeyStates} canvasSize={canvasSize} />
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
         </div>

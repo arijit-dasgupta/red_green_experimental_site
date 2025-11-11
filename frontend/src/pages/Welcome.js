@@ -12,7 +12,7 @@ const parseUrlParams = () => {
 };
 
 // Components for different pages
-const WelcomePage = ({ setTrialInfo }) => {
+const WelcomePage = ({ setTrialInfo, setShowKeyStateLine, showKeyStateLine, setEnableAudio, enableAudio, setEnablePhotodiode, enablePhotodiode }) => {
 
     const { navigate } = useNavigation(); // Use the navigation context
     const [sessionId, setSessionId] = useState('');
@@ -208,6 +208,72 @@ const WelcomePage = ({ setTrialInfo }) => {
                 onMouseUp={(e) => (e.target.style.transform = "scale(1)")}
                 >
                 {isResumeMode ? "Start New Experiment" : "Resume Experiment"}
+            </button>
+        </div>
+
+        {/* Toggle Buttons */}
+        <div style={{ marginTop: "20px", display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+            <button
+                onClick={() => setShowKeyStateLine(!showKeyStateLine)}
+                style={{
+                    padding: "10px 20px",
+                    fontSize: "1rem",
+                    color: "white",
+                    backgroundColor: showKeyStateLine ? "#6c757d" : "#28a745",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                    transition: "background-color 0.3s ease, transform 0.2s ease",
+                }}
+                onMouseOver={(e) => (e.target.style.backgroundColor = showKeyStateLine ? "#5a6268" : "#218838")}
+                onMouseOut={(e) => (e.target.style.backgroundColor = showKeyStateLine ? "#6c757d" : "#28a745")}
+                onMouseDown={(e) => (e.target.style.transform = "scale(0.95)")}
+                onMouseUp={(e) => (e.target.style.transform = "scale(1)")}
+                >
+                {showKeyStateLine ? "Hide Proportion Bar" : "Show Proportion Bar"}
+            </button>
+            
+            <button
+                onClick={() => setEnableAudio(!enableAudio)}
+                style={{
+                    padding: "10px 20px",
+                    fontSize: "1rem",
+                    color: "white",
+                    backgroundColor: enableAudio ? "#6c757d" : "#28a745",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                    transition: "background-color 0.3s ease, transform 0.2s ease",
+                }}
+                onMouseOver={(e) => (e.target.style.backgroundColor = enableAudio ? "#5a6268" : "#218838")}
+                onMouseOut={(e) => (e.target.style.backgroundColor = enableAudio ? "#6c757d" : "#28a745")}
+                onMouseDown={(e) => (e.target.style.transform = "scale(0.95)")}
+                onMouseUp={(e) => (e.target.style.transform = "scale(1)")}
+                >
+                {enableAudio ? "Disable Audio" : "Enable Audio"}
+            </button>
+            
+            <button
+                onClick={() => setEnablePhotodiode(!enablePhotodiode)}
+                style={{
+                    padding: "10px 20px",
+                    fontSize: "1rem",
+                    color: "white",
+                    backgroundColor: enablePhotodiode ? "#6c757d" : "#28a745",
+                    border: "none",
+                    borderRadius: "8px",
+                    cursor: "pointer",
+                    boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                    transition: "background-color 0.3s ease, transform 0.2s ease",
+                }}
+                onMouseOver={(e) => (e.target.style.backgroundColor = enablePhotodiode ? "#5a6268" : "#218838")}
+                onMouseOut={(e) => (e.target.style.backgroundColor = enablePhotodiode ? "#6c757d" : "#28a745")}
+                onMouseDown={(e) => (e.target.style.transform = "scale(0.95)")}
+                onMouseUp={(e) => (e.target.style.transform = "scale(1)")}
+                >
+                {enablePhotodiode ? "Disable Trial Onset Color Marker" : "Enable Trial Onset Color Marker"}
             </button>
         </div>
 
