@@ -83,8 +83,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+DATASET_NAME = 'minimal_trial_set'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+EXPERIMENT_RUN_VERSION = 'eye_tracking_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
 NUM_PARTICIPANTS = 800  # Target number of participants to recruit
@@ -96,6 +96,9 @@ PARTICIPANT_BUFFER = 1500
 
 # Calculate maximum participants (target + buffer)
 MAX_NUM_PARTICIPANTS = NUM_PARTICIPANTS + PARTICIPANT_BUFFER
+
+# join experiment name and experiment run version to get the experiment name
+EXPERIMENT_NAME = f"{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}"
 
 # Setup paths for React frontend build files
 REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/build"))

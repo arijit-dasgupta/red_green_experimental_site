@@ -1,10 +1,6 @@
 import React from 'react';
 
-const Header = () => {
-  const prolificPid = sessionStorage.getItem("prolific_pid") || 
-    new URLSearchParams(window.location.search).get("PROLIFIC_PID") || 
-    "default_pid";
-
+const Header = ({ sessionId }) => {
   return (
     <div
       style={{
@@ -20,7 +16,7 @@ const Header = () => {
         zIndex: 1000,
       }}
     >
-      Prolific PID: {prolificPid}
+      Session ID: {sessionId || sessionStorage.getItem("sessionId") || "Not set"}
     </div>
   );
 };

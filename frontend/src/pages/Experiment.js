@@ -15,11 +15,16 @@ const ExperimentPage = ({
     countdown,
     finished,
     score,
+    waitingForScoreSpacebar,
+    setWaitingForScoreSpacebar,
+    setFinished,
+    photodiodeColor,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
     canvasRef,
-    isStrictMode
+    isStrictMode,
+    onPause
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -27,6 +32,7 @@ const ExperimentPage = ({
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
+    const [showPauseConfirmation, setShowPauseConfirmation] = useState(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -47,6 +53,19 @@ const ExperimentPage = ({
 
     const handleProceed = () => {
         setShowScoringInstruc(false); // Hide explanation page
+    };
+
+    const handlePauseClick = () => {
+        setShowPauseConfirmation(true);
+    };
+
+    const handlePauseConfirm = () => {
+        setShowPauseConfirmation(false);
+        onPause();
+    };
+
+    const handlePauseCancel = () => {
+        setShowPauseConfirmation(false);
     };
 
     useEffect(() => {
@@ -139,7 +158,7 @@ const ExperimentPage = ({
 
             <div style={{
                 position: "absolute",
-                top: "10px",
+                bottom: "10px",
                 right: "10px",
                 backgroundColor: "rgba(255, 255, 255, 0.8)",
                 padding: "10px",
@@ -153,6 +172,105 @@ const ExperimentPage = ({
                         `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
                 </p>
             </div>
+
+            {/* Photodiode Sensor Box - Top Right Corner */}
+            <div style={{
+                position: "absolute",
+                top: "10px",
+                right: "10px",
+                width: "96px",
+                height: "192px",
+                backgroundColor: photodiodeColor,
+                border: "2px solid black",
+                zIndex: 150, // Higher than trial number display
+            }} />
+
+            {/* Pause Button */}
+            <div style={{
+                position: "absolute",
+                bottom: "10px",
+                left: "10px",
+                zIndex: 100,
+            }}>
+                <button
+                    onClick={handlePauseClick}
+                    style={{
+                        padding: "8px 16px",
+                        fontSize: "14px",
+                        color: "white",
+                        backgroundColor: "#dc3545",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+                        transition: "background-color 0.3s ease",
+                    }}
+                    onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
+                    onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
+                >
+                    Pause Experiment
+                </button>
+            </div>
+
+            {/* Pause Confirmation Dialog */}
+            {showPauseConfirmation && (
+                <div style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 1000,
+                }}>
+                    <div style={{
+                        backgroundColor: "white",
+                        padding: "30px",
+                        borderRadius: "10px",
+                        boxShadow: "0 4px 10px rgba(0, 0, 0, 0.3)",
+                        maxWidth: "400px",
+                        textAlign: "center",
+                    }}>
+                        <h2 style={{ marginTop: 0, color: "#333" }}>Pause Experiment?</h2>
+                        <p style={{ color: "#666", marginBottom: "20px" }}>
+                            You can resume from where you left off using your Session ID.
+                        </p>
+                        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+                            <button
+                                onClick={handlePauseConfirm}
+                                style={{
+                                    padding: "10px 20px",
+                                    fontSize: "16px",
+                                    color: "white",
+                                    backgroundColor: "#dc3545",
+                                    border: "none",
+                                    borderRadius: "5px",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Yes, Pause
+                            </button>
+                            <button
+                                onClick={handlePauseCancel}
+                                style={{
+                                    padding: "10px 20px",
+                                    fontSize: "16px",
+                                    color: "white",
+                                    backgroundColor: "#6c757d",
+                                    border: "none",
+                                    borderRadius: "5px",
+                                    cursor: "pointer",
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{

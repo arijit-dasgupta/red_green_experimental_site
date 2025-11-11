@@ -1,6 +1,5 @@
 // App.js
-import React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import './App.css';
 import WelcomePage from './pages/Welcome';
 import InstructionsPage from './pages/Instructions';
@@ -59,7 +58,13 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
-  // const [currentPage, setCurrentPage] = useState('welcome');
+  const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
+  const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
+  
+  // Audio context and tones for precise timing
+  const audioContextRef = useRef(null);
+  const startToneRef = useRef(null);
+  const endToneRef = useRef(null);
 
   const animationRef = useRef(null);
   const canvasRef = useRef(null);
@@ -198,6 +203,86 @@ const App = () => {
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
   // useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying); // Use the new hook
+  
+  // Initialize audio context and pre-generate tones for precise timing
+  const initializeAudio = useCallback(() => {
+    if (!audioContextRef.current) {
+      try {
+        // Create AudioContext
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        console.log("Audio context initialized for trial synchronization");
+        
+        // Pre-generate start tone (1000Hz, 50ms)
+        const sampleRate = audioContextRef.current.sampleRate;
+        const duration = 50; // in milli-seconds
+        const frameCount = sampleRate * duration / 1000;
+        const startBuffer = audioContextRef.current.createBuffer(1, frameCount, sampleRate);
+        const startData = startBuffer.getChannelData(0);
+        
+        for (let i = 0; i < frameCount; i++) {
+          startData[i] = Math.sin(2 * Math.PI * 1000 * i / sampleRate) * 0.3; // 1000Hz at 30% volume
+        }
+        startToneRef.current = startBuffer;
+        
+        // Pre-generate end tone (500Hz, 50ms)
+        const endBuffer = audioContextRef.current.createBuffer(1, frameCount, sampleRate);
+        const endData = endBuffer.getChannelData(0);
+        
+        for (let i = 0; i < frameCount; i++) {
+          endData[i] = Math.sin(2 * Math.PI * 500 * i / sampleRate) * 0.3; // 500Hz at 30% volume
+        }
+        endToneRef.current = endBuffer;
+        
+      } catch (error) {
+        console.warn("Audio context initialization failed:", error);
+      }
+    }
+  }, []);
+
+  // Play audio tone with minimal latency
+  const playTone = useCallback((toneType) => {
+    if (!audioContextRef.current || !startToneRef.current || !endToneRef.current) {
+      console.warn("Audio not initialized, skipping tone");
+      return;
+    }
+
+    try {
+      // Resume audio context if it was suspended (browser autoplay policy)
+      if (audioContextRef.current.state === 'suspended') {
+        audioContextRef.current.resume();
+      }
+
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = toneType === 'start' ? startToneRef.current : endToneRef.current;
+      source.connect(audioContextRef.current.destination);
+      
+      // Play immediately - this is the most time-critical part
+      source.start(0);
+      
+      console.log(`${toneType} tone played at:`, new Date().toISOString());
+    } catch (error) {
+      console.warn("Failed to play tone:", error);
+    }
+  }, []);
+
+  // Initialize audio context on first user interaction (to comply with browser autoplay policies)
+  useEffect(() => {
+    const handleFirstInteraction = () => {
+      initializeAudio();
+      // Remove listeners after first interaction
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+
+    window.addEventListener('click', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [initializeAudio]);
+
   useEffect(() => {
     if (countdown !== null) {
       renderFrame(currentFrame);
@@ -227,11 +312,16 @@ const renderCurrentPage = () => {
         countdown={countdown}
         finished={finished}
         score={score}
+        waitingForScoreSpacebar={waitingForScoreSpacebar}
+        setWaitingForScoreSpacebar={setWaitingForScoreSpacebar}
+        setFinished={setFinished}
+        photodiodeColor={photodiodeColor}
         canvasSize={canvasSize}
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
+        onPause={handlePause}
       />;
     case 'timeout': // Add timeout case
       return <TimeoutPage />;
@@ -251,13 +341,23 @@ const renderCurrentPage = () => {
         throw new Error('Session ID not found. Please start the experiment again.');
       }
   
+      // Check if this is a resume operation
+      const resumeFromTrial = sessionStorage.getItem('resumeFromTrial');
+      const requestBody = { session_id: sessionId };
+      
+      if (resumeFromTrial) {
+        requestBody.resume_from_trial = parseInt(resumeFromTrial);
+        // Clear the resume flag after first use
+        sessionStorage.removeItem('resumeFromTrial');
+      }
+
       const response = await fetch('/load_next_scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json',
                   'ngrok-skip-browser-warning': 'true', // Add this header to skip the browser warning
                   'User-Agent': 'React-Experiment-App', // Custom User-Agent header
                 },
-        body: JSON.stringify({ session_id: sessionId }), // Pass sessionId in the body
+        body: JSON.stringify(requestBody), // Pass sessionId and optional resume_from_trial in the body
       });
   
       if (!response.ok) throw new Error('Backend Failed to load next scene');
@@ -300,7 +400,10 @@ const renderCurrentPage = () => {
       setFinished(false);
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
-  
+      setWaitingForScoreSpacebar(false); // Reset score spacebar state for new trial
+      setPhotodiodeColor("white"); // Reset photodiode to white for new trial
+      animate.firstFrameUtc = null; // Reset timing data for new trial
+
       const worldWidth = data.worldWidth || 20;
       const worldHeight = data.worldHeight || 20;
       // const newCanvasSize = {
@@ -312,32 +415,35 @@ const renderCurrentPage = () => {
       if (isPlaying) {
         renderFrame(0);
       }
-      } catch (error) {
+    } catch (error) {
       console.error("Error loading next scene:", error);
       alert("Frontend Failed to load the next scene.");
     }
   };
 
 const animate = (timestamp) => {
-  // console.log("calling animate before return");
-  // console.log("sceneData:", sceneData);
   if (!sceneData?.step_data) return;
-
 
   const totalFrames = Object.keys(sceneData.step_data).length;
   const frameDuration = 1000 / FPS;
 
   if (!animate.lastTimestamp) animate.lastTimestamp = timestamp;
-
   const timeElapsed = timestamp - animate.lastTimestamp;
 
-  // console.log("Time elapsed:", timeElapsed);
-  // console.log('calling animate')
-
   if (timeElapsed >= frameDuration * 0.98) {
+    const currentUtcTime = new Date().toISOString();
+    
+    // Store first frame UTC time for reference and set photodiode to black
+    if (!animate.firstFrameUtc) {
+      animate.firstFrameUtc = currentUtcTime;
+      setPhotodiodeColor("black"); // Set to black on first frame
+      playTone("start"); // Play start tone immediately with photodiode change
+    }
+    
     recordedKeyStates.current.push({
       frame: currentFrameRef.current,
       keys: { ...keyStatesRef.current },
+      utc_timestamp: currentUtcTime,
     });
     // console.log("Recorded key states:", keyStatesRef.current);
     // console.log('recording the states of keys')
@@ -350,7 +456,8 @@ const animate = (timestamp) => {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
-
+          setPhotodiodeColor("white"); // Set to white on last frame
+          playTone("end"); // Play end tone immediately with photodiode change
           animate.dataSaved = true;
 
           setTimeout(async () => {
@@ -358,6 +465,11 @@ const animate = (timestamp) => {
 
               const sessionId = sessionStorage.getItem('sessionId');
               if (!sessionId) throw new Error('Session ID not found.');
+
+              // Get last frame UTC time
+              const lastFrameUtc = recordedKeyStates.current.length > 0 
+                ? recordedKeyStates.current[recordedKeyStates.current.length - 1].utc_timestamp 
+                : animate.firstFrameUtc;
 
               const response = await fetch('/save_data', {
                 method: 'POST',
@@ -374,6 +486,8 @@ const animate = (timestamp) => {
                   is_trial: sceneData.is_trial,
                   recordedKeyStates: recordedKeyStates.current,
                   counterbalance: sceneData.counterbalance,
+                  first_frame_utc: animate.firstFrameUtc,
+                  last_frame_utc: lastFrameUtc,
                 }),
               });
 
@@ -431,10 +545,25 @@ const animate = (timestamp) => {
     }, 750);
   };
 
+  const handlePause = () => {
+    // Stop animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    
+    // Navigate to welcome page
+    navigate('welcome');
+  };
+
+
+  const sessionId = sessionStorage.getItem('sessionId');
 
   return (
     <div className="app" style={{ position: "relative" }}>
-      <Header />
+      {currentPage !== 'welcome' && <Header sessionId={sessionId} />}
       {renderCurrentPage()}
     </div>
   );
