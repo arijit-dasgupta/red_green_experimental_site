@@ -16,7 +16,7 @@ const FinishPage = ({ averageScore }) => {
         justifyContent: "center",
         alignItems: "center",
         height: "100vh",
-        backgroundColor: "#f1f5f9",
+        background: "linear-gradient(135deg, #e6f2ff 0%, #f0f8ff 50%, #ffffff 100%)",
         padding: "20px",
       }}
     >

@@ -9,7 +9,7 @@ const TransitionPage = ({ trialInfo, fetchNextScene, setdisableCountdownTrigger 
                 justifyContent: "center",
                 alignItems: "center",
                 height: "100vh",
-                backgroundColor: "#ffffff",
+                background: "linear-gradient(135deg, #e6f2ff 0%, #f0f8ff 50%, #ffffff 100%)",
                 padding: "20px",
                 boxSizing: "border-box",
                 textAlign: "center",

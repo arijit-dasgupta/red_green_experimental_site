@@ -318,7 +318,8 @@ const ExperimentPage = ({
                 justifyContent: "center",
                 minHeight: "100vh",
                 padding: "20px",
-                gap: "30px"
+                gap: "30px",
+                background: "linear-gradient(135deg, #e6f2ff 0%, #f0f8ff 50%, #ffffff 100%)",
             }}>
                 {/* Canvas Container - Centered */}
                 <div style={{

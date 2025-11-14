@@ -16,7 +16,7 @@ const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
     };
 
     return (
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", backgroundColor: "#f9f9f9", padding: "20px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: "100vh", background: "linear-gradient(135deg, #e6f2ff 0%, #f0f8ff 50%, #ffffff 100%)", padding: "20px" }}>
             {currentPage === 1 && <InstructionPage1 handleNext={handleNext} />}
             {currentPage === 2 && <InstructionPage2 handleNext={handleNext} handleBack={handleBack} />}
             {currentPage === 3 && <InstructionPage3 handleNext={handleNext} handleBack={handleBack} />}

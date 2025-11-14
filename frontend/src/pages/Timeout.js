@@ -25,7 +25,7 @@ const TimeoutPage = () => {
                 alignItems: "center",
                 height: "100vh",
                 textAlign: "center",
-                backgroundColor: "#f8d7da",
+                background: "linear-gradient(135deg, #ffe6e6 0%, #fff0f0 50%, #ffffff 100%)",
                 color: "#842029",
                 padding: "20px",
             }}
