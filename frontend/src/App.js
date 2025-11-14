@@ -6,6 +6,7 @@ import InstructionsPage from './pages/Instructions';
 import ExperimentPage from './pages/Experiment';
 import FinishPage from './pages/Finish';
 import TimeoutPage from './pages/Timeout';
+import ThankYouPage from './pages/ThankYou';
 import Header from './components/Header';
 import { useNavigation } from './contexts/NavigationContext';
 // HOOKS to maintain robustness of experiment
@@ -69,11 +70,7 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
-  const [showKeyStateLine, setShowKeyStateLine] = useState(true); // Default to showing keystate line
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
-  const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
-  const [enableAudio, setEnableAudio] = useState(true); // Default to enabling audio
-  const [enablePhotodiode, setEnablePhotodiode] = useState(true); // Default to enabling photodiode
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -454,7 +451,7 @@ const App = () => {
 
   // use several hooks
   useSessionTimeout(navigate, currentPage);
-  usePreventNavigation(!["finish", "welcome", "timeout"].includes(currentPage));
+  usePreventNavigation(!["finish", "welcome", "timeout", "thankyou"].includes(currentPage));
   useUpdateKeyStates(keyStates, setKeyStates);
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
@@ -684,15 +681,7 @@ const renderCurrentPage = () => {
 
   switch (currentPage) {
     case 'welcome':
-      return <WelcomePage
-      setTrialInfo={setTrialInfo}
-      setShowKeyStateLine={setShowKeyStateLine}
-      showKeyStateLine={showKeyStateLine}
-      setEnableAudio={setEnableAudio}
-      enableAudio={enableAudio}
-      setEnablePhotodiode={setEnablePhotodiode}
-      enablePhotodiode={enablePhotodiode}
-    />;
+      return <WelcomePage setTrialInfo={setTrialInfo} />;
     case 'instructions':
       return <InstructionsPage keyStates={keyStates} canvasSize={canvasSize} trialInfo={trialInfo} />
     case 'experiment':
@@ -710,22 +699,20 @@ const renderCurrentPage = () => {
         waitingForScoreSpacebar={waitingForScoreSpacebar}
         setWaitingForScoreSpacebar={setWaitingForScoreSpacebar}
         setFinished={setFinished}
-        photodiodeColor={photodiodeColor}
         canvasSize={canvasSize}
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
-        onPause={handlePause}
-        showKeyStateLine={showKeyStateLine}
-        enablePhotodiode={enablePhotodiode}
       />;
-    case 'timeout': // Add timeout case
+    case 'timeout':
       return <TimeoutPage />;
     case 'finish':
       return <FinishPage averageScore={averageScore} />;
+    case 'thankyou':
+      return <ThankYouPage />;
     default:
-      return <WelcomePage setTrialInfo={setTrialInfo} setShowKeyStateLine={setShowKeyStateLine} showKeyStateLine={showKeyStateLine} setEnableAudio={setEnableAudio} enableAudio={enableAudio} setEnablePhotodiode={setEnablePhotodiode} enablePhotodiode={enablePhotodiode} />;
+      return <WelcomePage setTrialInfo={setTrialInfo} />;
   }
 };
 
@@ -738,15 +725,7 @@ const renderCurrentPage = () => {
         throw new Error('Session ID not found. Please start the experiment again.');
       }
   
-      // Check if this is a resume operation
-      const resumeFromTrial = sessionStorage.getItem('resumeFromTrial');
       const requestBody = { session_id: sessionId };
-      
-      if (resumeFromTrial) {
-        requestBody.resume_from_trial = parseInt(resumeFromTrial);
-        // Clear the resume flag after first use
-        sessionStorage.removeItem('resumeFromTrial');
-      }
 
       const response = await fetch('/load_next_scene', {
         method: 'POST',
@@ -798,7 +777,6 @@ const renderCurrentPage = () => {
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
       setWaitingForScoreSpacebar(false); // Reset score spacebar state for new trial
-      setPhotodiodeColor("white"); // Reset photodiode to white for new trial
       animate.firstFrameUtc = null; // Reset timing data for new trial
 
       // Calculate and set canvas size based on world dimensions
@@ -829,15 +807,10 @@ const animate = (timestamp) => {
   if (timeElapsed >= frameDuration * 0.98) {
     const currentUtcTime = new Date().toISOString();
     
-    // Store first frame UTC time for reference and set photodiode to black
+    // Store first frame UTC time for reference
     if (!animate.firstFrameUtc) {
       animate.firstFrameUtc = currentUtcTime;
-      if (enablePhotodiode) {
-        setPhotodiodeColor("black"); // Set to black on first frame
-      }
-      if (enableAudio) {
-        playTone("start"); // Play start tone immediately with photodiode change
-      }
+      playTone("start"); // Play start tone immediately
     }
     
     recordedKeyStates.current.push({
@@ -852,16 +825,11 @@ const animate = (timestamp) => {
       const nextFrame = currentFrameRef.current + 1;
       // currentFrameRef.current = nextFrame;
 
-      if (nextFrame >= totalFrames) {
+        if (nextFrame >= totalFrames) {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
-          if (enablePhotodiode) {
-            setPhotodiodeColor("white"); // Set to white on last frame
-          }
-          if (enableAudio) {
-            playTone("end"); // Play end tone immediately with photodiode change
-          }
+          playTone("end"); // Play end tone immediately
           animate.dataSaved = true;
 
           setTimeout(async () => {
@@ -949,25 +917,13 @@ const animate = (timestamp) => {
     }, 750);
   };
 
-  const handlePause = () => {
-    // Stop animation
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    isPlayingRef.current = false;
-    setIsPlaying(false);
-    
-    // Navigate to welcome page
-    navigate('welcome');
-  };
 
 
   const sessionId = sessionStorage.getItem('sessionId');
 
   return (
     <div className="app" style={{ position: "relative" }}>
-      {currentPage !== 'welcome' && <Header sessionId={sessionId} />}
+      {currentPage !== 'welcome' && currentPage !== 'thankyou' && <Header sessionId={sessionId} />}
       {renderCurrentPage()}
     </div>
   );

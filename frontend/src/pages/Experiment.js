@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
-import KeyStateLine from '../components/KeyStateLine'; 
 import TransitionPage from './Transition';
 import ScoringInstrucPage from './ScoringInstruc';
 
@@ -18,15 +17,11 @@ const ExperimentPage = ({
     waitingForScoreSpacebar,
     setWaitingForScoreSpacebar,
     setFinished,
-    photodiodeColor,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
     canvasRef,
-    isStrictMode,
-    onPause,
-    showKeyStateLine,
-    enablePhotodiode
+    isStrictMode
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -34,7 +29,6 @@ const ExperimentPage = ({
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
-    const [showPauseConfirmation, setShowPauseConfirmation] = useState(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -57,18 +51,6 @@ const ExperimentPage = ({
         setShowScoringInstruc(false); // Hide explanation page
     };
 
-    const handlePauseClick = () => {
-        setShowPauseConfirmation(true);
-    };
-
-    const handlePauseConfirm = () => {
-        setShowPauseConfirmation(false);
-        onPause();
-    };
-
-    const handlePauseCancel = () => {
-        setShowPauseConfirmation(false);
-    };
 
     useEffect(() => {
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
@@ -158,124 +140,89 @@ const ExperimentPage = ({
                 </div>
             )} */}
 
-            {/* Photodiode Sensor Box - Top Right Corner */}
-            {enablePhotodiode && (
-                <div style={{
-                    position: "absolute",
-                    top: "10px",
-                    right: "10px",
-                    width: "96px",
-                    height: "192px",
-                    backgroundColor: photodiodeColor,
-                    border: "2px solid black",
-                    zIndex: 150, // Higher than trial number display
-                }} />
-            )}
-
-            {/* Trial Number and Pause Button - Bottom Right */}
+            {/* Progress Bar - Bottom Right - Sesame Street Theme */}
             <div style={{
                 position: "absolute",
-                bottom: "10px",
-                right: "10px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
+                bottom: "20px",
+                right: "20px",
                 zIndex: 100,
             }}>
-                {/* Pause Button */}
-                <button
-                    onClick={handlePauseClick}
-                    style={{
-                        padding: "8px 16px",
-                        fontSize: "14px",
-                        color: "white",
-                        backgroundColor: "#dc3545",
-                        border: "none",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
-                        transition: "background-color 0.3s ease",
-                    }}
-                    onMouseOver={(e) => (e.target.style.backgroundColor = "#c82333")}
-                    onMouseOut={(e) => (e.target.style.backgroundColor = "#dc3545")}
-                >
-                    Pause Experiment
-                </button>
-                
-                {/* Trial Number */}
-                <div style={{
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
-                }}>
-                    <p style={{ margin: 0, fontWeight: "bold", fontSize: "14px" }}>
-                        {trialInfo.is_ftrial ?
-                            `Familiarization Trial: ${trialInfo.ftrial_i}/${trialInfo.num_ftrials}` :
-                            `Trial Number: ${trialInfo.trial_i}/${trialInfo.num_trials}`}
-                    </p>
-                </div>
-            </div>
-
-            {/* Pause Confirmation Dialog */}
-            {showPauseConfirmation && (
-                <div style={{
-                    position: "fixed",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(0, 0, 0, 0.5)",
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 1000,
-                }}>
-                    <div style={{
-                        backgroundColor: "white",
-                        padding: "30px",
-                        borderRadius: "10px",
-                        boxShadow: "0 4px 10px rgba(0, 0, 0, 0.3)",
-                        maxWidth: "400px",
-                        textAlign: "center",
-                    }}>
-                        <h2 style={{ marginTop: 0, color: "#333" }}>Pause Experiment?</h2>
-                        <p style={{ color: "#666", marginBottom: "20px" }}>
-                            You can resume from where you left off using your Session ID.
-                        </p>
-                        <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-                            <button
-                                onClick={handlePauseConfirm}
-                                style={{
-                                    padding: "10px 20px",
-                                    fontSize: "16px",
-                                    color: "white",
-                                    backgroundColor: "#dc3545",
-                                    border: "none",
-                                    borderRadius: "5px",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Yes, Pause
-                            </button>
-                            <button
-                                onClick={handlePauseCancel}
-                                style={{
-                                    padding: "10px 20px",
-                                    fontSize: "16px",
-                                    color: "white",
-                                    backgroundColor: "#6c757d",
-                                    border: "none",
-                                    borderRadius: "5px",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                Cancel
-                            </button>
+                {(() => {
+                    const isFamiliarization = trialInfo.is_ftrial;
+                    const current = isFamiliarization ? trialInfo.ftrial_i : trialInfo.trial_i;
+                    const total = isFamiliarization ? trialInfo.num_ftrials : trialInfo.num_trials;
+                    const progress = total > 0 ? current / total : 0;
+                    const progressPercent = Math.min(100, Math.max(0, progress * 100));
+                    
+                    // Sesame Street colors: red, yellow, blue, green
+                    const colors = ['#E31C23', '#F4C430', '#1BA1E2', '#6BBF59'];
+                    const currentColor = colors[current % colors.length];
+                    
+                    return (
+                        <div style={{
+                            backgroundColor: "rgba(255, 255, 255, 0.95)",
+                            padding: "12px 16px",
+                            borderRadius: "12px",
+                            boxShadow: "0 3px 8px rgba(0, 0, 0, 0.15)",
+                            minWidth: "200px",
+                            border: `2px solid ${currentColor}`,
+                        }}>
+                            {/* Progress Bar Container */}
+                            <div style={{
+                                width: "100%",
+                                height: "24px",
+                                backgroundColor: "#f0f0f0",
+                                borderRadius: "12px",
+                                overflow: "hidden",
+                                position: "relative",
+                                marginBottom: "8px",
+                                boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.1)",
+                            }}>
+                                {/* Progress Fill */}
+                                <div style={{
+                                    width: `${progressPercent}%`,
+                                    height: "100%",
+                                    backgroundColor: currentColor,
+                                    borderRadius: "12px",
+                                    transition: "width 0.3s ease",
+                                    position: "relative",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "flex-end",
+                                    paddingRight: "4px",
+                                }}>
+                                    {/* Cute character indicator */}
+                                    {progressPercent > 10 && (
+                                        <span style={{
+                                            fontSize: "16px",
+                                            filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.2))",
+                                        }}>
+                                            🎈
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {/* Progress Text */}
+                            <div style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                fontSize: "13px",
+                                fontWeight: "600",
+                                color: "#333",
+                            }}>
+                                <span style={{ color: currentColor }}>
+                                    {isFamiliarization ? "🎯 Practice" : "⭐ Trial"}
+                                </span>
+                                <span style={{ color: "#666" }}>
+                                    {current} / {total}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    );
+                })()}
+            </div>
 
             {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{
@@ -486,23 +433,6 @@ const ExperimentPage = ({
                         );
                     })()}
 
-                    {/* Add a Spacer to Separate the KeyStateLine */}
-                    {showKeyStateLine && (() => {
-                        const baseSize = 400;
-                        const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
-                        const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
-                        return (
-                            <div style={{
-                                marginTop: `${canvasSize.height * 0.3 * scaleFactor}px`, // Add space between renderKeyState and KeyStateLine
-                                width: "100%",
-                            }}>
-                                {/* Render KeyStateLine */}
-                                {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
-                                <p style={{ fontSize: `${Math.max(14 * scaleFactor, 16)}px` }}>Proportions so far ↓</p>
-                                <KeyStateLine recordedKeyStates={recordedKeyStates} canvasSize={canvasSize} />
-                            </div>
-                        );
-                    })()}
                 </div>
             </div>
         </div>
