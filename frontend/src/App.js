@@ -127,6 +127,8 @@ const App = () => {
   };
 
   const renderFrame = (frameIndex) => {
+    // Get isPlaying state for rotation calculation
+    const isCurrentlyPlaying = isPlayingRef.current;
 
     if (!sceneData || !canvasRef.current) {
         console.error("Scene data or canvas not available:", { sceneData, canvasRef });
@@ -224,6 +226,24 @@ const App = () => {
                   offscreenCtx.beginPath();
                   offscreenCtx.arc(offscreenCenter, offscreenCenter, offscreenRadius, 0, 2 * Math.PI);
                   offscreenCtx.clip();
+                  
+                  // Calculate rotation angle if rotation is enabled
+                  // Rotation starts at frame 0 (trial start) and continues until trial ends
+                  let rotationAngle = 0;
+                  if (config.ballRotationRate !== 0 && isCurrentlyPlaying) {
+                      // Calculate elapsed time in seconds based on frame index and FPS
+                      const fps = getFPS();
+                      const elapsedSeconds = frameIndex / fps;
+                      // Convert degrees per second to radians
+                      rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
+                  }
+                  
+                  // Apply rotation if needed
+                  if (rotationAngle !== 0) {
+                      offscreenCtx.translate(offscreenCenter, offscreenCenter);
+                      offscreenCtx.rotate(rotationAngle);
+                      offscreenCtx.translate(-offscreenCenter, -offscreenCenter);
+                  }
                   
                   // Draw texture at higher resolution
                   const textureSize = offscreenRadius * 2;
