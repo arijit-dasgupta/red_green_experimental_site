@@ -292,83 +292,37 @@ const ExperimentPage = ({
                     alignItems: "center",
                     zIndex: 20,
                 }}>
-                    <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "20px" }}>
-                        Finished. You scored {score.toFixed(0)}
-                    </h1>
-
                     <div style={{
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
-                        width: "80%",
-                        marginTop: "20px",
+                        gap: "20px"
                     }}>
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginRight: "10px",
-                            color: "#333"
-                        }}>
-                            -80
-                        </span>
-
                         <div style={{
-                            flexGrow: 1,
-                            height: "30px",
-                            backgroundColor: "#e0e0e0",
-                            borderRadius: "15px",
-                            overflow: "hidden",
-                            position: "relative",
-                            boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+                            fontSize: "6rem",
+                            lineHeight: "1"
                         }}>
-                            <div style={{
-                                width: `${((score + 80) / 200) * 100}%`,
-                                height: "100%",
-                                backgroundColor: (() => {
-                                    const normalizedScore = (score + 80) / 200;
-                                    if (normalizedScore <= 1 / 3) {
-                                        return "#f44336";
-                                    } else if (normalizedScore <= 2 / 3) {
-                                        return "#ffeb3b";
-                                    } else {
-                                        return "#4caf50";
-                                    }
-                                })(),
-                                transition: "width 0.5s ease-in-out, background-color 0.5s ease-in-out",
-                            }} />
+                            👍
                         </div>
-
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginLeft: "10px",
-                            color: "#333"
-                        }}>
-                            120
-                        </span>
-                    </div>
-
-                    <div>
-                        <p style={{
-                            fontSize: "1.2rem",
-                            fontWeight: "bold",
-                            color: "#555",
-                            marginTop: "10px",
-                            textAlign: "center"
-                        }}>
-                            {trialInfo.is_ftrial && trialInfo.ftrial_i === 1 ? (
-                                <>
-                                    To understand how your score is calculated, press the <span style={{ color: "blue" }}>Spacebar</span>.
-                                </>
-                            ) : trialInfo.trial_i === trialInfo.num_trials ? (
-                                <>
-                                    Almost done! Press the <span style={{ color: "red" }}>Spacebar to finish the experiment.</span>
-                                </>
-                            ) : (
-                                <>
-                                    Press the <span style={{ color: "blue" }}>Spacebar</span> to move to the next trial.
-                                </>
-                            )}
-                        </p>
+                        <div>
+                            <p style={{
+                                fontSize: "1.8rem",
+                                fontWeight: "bold",
+                                color: "#333",
+                                marginBottom: "15px",
+                                textAlign: "center"
+                            }}>
+                                Great job! You're doing awesome! 🎉
+                            </p>
+                            <p style={{
+                                fontSize: "1.2rem",
+                                fontWeight: "bold",
+                                color: "#555",
+                                textAlign: "center"
+                            }}>
+                                Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
@@ -389,19 +343,39 @@ const ExperimentPage = ({
                 alignItems: "center",
                 zIndex: 20,
             }}>
-
-                <div>
-                    <p style={{
-                        fontSize: "1.2rem",
-                        fontWeight: "bold",
-                        color: "#555",
-                        marginTop: "10px",
-                        textAlign: "center"
+                <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "20px"
+                }}>
+                    <div style={{
+                        fontSize: "6rem",
+                        lineHeight: "1"
                     }}>
-                    Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                        👍
+                    </div>
+                    <div>
+                        <p style={{
+                            fontSize: "1.8rem",
+                            fontWeight: "bold",
+                            color: "#333",
+                            marginBottom: "15px",
+                            textAlign: "center"
+                        }}>
+                            Great job! You're doing awesome! 🎉
+                        </p>
+                        <p style={{
+                            fontSize: "1.2rem",
+                            fontWeight: "bold",
+                            color: "#555",
+                            textAlign: "center"
+                        }}>
+                            Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
                         </p>
                     </div>
                 </div>
+            </div>
             )}
 
             <div style={{
