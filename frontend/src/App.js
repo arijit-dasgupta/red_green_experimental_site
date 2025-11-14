@@ -97,10 +97,11 @@ const App = () => {
   //   height: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
   // });
 
-  // Canvas size will be calculated dynamically based on world dimensions
-  const [canvasSize, setCanvasSize] = useState({
-    width: 400,
-    height: 400,
+  // Canvas size is fixed - set the desired width and height here
+  // This size will NEVER change - no automatic resizing
+  const [canvasSize] = useState({
+    width: 600,
+    height: 600,
   });
   
   // Calculate canvas size based on world dimensions with max size constraint
@@ -781,11 +782,11 @@ const renderCurrentPage = () => {
       setWaitingForScoreSpacebar(false); // Reset score spacebar state for new trial
       animate.firstFrameUtc = null; // Reset timing data for new trial
 
-      // Calculate and set canvas size based on world dimensions
-      const worldWidth = data.worldWidth || 20;
-      const worldHeight = data.worldHeight || 20;
-      const newCanvasSize = calculateCanvasSize(worldWidth, worldHeight);
-      setCanvasSize(newCanvasSize);
+      // Canvas size is fixed - no automatic resizing
+      // const worldWidth = data.worldWidth || 20;
+      // const worldHeight = data.worldHeight || 20;
+      // const newCanvasSize = calculateCanvasSize(worldWidth, worldHeight);
+      // setCanvasSize(newCanvasSize);
 
       if (isPlaying) {
         renderFrame(0);
