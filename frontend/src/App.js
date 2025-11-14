@@ -79,6 +79,8 @@ const App = () => {
   const audioContextRef = useRef(null);
   const startToneRef = useRef(null);
   const endToneRef = useRef(null);
+  const startAudioRef = useRef(null); // Audio element for start sound file
+  const endAudioRef = useRef(null); // Audio element for end sound file
 
   const animationRef = useRef(null);
   const canvasRef = useRef(null);
@@ -466,7 +468,7 @@ const App = () => {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         console.log("Audio context initialized for trial synchronization");
         
-        // Pre-generate start tone (1000Hz, 50ms)
+        // Pre-generate start tone (1000Hz, 50ms) - used as fallback if no audio file
         const sampleRate = audioContextRef.current.sampleRate;
         const duration = 50; // in milli-seconds
         const frameCount = sampleRate * duration / 1000;
@@ -478,7 +480,7 @@ const App = () => {
         }
         startToneRef.current = startBuffer;
         
-        // Pre-generate end tone (500Hz, 50ms)
+        // Pre-generate end tone (500Hz, 50ms) - used as fallback if no audio file
         const endBuffer = audioContextRef.current.createBuffer(1, frameCount, sampleRate);
         const endData = endBuffer.getChannelData(0);
         
@@ -493,8 +495,40 @@ const App = () => {
     }
   }, []);
 
-  // Play audio tone with minimal latency
-  const playTone = useCallback((toneType) => {
+  // Load starting audio file if path is provided
+  useEffect(() => {
+    if (config.startingAudioPath && config.startingAudioPath.trim() !== '') {
+      const audio = new Audio(config.startingAudioPath);
+      audio.preload = 'auto';
+      audio.onloadeddata = () => {
+        startAudioRef.current = audio;
+        console.log('Starting audio file loaded:', config.startingAudioPath);
+      };
+      audio.onerror = () => {
+        console.warn('Failed to load starting audio file from:', config.startingAudioPath);
+        startAudioRef.current = null;
+      };
+    }
+  }, []);
+
+  // Load ending audio file if path is provided
+  useEffect(() => {
+    if (config.endingAudioPath && config.endingAudioPath.trim() !== '') {
+      const audio = new Audio(config.endingAudioPath);
+      audio.preload = 'auto';
+      audio.onloadeddata = () => {
+        endAudioRef.current = audio;
+        console.log('Ending audio file loaded:', config.endingAudioPath);
+      };
+      audio.onerror = () => {
+        console.warn('Failed to load ending audio file from:', config.endingAudioPath);
+        endAudioRef.current = null;
+      };
+    }
+  }, []);
+
+  // Helper function to play sine wave tones (fallback)
+  const playSineWaveTone = useCallback((toneType) => {
     if (!audioContextRef.current || !startToneRef.current || !endToneRef.current) {
       console.warn("Audio not initialized, skipping tone");
       return;
@@ -513,11 +547,37 @@ const App = () => {
       // Play immediately - this is the most time-critical part
       source.start(0);
       
-      console.log(`${toneType} tone played at:`, new Date().toISOString());
+      console.log(`${toneType} sine wave tone played at:`, new Date().toISOString());
     } catch (error) {
-      console.warn("Failed to play tone:", error);
+      console.warn("Failed to play sine wave tone:", error);
     }
   }, []);
+
+  // Play audio tone with minimal latency
+  // Uses audio files if available, otherwise falls back to generated sine wave tones
+  const playTone = useCallback((toneType) => {
+    try {
+      // Check if audio file is available for this tone type
+      const audioFile = toneType === 'start' ? startAudioRef.current : endAudioRef.current;
+      
+      if (audioFile) {
+        // Use audio file if available
+        // Reset to beginning in case it was already played
+        audioFile.currentTime = 0;
+        audioFile.play().catch(error => {
+          console.warn(`Failed to play ${toneType} audio file:`, error);
+          // Fall back to sine wave if audio file play fails
+          playSineWaveTone(toneType);
+        });
+        console.log(`${toneType} audio file played at:`, new Date().toISOString());
+      } else {
+        // Fall back to sine wave tone
+        playSineWaveTone(toneType);
+      }
+    } catch (error) {
+      console.warn(`Failed to play ${toneType} tone:`, error);
+    }
+  }, [playSineWaveTone]);
 
   // Load ball texture image
   useEffect(() => {

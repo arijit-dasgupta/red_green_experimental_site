@@ -19,5 +19,11 @@ export const config = {
   // Occluder texture path relative to public folder
   // Set to null or empty string to disable texture and use default gray fill
   occluderTexturePath: '',
+  // Starting audio file path relative to public folder (e.g., '/beginning_audio.wav')
+  // Set to null or empty string to use default sine wave tone (1000Hz, 50ms)
+  startingAudioPath: '/beginning_audio.wav',
+  // Ending audio file path relative to public folder (e.g., '/ending_audio.mp3')
+  // Set to null or empty string to use default sine wave tone (500Hz, 50ms)
+  endingAudioPath: '/ending_audio.mp3',
 };
 
