@@ -20,7 +20,9 @@ const ExperimentPage = ({
     handlePlayPause,
     fetchNextScene,
     canvasRef,
-    isStrictMode
+    isStrictMode,
+    redSensorTextureRef,
+    greenSensorTextureRef
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -309,10 +311,14 @@ const ExperimentPage = ({
 
             <div style={{
                 display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
                 justifyContent: "center",
+                minHeight: "100vh",
                 padding: "20px",
-                gap: "40px"
+                gap: "30px"
             }}>
+                {/* Canvas Container - Centered */}
                 <div style={{
                     display: "flex",
                     flexDirection: "column",
@@ -342,79 +348,37 @@ const ExperimentPage = ({
                             height: `${canvasSize.height}px`,
                         }}
                     />
-
-                    {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
                 </div>
 
+                {/* Key State Indicators - Below Canvas, Texture-based */}
                 <div style={{
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    position: "relative",
-                    width: "30vw",
-                    minWidth: "200px",
-                    marginTop: "20vh",
+                    gap: "15px",
+                    width: "100%",
+                    maxWidth: `${Math.max(canvasSize.width, 600)}px`,
+                    padding: "0 20px",
                 }}>
-                    {/* Key State Indicators */}
-                    {(() => {
-                        // Calculate scaling factor to keep components at reasonable size
-                        const baseSize = 400;
-                        const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
-                        const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
-                        return (
-                            <div style={{
-                                display: "flex",
-                                gap: `${canvasSize.width * 0.1 * scaleFactor}px`,
-                                padding: `${canvasSize.width * 0.02 * scaleFactor}px`,
-                                border: "1px solid #ddd",
-                                borderRadius: "8px",
-                                backgroundColor: "#f9f9f9",
-                                width: "100%",
-                                justifyContent: "center",
-                            }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01 * scaleFactor}px` }}>
-                                    <h2 style={{ margin: 0, fontWeight: "bold", fontSize: `${Math.max(24 * scaleFactor, 18)}px` }}>F</h2>
-                                    <div style={{
-                                        width: `${canvasSize.width * 0.04 * scaleFactor}px`,
-                                        height: `${canvasSize.width * 0.04 * scaleFactor}px`,
-                                        backgroundColor: "red",
-                                        borderRadius: "50%",
-                                    }} />
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01 * scaleFactor}px` }}>
-                                    <h2 style={{ margin: 0, fontWeight: "bold", fontSize: `${Math.max(24 * scaleFactor, 18)}px` }}>J</h2>
-                                    <div style={{
-                                        width: `${canvasSize.width * 0.04 * scaleFactor}px`,
-                                        height: `${canvasSize.width * 0.04 * scaleFactor}px`,
-                                        backgroundColor: "green",
-                                        borderRadius: "50%",
-                                    }} />
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* Render Key States */}
+                    {/* Active Key States Row */}
                     {(() => {
                         const baseSize = 400;
                         const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
                         const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
                         return (
                             <div style={{
-                                position: "absolute",
-                                top: `${canvasSize.width * 0.15 * scaleFactor}px`,
                                 display: "flex",
-                                gap: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                gap: `${Math.max(canvasSize.width * 0.15, 40)}px`,
                                 justifyContent: "center",
+                                alignItems: "center",
                                 width: "100%",
                             }}>
-                                {renderKeyState("f", "red", keyStates, canvasSize)}
-                                {renderKeyState("j", "green", keyStates, canvasSize)}
+                                {renderKeyState("f", redSensorTextureRef, keyStates, canvasSize)}
+                                {renderKeyState("j", greenSensorTextureRef, keyStates, canvasSize)}
                                 {renderEmptyKeyState(keyStates, canvasSize)}
                             </div>
                         );
                     })()}
-
                 </div>
             </div>
         </div>

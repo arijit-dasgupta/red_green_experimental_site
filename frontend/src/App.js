@@ -704,6 +704,8 @@ const renderCurrentPage = () => {
         fetchNextScene={fetchNextScene}
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
+        redSensorTextureRef={redSensorTextureRef}
+        greenSensorTextureRef={greenSensorTextureRef}
       />;
     case 'timeout':
       return <TimeoutPage />;

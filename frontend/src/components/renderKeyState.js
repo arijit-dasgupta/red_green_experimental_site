@@ -8,13 +8,15 @@ const getScaleFactor = (canvasSize) => {
   return Math.min(1, baseSize / maxCanvasDim);
 };
 
-const renderKeyState = (key, color, keyStates, canvasSize) => {
+const renderKeyState = (key, textureRef, keyStates, canvasSize) => {
   if ((keyStates.f && keyStates.j) || (!keyStates.f && !keyStates.j)) {
     // Placeholder when both or neither keys are pressed
     return null;
   }
   // Active state for a single key
   const scaleFactor = getScaleFactor(canvasSize);
+  const size = `${Math.max(canvasSize.width * 0.12 * scaleFactor, 60)}px`;
+  
   return keyStates[key] && (
     <div
       style={{
@@ -26,17 +28,37 @@ const renderKeyState = (key, color, keyStates, canvasSize) => {
     >
       <div
         style={{
-          width: `${canvasSize.width * 0.12 * scaleFactor}px`,
-          height: `${canvasSize.width * 0.12 * scaleFactor}px`,
-          backgroundColor: color,
-          animation: "pulse-vibrate 0.75s infinite",
-          boxShadow: `0 0 ${canvasSize.width * 0.08 * scaleFactor}px ${color}B3`,
+          width: size,
+          height: size,
+          borderRadius: "8px",
+          overflow: "hidden",
+          animation: "subtle-pulse 1.5s ease-in-out infinite",
+          boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
           marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+          border: "2px solid rgba(255, 255, 255, 0.8)",
+          backgroundColor: "#f0f0f0",
+          position: "relative",
         }}
-      />
-      <span style={{ color, fontWeight: "bold", fontSize: `${Math.max(14 * scaleFactor, 16)}px` }}>
-        {color.charAt(0).toUpperCase() + color.slice(1)}
-      </span>
+      >
+        {textureRef && textureRef.current && textureRef.current.complete ? (
+          <img
+            src={textureRef.current.src}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        ) : (
+          <div style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#ccc",
+          }} />
+        )}
+      </div>
     </div>
   );
 };
@@ -46,6 +68,7 @@ const renderEmptyKeyState = (keyStates, canvasSize) => {
   if ((keyStates.f && keyStates.j) || (!keyStates.f && !keyStates.j)) {
     // Placeholder when both or neither keys are pressed
     const scaleFactor = getScaleFactor(canvasSize);
+    const size = `${Math.max(canvasSize.width * 0.12 * scaleFactor, 60)}px`;
     return (
       <div
         style={{
@@ -57,16 +80,15 @@ const renderEmptyKeyState = (keyStates, canvasSize) => {
       >
         <div
           style={{
-            width: `${canvasSize.width * 0.12 * scaleFactor}px`,
-            height: `${canvasSize.width * 0.12 * scaleFactor}px`,
-            animation: "pulse-vibrate 0.75s infinite",
-            boxShadow: `0 0 ${canvasSize.width * 0.08 * scaleFactor}px ${"red"}B3`,
+            width: size,
+            height: size,
+            borderRadius: "8px",
+            boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.1)`,
             marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+            backgroundColor: "#e0e0e0",
+            border: "2px dashed #999",
           }}
         />
-        <span style={{ fontWeight: "bold" }}>
-         &nbsp;
-        </span>
       </div>
     );
   }

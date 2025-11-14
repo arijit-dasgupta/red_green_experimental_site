@@ -37,43 +37,19 @@
   }
 }
 
-/* Add this to your styles.css or App.css */
-@keyframes pulse-vibrate {
+/* Subtle pulse animation for active keystate */
+@keyframes subtle-pulse {
   0% {
-    transform: scale(1) translate(0, 0);
-    filter: brightness(1);
-  }
-  12.5% {
-    transform: scale(1.05) translate(0,0);
-    filter: brightness(1.1);
-  }
-  25% {
-    transform: scale(1.1) translate(0,0);
-    filter: brightness(1.2);
-  }
-  37.5% {
-    transform: scale(1.15) translate(0,0);
-    filter: brightness(1.25);
+    transform: scale(1);
+    boxShadow: 0 0 8px rgba(0, 0, 0, 0.2);
   }
   50% {
-    transform: scale(1.2) translate(0, 0);
-    filter: brightness(1.3);
-  }
-  62.5% {
-    transform: scale(1.15) translate(0,0);
-    filter: brightness(1.25);
-  }
-  75% {
-    transform: scale(1.1) translate(0,0);
-    filter: brightness(1.2);
-  }
-  87.5% {
-    transform: scale(1.05) translate(0,0);
-    filter: brightness(1.1);
+    transform: scale(1.02);
+    boxShadow: 0 0 12px rgba(0, 0, 0, 0.25);
   }
   100% {
-    transform: scale(1) translate(0, 0);
-    filter: brightness(1);
+    transform: scale(1);
+    boxShadow: 0 0 8px rgba(0, 0, 0, 0.2);
   }
 }
 
