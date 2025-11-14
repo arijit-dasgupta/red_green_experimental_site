@@ -88,6 +88,9 @@ const App = () => {
   const keyStatesRef = useRef({ f: false, j: false });
   const ballTextureRef = useRef(null);
   const ballOffscreenCanvasRef = useRef(null); // Offscreen canvas for supersampled ball rendering
+  const barrierTextureRef = useRef(null);
+  const redSensorTextureRef = useRef(null);
+  const greenSensorTextureRef = useRef(null);
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -124,6 +127,55 @@ const App = () => {
       width: Math.min(canvasWidth, MAX_CANVAS_SIZE),
       height: Math.min(canvasHeight, MAX_CANVAS_SIZE),
     };
+  };
+
+  // Helper function to draw texture maintaining aspect ratio and covering the element
+  // Similar to CSS "cover" mode - image covers area, may overflow and get clipped
+  // Accounts for the flipped coordinate system to maintain correct orientation
+  const drawTiledTexture = (ctx, texture, x, y, width, height) => {
+    if (!texture || !texture.complete) return false;
+    
+    ctx.save();
+    
+    // Clip to the rectangle bounds
+    ctx.beginPath();
+    ctx.rect(x, y, width, height);
+    ctx.clip();
+    
+    // Calculate aspect ratios
+    const imgRatio = texture.width / texture.height;
+    const containerRatio = width / height;
+    
+    let newW, newH, newX, newY;
+    
+    // Determine how to fit the image while maintaining aspect ratio
+    if (imgRatio > containerRatio) {
+      // Image is wider - fit to height, may overflow width
+      newH = height;
+      newW = height * imgRatio;
+      newX = x - (newW - width) / 2; // Center horizontally
+      newY = y;
+    } else {
+      // Image is taller - fit to width, may overflow height
+      newW = width;
+      newH = width / imgRatio;
+      newX = x;
+      newY = y - (newH - height) / 2; // Center vertically
+    }
+    
+    // Flip vertically to compensate for the coordinate system flip (scale(1, -1))
+    // We need to account for the flipped Y coordinate system
+    ctx.save();
+    ctx.translate(newX, newY + newH);
+    ctx.scale(1, -1);
+    
+    // Draw the full texture image at calculated size
+    ctx.drawImage(texture, 0, 0, newW, newH);
+    
+    ctx.restore();
+    ctx.restore();
+    
+    return true;
   };
 
   const renderFrame = (frameIndex) => {
@@ -168,23 +220,53 @@ const App = () => {
         const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
 
         if (frameIndex !==0) { 
-          // Draw barriers
-          ctx.fillStyle = "black";
+          // Draw barriers with texture
           barriers.forEach(({ x, y, width, height }) => {
-              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+              const scaledX = x * scale;
+              const scaledY = y * scale;
+              const scaledWidth = width * scale;
+              const scaledHeight = height * scale;
+              
+              ctx.save();
+              if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                  // Fallback to black fill if texture not loaded
+                  ctx.fillStyle = "black";
+                  ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+              }
+              ctx.restore();
           });
 
-          // Draw sensors
+          // Draw sensors with texture
           if (red_sensor) {
-              ctx.fillStyle = "red";
               const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
-              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+              const scaledX = x * scale;
+              const scaledY = y * scale;
+              const scaledWidth = width * scale;
+              const scaledHeight = height * scale;
+              
+              ctx.save();
+              if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                  // Fallback to red fill if texture not loaded
+                  ctx.fillStyle = "red";
+                  ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+              }
+              ctx.restore();
           }
 
           if (green_sensor) {
-              ctx.fillStyle = "green";
               const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
-              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+              const scaledX = x * scale;
+              const scaledY = y * scale;
+              const scaledWidth = width * scale;
+              const scaledHeight = height * scale;
+              
+              ctx.save();
+              if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                  // Fallback to green fill if texture not loaded
+                  ctx.fillStyle = "green";
+                  ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+              }
+              ctx.restore();
           }
 
           // Draw target with supersampling for smooth edges
@@ -403,6 +485,42 @@ const App = () => {
       console.warn('Failed to load ball texture image from:', config.ballTexturePath);
     };
     ballTexture.src = config.ballTexturePath;
+  }, []);
+
+  // Load barrier texture image
+  useEffect(() => {
+    const barrierTexture = new Image();
+    barrierTexture.onload = () => {
+      barrierTextureRef.current = barrierTexture;
+    };
+    barrierTexture.onerror = () => {
+      console.warn('Failed to load barrier texture image from:', config.barrierTexturePath);
+    };
+    barrierTexture.src = config.barrierTexturePath;
+  }, []);
+
+  // Load red sensor texture image
+  useEffect(() => {
+    const redSensorTexture = new Image();
+    redSensorTexture.onload = () => {
+      redSensorTextureRef.current = redSensorTexture;
+    };
+    redSensorTexture.onerror = () => {
+      console.warn('Failed to load red sensor texture image from:', config.redSensorTexturePath);
+    };
+    redSensorTexture.src = config.redSensorTexturePath;
+  }, []);
+
+  // Load green sensor texture image
+  useEffect(() => {
+    const greenSensorTexture = new Image();
+    greenSensorTexture.onload = () => {
+      greenSensorTextureRef.current = greenSensorTexture;
+    };
+    greenSensorTexture.onerror = () => {
+      console.warn('Failed to load green sensor texture image from:', config.greenSensorTexturePath);
+    };
+    greenSensorTexture.src = config.greenSensorTexturePath;
   }, []);
 
   // Initialize audio context on first user interaction (to comply with browser autoplay policies)

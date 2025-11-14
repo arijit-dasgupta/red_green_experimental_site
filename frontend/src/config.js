@@ -6,5 +6,11 @@ export const config = {
   ballTexturePath: '/ball.png',
   // Ball texture rotation rate in degrees per second (animation time)
   ballRotationRate: 90, // Set to 0 to disable rotation, or a positive/negative value for rotation speed
+  // Barrier texture path relative to public folder
+  barrierTexturePath: '/barrier.png',
+  // Red sensor texture path relative to public folder
+  redSensorTexturePath: '/blueS.png',
+  // Green sensor texture path relative to public folder
+  greenSensorTexturePath: '/green.png',
 };
 
