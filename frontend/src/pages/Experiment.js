@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import TransitionPage from './Transition';
-import ScoringInstrucPage from './ScoringInstruc';
 
 const ExperimentPage = ({
     sceneData,
@@ -25,10 +24,8 @@ const ExperimentPage = ({
 }) => {
 
     const isInitializedRef = useRef(false);
-    const activatedScoringInstruc = useRef(false);
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
-    const [showScoringInstruc, setShowScoringInstruc] = useState(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -40,24 +37,13 @@ const ExperimentPage = ({
         }
     }, [fetchNextScene]);
 
-    useEffect(() => {
-        if (trialInfo.is_ftrial && trialInfo.ftrial_i === 2 && !activatedScoringInstruc.current) {
-            activatedScoringInstruc.current = true;
-            setShowScoringInstruc(true); // Show explanation page after first familiarization trial
-        }
-    }, [trialInfo]);
-
-    const handleProceed = () => {
-        setShowScoringInstruc(false); // Hide explanation page
-    };
-
 
     useEffect(() => {
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
     
         const handleKeyUp = (e) => {
             if (e.code === 'Space' && isSpacePressed && !isPlaying && !finished 
-                && !disableCountdownTrigger && !isTransitionPage && !showScoringInstruc) {
+                && !disableCountdownTrigger && !isTransitionPage) {
                 // console.log("Spacebar pressed. Starting countdown...");
                 isSpacePressed = false; // Set flag to true when Spacebar is pressed
                 handlePlayPause(setdisableCountdownTrigger); // Start countdown
@@ -77,13 +63,13 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [handlePlayPause, isPlaying, finished, disableCountdownTrigger, isTransitionPage, showScoringInstruc]);
+    }, [handlePlayPause, isPlaying, finished, disableCountdownTrigger, isTransitionPage]);
     
     useEffect(() => {
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
     
         const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage && !showScoringInstruc) {
+            if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage) {
                 // console.log("Spacebar pressed. Fetching next scene...");
                 isSpacePressed = false; // Set flag to true when Spacebar is pressed
                 fetchNextScene(setdisableCountdownTrigger);
@@ -103,11 +89,7 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [fetchNextScene, finished, isTransitionPage, showScoringInstruc]);
-    
-    if (showScoringInstruc) {
-        return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
-    }
+    }, [fetchNextScene, finished, isTransitionPage]);
 
     if (isTransitionPage) {
         return (
