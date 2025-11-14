@@ -5,11 +5,15 @@ Requirements:
 - Conda
 - Git
 
-Step 1: First clone the repo (use https cloning if no ssh key) and enter the directory
+Step 1: First clone the repo (use https cloning if no ssh key) and enter the directory.
+**Note: You should check out the branch that matches the branch where you found this README.md. If you're not sure, ask the sender which branch to use, or look at the branch name on GitHub. Replace `<branch-name>` below with the correct branch.**
+
 ```bash
 git clone git@github.com:arijit-dasgupta/red_green_experimental_site.git
 cd red_green_experimental_site
+git checkout <branch-name>
 ```
+For example, if you see this README on a branch called `child-zoom`, run `git checkout child-zoom`.
 
 Then install the python requirements in conda
 
@@ -36,19 +40,13 @@ My `npm` version is `10.9.0` and Node.js version is `v23.3.0`. To be safe, pleas
 - Update your package index: `sudo apt update`
 - Install Node.js and npm: `sudo apt install nodejs npm`
 
-Step 3: Build the frontend (ignore the barrage of deprecation warnings)
+Step 3: Build the frontend, run the experiment, and open the provided localhost link by running:
 
 ```bash
-npm --prefix frontend install
-npm --prefix frontend run build
+bash build_and_run_exp.sh
 ```
 
-Step 4: Run the experiment and go to the localhost link shown in the terminal (default is http://127.0.0.1:5000)
-
-```bash
-python backend/run_redgreen_experiment.py
-```
-The data will be automatically saved in a SQLite database `.db` in a folder named `instance` from the folder where the experiment python file is run (in the example above, it will be in the root folder).
+The data will be automatically saved in a SQLite `.db` file in an `instance` folder located where you run the experiment script.
 
 ## Notes on running experiment (from Arijit)
 
