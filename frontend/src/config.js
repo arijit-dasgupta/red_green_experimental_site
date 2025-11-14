@@ -19,6 +19,9 @@ export const config = {
   // Occluder texture path relative to public folder
   // Set to null or empty string to disable texture and use default gray fill
   occluderTexturePath: '',
+  // Canvas border thickness in pixels (applied equally on all sides)
+  // Border uses the barrier texture
+  canvasBorderThickness: 20,
   // Starting audio file path relative to public folder (e.g., '/beginning_audio.wav')
   // Set to null or empty string to use default sine wave tone (1000Hz, 50ms)
   startingAudioPath: '/beginning_audio.wav',

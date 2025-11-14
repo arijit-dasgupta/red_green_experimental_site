@@ -215,7 +215,6 @@ const App = () => {
     ctx.scale(1, -1);
     ctx.translate(0, -canvas.height);
 
-
     try {
         const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
 
@@ -706,6 +705,7 @@ const renderCurrentPage = () => {
         isStrictMode={isStrictMode}
         redSensorTextureRef={redSensorTextureRef}
         greenSensorTextureRef={greenSensorTextureRef}
+        barrierTextureRef={barrierTextureRef}
       />;
     case 'timeout':
       return <TimeoutPage />;

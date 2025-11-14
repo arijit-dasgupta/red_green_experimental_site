@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import TransitionPage from './Transition';
+import { config } from '../config';
 
 const ExperimentPage = ({
     sceneData,
@@ -22,7 +23,8 @@ const ExperimentPage = ({
     canvasRef,
     isStrictMode,
     redSensorTextureRef,
-    greenSensorTextureRef
+    greenSensorTextureRef,
+    barrierTextureRef
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -337,17 +339,85 @@ const ExperimentPage = ({
                         </p>
                     </div>
 
-                    <canvas
-                        ref={canvasRef}
-                        width={canvasSize.width}
-                        height={canvasSize.height}
-                        style={{
-                            border: "1px solid black",
-                            backgroundColor: "white",
-                            width: `${canvasSize.width}px`,
-                            height: `${canvasSize.height}px`,
-                        }}
-                    />
+                    {/* Canvas with external border */}
+                    <div style={{
+                        position: "relative",
+                        display: "inline-block",
+                    }}>
+                        {/* Border divs positioned around canvas */}
+                        {(() => {
+                            const borderThickness = config.canvasBorderThickness || 0;
+                            const borderTextureUrl = barrierTextureRef?.current?.src || config.barrierTexturePath || '';
+                            const hasTexture = borderTextureUrl && barrierTextureRef?.current?.complete;
+                            
+                            if (borderThickness <= 0) {
+                                return null;
+                            }
+                            
+                            const borderStyle = hasTexture ? {
+                                backgroundImage: `url(${borderTextureUrl})`,
+                                backgroundRepeat: 'repeat',
+                                backgroundSize: 'auto',
+                            } : {
+                                backgroundColor: 'black',
+                            };
+                            
+                            return (
+                                <>
+                                    {/* Top border */}
+                                    <div style={{
+                                        position: "absolute",
+                                        top: -borderThickness,
+                                        left: -borderThickness,
+                                        width: `${canvasSize.width + (borderThickness * 2)}px`,
+                                        height: `${borderThickness}px`,
+                                        ...borderStyle,
+                                    }} />
+                                    {/* Bottom border */}
+                                    <div style={{
+                                        position: "absolute",
+                                        bottom: -borderThickness,
+                                        left: -borderThickness,
+                                        width: `${canvasSize.width + (borderThickness * 2)}px`,
+                                        height: `${borderThickness}px`,
+                                        ...borderStyle,
+                                    }} />
+                                    {/* Left border */}
+                                    <div style={{
+                                        position: "absolute",
+                                        top: 0,
+                                        left: -borderThickness,
+                                        width: `${borderThickness}px`,
+                                        height: `${canvasSize.height}px`,
+                                        ...borderStyle,
+                                    }} />
+                                    {/* Right border */}
+                                    <div style={{
+                                        position: "absolute",
+                                        top: 0,
+                                        right: -borderThickness,
+                                        width: `${borderThickness}px`,
+                                        height: `${canvasSize.height}px`,
+                                        ...borderStyle,
+                                    }} />
+                                </>
+                            );
+                        })()}
+                        
+                        <canvas
+                            ref={canvasRef}
+                            width={canvasSize.width}
+                            height={canvasSize.height}
+                            style={{
+                                backgroundColor: "white",
+                                width: `${canvasSize.width}px`,
+                                height: `${canvasSize.height}px`,
+                                display: "block",
+                                position: "relative",
+                                zIndex: 1,
+                            }}
+                        />
+                    </div>
                 </div>
 
                 {/* Key State Indicators - Below Canvas, Texture-based */}
