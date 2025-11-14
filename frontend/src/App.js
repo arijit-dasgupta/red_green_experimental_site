@@ -15,6 +15,7 @@ import useUpdateKeyStates from './hooks/useUpdateKeyStates';
 import useCancelAnimation from './hooks/useCancelAnimation';
 import useSyncKeyStatesRef from './hooks/useSyncKeyStatesRef';
 import useSessionTimeout from './hooks/useSessionTimeout';
+import { config } from './config';
 
 
 const App = () => {
@@ -85,6 +86,8 @@ const App = () => {
   const recordedKeyStates = useRef([]);
   const currentFrameRef = useRef(0);
   const keyStatesRef = useRef({ f: false, j: false });
+  const ballTextureRef = useRef(null);
+  const ballOffscreenCanvasRef = useRef(null); // Offscreen canvas for supersampled ball rendering
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -137,6 +140,10 @@ const App = () => {
         return;
     }
 
+    // Enable high-quality anti-aliasing for smoother rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
     const scale = Math.min(
         canvas.width / sceneData.worldWidth,
         canvas.height / sceneData.worldHeight
@@ -178,13 +185,75 @@ const App = () => {
               ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
           }
 
-          // Draw target
+          // Draw target with supersampling for smooth edges
           if (step_data[frameIndex]) {
-              ctx.fillStyle = "blue";
               const { x, y } = step_data[frameIndex];
-              ctx.beginPath();
-              ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
-              ctx.fill();
+              const centerX = (x + radius) * scale;
+              const centerY = (y + radius) * scale;
+              const ballRadius = scale * radius;
+              
+              // Use texture if available, otherwise fall back to blue fill
+              if (ballTextureRef.current && ballTextureRef.current.complete) {
+                  // Use supersampling (render at 2x resolution) for smoother edges
+                  const supersampleFactor = 2;
+                  const offscreenSize = Math.ceil(ballRadius * 2 * supersampleFactor);
+                  
+                  // Create or reuse offscreen canvas for high-res rendering
+                  if (!ballOffscreenCanvasRef.current || 
+                      ballOffscreenCanvasRef.current.width !== offscreenSize) {
+                      ballOffscreenCanvasRef.current = document.createElement('canvas');
+                      ballOffscreenCanvasRef.current.width = offscreenSize;
+                      ballOffscreenCanvasRef.current.height = offscreenSize;
+                  }
+                  
+                  const offscreenCanvas = ballOffscreenCanvasRef.current;
+                  const offscreenCtx = offscreenCanvas.getContext('2d');
+                  
+                  // Enable high-quality rendering on offscreen canvas
+                  offscreenCtx.imageSmoothingEnabled = true;
+                  offscreenCtx.imageSmoothingQuality = 'high';
+                  
+                  // Clear the offscreen canvas
+                  offscreenCtx.clearRect(0, 0, offscreenSize, offscreenSize);
+                  
+                  // Draw the ball on the offscreen canvas at higher resolution
+                  const offscreenCenter = offscreenSize / 2;
+                  const offscreenRadius = ballRadius * supersampleFactor;
+                  
+                  offscreenCtx.save();
+                  offscreenCtx.beginPath();
+                  offscreenCtx.arc(offscreenCenter, offscreenCenter, offscreenRadius, 0, 2 * Math.PI);
+                  offscreenCtx.clip();
+                  
+                  // Draw texture at higher resolution
+                  const textureSize = offscreenRadius * 2;
+                  offscreenCtx.drawImage(
+                      ballTextureRef.current,
+                      offscreenCenter - offscreenRadius,
+                      offscreenCenter - offscreenRadius,
+                      textureSize,
+                      textureSize
+                  );
+                  offscreenCtx.restore();
+                  
+                  // Draw the high-res offscreen canvas to the main canvas (scaled down)
+                  // This creates smooth anti-aliased edges
+                  ctx.save();
+                  ctx.drawImage(
+                      offscreenCanvas,
+                      centerX - ballRadius,
+                      centerY - ballRadius,
+                      ballRadius * 2,
+                      ballRadius * 2
+                  );
+                  ctx.restore();
+              } else {
+                  // Fallback to blue fill if texture not loaded
+                  ctx.beginPath();
+                  ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
+                  ctx.fillStyle = "blue";
+                  ctx.fill();
+              }
           }
 
           // Draw occluders
@@ -302,6 +371,18 @@ const App = () => {
     } catch (error) {
       console.warn("Failed to play tone:", error);
     }
+  }, []);
+
+  // Load ball texture image
+  useEffect(() => {
+    const ballTexture = new Image();
+    ballTexture.onload = () => {
+      ballTextureRef.current = ballTexture;
+    };
+    ballTexture.onerror = () => {
+      console.warn('Failed to load ball texture image from:', config.ballTexturePath);
+    };
+    ballTexture.src = config.ballTexturePath;
   }, []);
 
   // Initialize audio context on first user interaction (to comply with browser autoplay policies)

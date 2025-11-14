@@ -85,7 +85,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-DATASET_NAME = 'kevin_old_rg_jsons'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+# DATASET_NAME = 'kevin_old_rg_jsons'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['Q','F']
 EXP_TRIAL_PREFIXES = ['R','E']
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
