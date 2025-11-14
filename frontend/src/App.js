@@ -91,6 +91,7 @@ const App = () => {
   const barrierTextureRef = useRef(null);
   const redSensorTextureRef = useRef(null);
   const greenSensorTextureRef = useRef(null);
+  const occluderTextureRef = useRef(null);
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -228,8 +229,16 @@ const App = () => {
               const scaledHeight = height * scale;
               
               ctx.save();
-              if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                  // Fallback to black fill if texture not loaded
+              // Check if texture path is provided and texture is loaded
+              if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '' && 
+                  barrierTextureRef.current && barrierTextureRef.current.complete) {
+                  if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                      // Fallback to black fill if texture draw failed
+                      ctx.fillStyle = "black";
+                      ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                  }
+              } else {
+                  // Use original black fill if no texture path or texture not loaded
                   ctx.fillStyle = "black";
                   ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
               }
@@ -245,8 +254,16 @@ const App = () => {
               const scaledHeight = height * scale;
               
               ctx.save();
-              if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                  // Fallback to red fill if texture not loaded
+              // Check if texture path is provided and texture is loaded
+              if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
+                  redSensorTextureRef.current && redSensorTextureRef.current.complete) {
+                  if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                      // Fallback to red fill if texture draw failed
+                      ctx.fillStyle = "red";
+                      ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                  }
+              } else {
+                  // Use original red fill if no texture path or texture not loaded
                   ctx.fillStyle = "red";
                   ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
               }
@@ -261,8 +278,16 @@ const App = () => {
               const scaledHeight = height * scale;
               
               ctx.save();
-              if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                  // Fallback to green fill if texture not loaded
+              // Check if texture path is provided and texture is loaded
+              if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
+                  greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
+                  if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                      // Fallback to green fill if texture draw failed
+                      ctx.fillStyle = "green";
+                      ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                  }
+              } else {
+                  // Use original green fill if no texture path or texture not loaded
                   ctx.fillStyle = "green";
                   ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
               }
@@ -276,8 +301,9 @@ const App = () => {
               const centerY = (y + radius) * scale;
               const ballRadius = scale * radius;
               
-              // Use texture if available, otherwise fall back to blue fill
-              if (ballTextureRef.current && ballTextureRef.current.complete) {
+              // Use texture if path is provided and texture is loaded, otherwise fall back to blue fill
+              if (config.ballTexturePath && config.ballTexturePath.trim() !== '' && 
+                  ballTextureRef.current && ballTextureRef.current.complete) {
                   // Use supersampling (render at 2x resolution) for smoother edges
                   const supersampleFactor = 2;
                   const offscreenSize = Math.ceil(ballRadius * 2 * supersampleFactor);
@@ -358,10 +384,28 @@ const App = () => {
               }
           }
 
-          // Draw occluders
-          ctx.fillStyle = "gray";
+          // Draw occluders with texture
           occluders.forEach(({ x, y, width, height }) => {
-              ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+              const scaledX = x * scale;
+              const scaledY = y * scale;
+              const scaledWidth = width * scale;
+              const scaledHeight = height * scale;
+              
+              ctx.save();
+              // Check if texture path is provided and texture is loaded
+              if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
+                  occluderTextureRef.current && occluderTextureRef.current.complete) {
+                  if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                      // Fallback to gray fill if texture draw failed
+                      ctx.fillStyle = "gray";
+                      ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                  }
+              } else {
+                  // Use original gray fill if no texture path or texture not loaded
+                  ctx.fillStyle = "gray";
+                  ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+              }
+              ctx.restore();
           });
         }
 
@@ -477,6 +521,9 @@ const App = () => {
 
   // Load ball texture image
   useEffect(() => {
+    if (!config.ballTexturePath || config.ballTexturePath.trim() === '') {
+      return; // Skip loading if path is null or empty
+    }
     const ballTexture = new Image();
     ballTexture.onload = () => {
       ballTextureRef.current = ballTexture;
@@ -489,6 +536,9 @@ const App = () => {
 
   // Load barrier texture image
   useEffect(() => {
+    if (!config.barrierTexturePath || config.barrierTexturePath.trim() === '') {
+      return; // Skip loading if path is null or empty
+    }
     const barrierTexture = new Image();
     barrierTexture.onload = () => {
       barrierTextureRef.current = barrierTexture;
@@ -501,6 +551,9 @@ const App = () => {
 
   // Load red sensor texture image
   useEffect(() => {
+    if (!config.redSensorTexturePath || config.redSensorTexturePath.trim() === '') {
+      return; // Skip loading if path is null or empty
+    }
     const redSensorTexture = new Image();
     redSensorTexture.onload = () => {
       redSensorTextureRef.current = redSensorTexture;
@@ -513,6 +566,9 @@ const App = () => {
 
   // Load green sensor texture image
   useEffect(() => {
+    if (!config.greenSensorTexturePath || config.greenSensorTexturePath.trim() === '') {
+      return; // Skip loading if path is null or empty
+    }
     const greenSensorTexture = new Image();
     greenSensorTexture.onload = () => {
       greenSensorTextureRef.current = greenSensorTexture;
@@ -521,6 +577,21 @@ const App = () => {
       console.warn('Failed to load green sensor texture image from:', config.greenSensorTexturePath);
     };
     greenSensorTexture.src = config.greenSensorTexturePath;
+  }, []);
+
+  // Load occluder texture image
+  useEffect(() => {
+    if (!config.occluderTexturePath || config.occluderTexturePath.trim() === '') {
+      return; // Skip loading if path is null or empty
+    }
+    const occluderTexture = new Image();
+    occluderTexture.onload = () => {
+      occluderTextureRef.current = occluderTexture;
+    };
+    occluderTexture.onerror = () => {
+      console.warn('Failed to load occluder texture image from:', config.occluderTexturePath);
+    };
+    occluderTexture.src = config.occluderTexturePath;
   }, []);
 
   // Initialize audio context on first user interaction (to comply with browser autoplay policies)
