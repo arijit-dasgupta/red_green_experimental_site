@@ -86,12 +86,12 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DATASET_NAME = 'kevin_old_rg_jsons'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-FAM_TRIAL_PREFIXES = ['Q','F']
+DATASET_NAME = 'chs_training_zoom'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+FAM_TRIAL_PREFIXES = ['Q','F', 'T']
 EXP_TRIAL_PREFIXES = ['R','E']
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-EXPERIMENT_RUN_VERSION = 'eye_tracking_v0'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'chs_zoom_pilot'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
 NUM_PARTICIPANTS = 800  # Target number of participants to recruit
