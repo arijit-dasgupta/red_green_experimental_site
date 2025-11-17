@@ -1126,4 +1126,4 @@ if __name__ == '__main__':
         print("Database initialized in __main__.")
         # Uncomment the line below to enable periodic CSV exports
         # schedule_csv_exports()
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
