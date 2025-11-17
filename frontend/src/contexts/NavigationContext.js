@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState } from 'react';
 const NavigationContext = createContext();
 
 export const NavigationProvider = ({ children }) => {
-  const [currentPage, setCurrentPage] = useState('welcome');
+  const [currentPage, setCurrentPage] = useState('parent-consent');
 
   const navigate = (page) => {
     setCurrentPage(page);

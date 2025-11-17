@@ -7,6 +7,11 @@ import ExperimentPage from './pages/Experiment';
 import FinishPage from './pages/Finish';
 import TimeoutPage from './pages/Timeout';
 import ThankYouPage from './pages/ThankYou';
+import ParentConsent from './pages/ParentConsent';
+import ParentInstructions from './pages/ParentInstructions';
+import ChildAssentIntro from './pages/ChildAssentIntro';
+import ChildAssent from './pages/ChildAssent';
+import FinalWordsToParents from './pages/FinalWordsToParents';
 import Header from './components/Header';
 import { useNavigation } from './contexts/NavigationContext';
 // HOOKS to maintain robustness of experiment
@@ -680,6 +685,16 @@ const App = () => {
 const renderCurrentPage = () => {
 
   switch (currentPage) {
+    case 'parent-consent':
+      return <ParentConsent setTrialInfo={setTrialInfo} />;
+    case 'parent-instructions':
+      return <ParentInstructions />;
+    case 'child-assent-intro':
+      return <ChildAssentIntro />;
+    case 'child-assent':
+      return <ChildAssent />;
+    case 'final-words-parents':
+      return <FinalWordsToParents setTrialInfo={setTrialInfo} />;
     case 'welcome':
       return <WelcomePage setTrialInfo={setTrialInfo} />;
     case 'instructions':
@@ -715,7 +730,7 @@ const renderCurrentPage = () => {
     case 'thankyou':
       return <ThankYouPage />;
     default:
-      return <WelcomePage setTrialInfo={setTrialInfo} />;
+      return <ParentConsent setTrialInfo={setTrialInfo} />;
   }
 };
 
