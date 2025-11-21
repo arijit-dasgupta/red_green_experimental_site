@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Generator with Custom Textures</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .trial-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .trial-button {
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .trial-button:hover {
+            background: #0056b3;
+        }
+        .trial-button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        #canvas {
+            border: 2px solid #333;
+            display: block;
+            margin: 20px auto;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.info { background: #d1ecf1; color: #0c5460; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Video Generator with Custom Textures</h1>
+        
+        <div class="controls">
+            <h3>Configuration</h3>
+            <label>
+                Canvas Size: 
+                <select id="canvasSize">
+                    <option value="800x600">800x600</option>
+                    <option value="1024x768" selected>1024x768</option>
+                    <option value="1280x720">1280x720 (HD)</option>
+                    <option value="1920x1080">1920x1080 (Full HD)</option>
+                </select>
+            </label>
+            <br><br>
+            <label>
+                Frame Rate: 
+                <select id="frameRate">
+                    <option value="24">24 FPS</option>
+                    <option value="30" selected>30 FPS</option>
+                    <option value="60">60 FPS</option>
+                </select>
+            </label>
+            <br><br>
+            <button id="loadTrials" class="trial-button">Load Trial Data</button>
+        </div>
+
+        <div id="status" class="status info">Ready to load trial data...</div>
+        
+        <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+
+        <div id="trialList" class="trial-list"></div>
+
+        <canvas id="canvas" width="1024" height="768"></canvas>
+
+        <div class="controls">
+            <button id="downloadAll" class="trial-button" disabled>Download All Videos</button>
+            <button id="previewTrial" class="trial-button" disabled>Preview Selected Trial</button>
+        </div>
+    </div>
+
+    <script>
+        // Texture configuration (matching your experiment)
+        const config = {
+            ballTexturePath: '/ball.png',
+            ballRotationRate: 90,
+            barrierTexturePath: '/barrier.png', 
+            redSensorTexturePath: '/blueS.png',
+            greenSensorTexturePath: '/green.png',
+            occluderTexturePath: '',
+            canvasBorderThickness: 20
+        };
+
+        let trials = [];
+        let textures = {};
+        let selectedTrial = null;
+
+        // Load textures
+        async function loadTextures() {
+            const texturePromises = Object.entries(config)
+                .filter(([key, path]) => key.endsWith('TexturePath') && path)
+                .map(async ([key, path]) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    return new Promise((resolve, reject) => {
+                        img.onload = () => resolve([key.replace('TexturePath', ''), img]);
+                        img.onerror = reject;
+                        img.src = path;
+                    });
+                });
+            
+            const loadedTextures = await Promise.all(texturePromises);
+            textures = Object.fromEntries(loadedTextures);
+            updateStatus('Textures loaded successfully!', 'success');
+        }
+
+        // Load trial data from JSON files
+        async function loadTrials() {
+            updateStatus('Loading trial data...', 'info');
+            
+            // This would need to be adapted to load your actual trial data
+            // For now, we'll create a mock structure
+            const trialNames = [
+                'T_ball_still', 'T_ball_move', 'T_barrier1', 'T_barrier2complex',
+                'T_greeneasy', 'T_greenhard', 'T_occluder1', 'T_redhard'
+            ];
+
+            trials = trialNames.map(name => ({
+                name,
+                path: `backend/trial_data/chs_training_zoom/${name}/simulation_data.json`,
+                initPath: `backend/trial_data/chs_training_zoom/${name}/init_state_entities.json`
+            }));
+
+            renderTrialList();
+            updateStatus(`Loaded ${trials.length} trials`, 'success');
+        }
+
+        function renderTrialList() {
+            const container = document.getElementById('trialList');
+            container.innerHTML = '';
+            
+            trials.forEach((trial, index) => {
+                const button = document.createElement('button');
+                button.className = 'trial-button';
+                button.textContent = trial.name;
+                button.onclick = () => selectTrial(index);
+                container.appendChild(button);
+            });
+        }
+
+        function selectTrial(index) {
+            selectedTrial = index;
+            document.querySelectorAll('.trial-button').forEach((btn, i) => {
+                btn.style.background = i === index ? '#28a745' : '#007bff';
+            });
+            document.getElementById('previewTrial').disabled = false;
+        }
+
+        // Render frame with textures (simplified version of your renderFrame function)
+        function renderFrame(ctx, frameData, canvasWidth, canvasHeight) {
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Set up coordinate system (matching your experiment)
+            ctx.save();
+            ctx.scale(1, -1);
+            ctx.translate(0, -canvasHeight);
+            
+            const scale = Math.min(canvasWidth / 20, canvasHeight / 20); // Assuming 20x20 world
+            
+            // Draw barriers with texture
+            if (frameData.barriers) {
+                frameData.barriers.forEach(barrier => {
+                    const x = barrier.x * scale;
+                    const y = barrier.y * scale;
+                    const width = barrier.width * scale;
+                    const height = barrier.height * scale;
+                    
+                    if (textures.barrier) {
+                        drawTiledTexture(ctx, textures.barrier, x, y, width, height);
+                    } else {
+                        ctx.fillStyle = 'black';
+                        ctx.fillRect(x, y, width, height);
+                    }
+                });
+            }
+            
+            // Draw sensors with textures
+            if (frameData.red_sensor) {
+                const sensor = frameData.red_sensor;
+                const x = sensor.x * scale;
+                const y = sensor.y * scale;
+                const width = sensor.width * scale;
+                const height = sensor.height * scale;
+                
+                if (textures.redSensor) {
+                    drawTiledTexture(ctx, textures.redSensor, x, y, width, height);
+                } else {
+                    ctx.fillStyle = 'red';
+                    ctx.fillRect(x, y, width, height);
+                }
+            }
+            
+            if (frameData.green_sensor) {
+                const sensor = frameData.green_sensor;
+                const x = sensor.x * scale;
+                const y = sensor.y * scale;
+                const width = sensor.width * scale;
+                const height = sensor.height * scale;
+                
+                if (textures.greenSensor) {
+                    drawTiledTexture(ctx, textures.greenSensor, x, y, width, height);
+                } else {
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(x, y, width, height);
+                }
+            }
+            
+            // Draw ball with texture and rotation
+            if (frameData.step_data && frameData.step_data[0]) {
+                const ballPos = frameData.step_data[0];
+                const x = ballPos.x * scale;
+                const y = ballPos.y * scale;
+                const radius = (frameData.radius || 0.5) * scale;
+                
+                ctx.save();
+                ctx.translate(x, y);
+                
+                if (textures.ball) {
+                    // Rotate ball based on config
+                    const rotation = (Date.now() * config.ballRotationRate / 1000) * (Math.PI / 180);
+                    ctx.rotate(rotation);
+                    
+                    ctx.drawImage(textures.ball, -radius, -radius, radius * 2, radius * 2);
+                } else {
+                    ctx.fillStyle = 'blue';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+            
+            ctx.restore();
+        }
+
+        // Tiled texture drawing function (matching your experiment)
+        function drawTiledTexture(ctx, texture, x, y, width, height) {
+            if (!texture || !texture.complete) return false;
+            
+            ctx.save();
+            
+            const pattern = ctx.createPattern(texture, 'repeat');
+            if (pattern) {
+                ctx.fillStyle = pattern;
+                ctx.fillRect(x, y, width, height);
+            } else {
+                return false;
+            }
+            
+            ctx.restore();
+            return true;
+        }
+
+        // Generate video for a trial
+        async function generateVideo(trialIndex) {
+            if (!trials[trialIndex]) return;
+            
+            const trial = trials[trialIndex];
+            updateStatus(`Generating video for ${trial.name}...`, 'info');
+            
+            // This is where you would:
+            // 1. Load the trial's JSON data
+            // 2. Set up MediaRecorder to capture canvas
+            // 3. Render each frame
+            // 4. Generate and download the video
+            
+            updateStatus(`Video generation for ${trial.name} would start here`, 'info');
+            // Implementation needed based on your specific requirements
+        }
+
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressBar').style.width = `${percent}%`;
+        }
+
+        // Event listeners
+        document.getElementById('loadTrials').onclick = loadTrials;
+        document.getElementById('previewTrial').onclick = () => {
+            if (selectedTrial !== null) {
+                generateVideo(selectedTrial);
+            }
+        };
+        
+        document.getElementById('canvasSize').onchange = (e) => {
+            const [width, height] = e.target.value.split('x').map(Number);
+            const canvas = document.getElementById('canvas');
+            canvas.width = width;
+            canvas.height = height;
+        };
+
+        // Initialize
+        loadTextures().catch(err => {
+            updateStatus('Error loading textures: ' + err.message, 'error');
+        });
+    </script>
+</body>
+</html>

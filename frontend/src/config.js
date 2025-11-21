@@ -18,7 +18,7 @@ export const config = {
   greenSensorTexturePath: '/green.png',
   // Occluder texture path relative to public folder
   // Set to null or empty string to disable texture and use default gray fill
-  occluderTexturePath: '',
+  occluderTexturePath: '/cloud.jpg',
   // Canvas border thickness in pixels (applied equally on all sides)
   // Border uses the barrier texture
   canvasBorderThickness: 20,
