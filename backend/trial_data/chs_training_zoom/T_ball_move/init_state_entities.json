@@ -1,0 +1,18 @@
+[
+    {
+      "id": 1763698184187,
+      "type": "target",
+      "x": 3.3000000000000003,
+      "y": 9.600000000000001,
+      "width": 1,
+      "height": 1,
+      "direction": 0.722979353401491
+    }
+  ],
+  "simulationParams": {
+    "videoLength": 10,
+    "ballSpeed": 3,
+    "fps": 30,
+    "worldWidth": 20,
+    "worldHeight": 20
+  }

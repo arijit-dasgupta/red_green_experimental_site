@@ -12,6 +12,7 @@ import ParentInstructions from './pages/ParentInstructions';
 import ChildAssentIntro from './pages/ChildAssentIntro';
 import ChildAssent from './pages/ChildAssent';
 import FinalWordsToParents from './pages/FinalWordsToParents';
+import BackstoryPage from './pages/BackstoryPage';
 import Header from './components/Header';
 import { useNavigation } from './contexts/NavigationContext';
 // HOOKS to maintain robustness of experiment
@@ -695,6 +696,8 @@ const renderCurrentPage = () => {
       return <ChildAssent />;
     case 'final-words-parents':
       return <FinalWordsToParents setTrialInfo={setTrialInfo} />;
+    case 'backstory':
+      return <BackstoryPage />;
     case 'welcome':
       return <WelcomePage setTrialInfo={setTrialInfo} />;
     case 'instructions':

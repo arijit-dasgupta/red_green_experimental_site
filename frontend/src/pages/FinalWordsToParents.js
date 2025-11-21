@@ -4,55 +4,10 @@ import { useNavigation } from '../contexts/NavigationContext';
 const FinalWordsToParents = ({ setTrialInfo }) => {
     const { navigate } = useNavigation();
 
-    const startStudy = async () => {
-        try {
-            const prolific_pid = sessionStorage.getItem("prolific_pid");
-            const study_id = sessionStorage.getItem("study_id");
-            const prolific_session_id = sessionStorage.getItem("prolific_session_id");
-
-            const response = await fetch(
-                `/start_experiment/redgreen?PROLIFIC_PID=${prolific_pid}&STUDY_ID=${study_id}&SESSION_ID=${prolific_session_id}`,
-                { method: "POST", 
-                    headers: { 
-                        'ngrok-skip-browser-warning': 'true',
-                        'User-Agent': 'React-Experiment-App',
-                     } 
-                }
-            );
-            if (!response.ok) {
-                const errorData = await response.json();
-                if (errorData.error === "duplicate_pid") {
-                    alert(errorData.message);
-                    return;
-                }
-                if (errorData.error === "max_participants_reached") {
-                    alert(errorData.message);
-                    return;
-                }
-                throw new Error("Failed to start experiment");
-            }
-
-            const data = await response.json();
-            sessionStorage.setItem("sessionId", data.session_id);
-            sessionStorage.setItem("startTimeUtc", data.start_time_utc);
-            sessionStorage.setItem("timeoutPeriod", data.timeout_period_seconds);
-            sessionStorage.setItem("checkTimeoutInterval", data.check_timeout_interval_seconds);            
-
-            setTrialInfo({
-                num_trials: data.num_trials,
-                num_ftrials: data.num_ftrials,
-                unique_trial_id: 0,
-                ftrial_i: 0,
-                trial_i: 0,
-                is_ftrial: false,
-                is_trial: false,
-            });
-
-            navigate("experiment");
-        } catch (error) {
-            console.error("Error starting experiment:", error);
-            alert("Failed to start the experiment. Please try again.");
-        }
+    const startStudy = () => {
+        // Navigate to backstory phase - the BackstoryPage will handle experiment session initialization
+        console.log("FinalWordsToParents: Navigating to backstory phase");
+        navigate("backstory");
     };
 
     return (
