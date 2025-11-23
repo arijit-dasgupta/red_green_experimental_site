@@ -152,9 +152,12 @@ const BackstoryPage = () => {
                 });
 
                 // Use test values if Prolific parameters are missing (for development/testing)
-                const testPid = prolific_pid || `test_${Date.now()}`;
+                // Generate unique IDs to avoid duplicate_pid errors
+                const timestamp = Date.now();
+                const random = Math.random().toString(36).substring(2, 9);
+                const testPid = prolific_pid || `test_${timestamp}_${random}`;
                 const testStudyId = study_id || 'test_study';
-                const testSessionId = prolific_session_id || `test_session_${Date.now()}`;
+                const testSessionId = prolific_session_id || `test_session_${timestamp}_${random}`;
 
                 console.log("BackstoryPage: Using parameters:", {
                     testPid,
@@ -173,14 +176,35 @@ const BackstoryPage = () => {
                 );
                 
                 if (!response.ok) {
-                    const errorData = await response.json();
+                    let errorData;
+                    const contentType = response.headers.get("content-type");
+                    try {
+                        if (contentType && contentType.includes("application/json")) {
+                            errorData = await response.json();
+                        } else {
+                            const text = await response.text();
+                            console.error("Error starting experiment - Non-JSON response:", text.substring(0, 200));
+                            errorData = { message: `Server error (${response.status}): ${text.substring(0, 100)}` };
+                        }
+                    } catch (parseError) {
+                        console.error("Error parsing error response:", parseError);
+                        errorData = { message: `Server error (${response.status}): Unable to parse response` };
+                    }
                     console.error("Error starting experiment - Status:", response.status);
                     console.error("Error starting experiment - Data:", errorData);
                     console.error("Error starting experiment - Message:", errorData.message || 'No message');
                     return;
                 }
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (parseError) {
+                    console.error("Error parsing success response:", parseError);
+                    const text = await response.text();
+                    console.error("Response text:", text.substring(0, 200));
+                    throw new Error("Failed to parse server response as JSON");
+                }
                 sessionStorage.setItem("sessionId", data.session_id);
                 sessionStorage.setItem("startTimeUtc", data.start_time_utc);
                 sessionStorage.setItem("timeoutPeriod", data.timeout_period_seconds);

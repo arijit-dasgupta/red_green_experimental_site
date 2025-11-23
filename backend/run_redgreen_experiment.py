@@ -365,8 +365,16 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         - target: Information about the target object
         - rg_outcome: Ground truth answer ('red' or 'green')
         """
-        with open(file_path, 'r') as f:
-            data = json.load(f)
+        if not os.path.exists(file_path):
+            print(f"Warning: Trial data file not found: {file_path}")
+            return None
+        
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading trial data from {file_path}: {e}")
+            return None
         
         # Extract world dimensions from scene_dims
         scene_dims = data.get("scene_dims", [20, 20])
@@ -399,11 +407,11 @@ def load_experiment_config(experiment_name, randomized_profile_id):
             "worldHeight": world_height,
         }
 
-    # Parse all trial data files for this participant
-    config["ftrial_datas"] = [parse_json(file_path) for file_path in ftrial_paths]
-    config["trial_datas"] = [parse_json(file_path) for file_path in trial_paths]
-    config["num_ftrials"] = len(ftrial_paths)
-    config["num_trials"] = len(trial_paths)
+    # Parse all trial data files for this participant (filter out None results from missing files)
+    config["ftrial_datas"] = [data for data in [parse_json(file_path) for file_path in ftrial_paths] if data is not None]
+    config["trial_datas"] = [data for data in [parse_json(file_path) for file_path in trial_paths] if data is not None]
+    config["num_ftrials"] = len(config["ftrial_datas"])
+    config["num_trials"] = len(config["trial_datas"])
 
     return config, randomized_trial_order
 
@@ -773,6 +781,53 @@ def load_next_scene():
     }
 
     return jsonify(scene_data)
+
+@app.route('/api/load_trial_data/<trial_folder>', methods=['GET'])
+def load_trial_data(trial_folder):
+    """
+    Load a specific trial data by folder name.
+    Used for special pages like p8 that need specific trial data.
+    """
+    try:
+        # Construct path to trial data
+        trial_path = os.path.join(PATH_TO_DATA_FOLDER, DATASET_NAME, trial_folder, 'simulation_data.json')
+        
+        if not os.path.exists(trial_path):
+            return jsonify({"error": f"Trial folder {trial_folder} not found"}), 404
+        
+        # Parse JSON file
+        with open(trial_path, 'r') as f:
+            data = json.load(f)
+        
+        # Extract world dimensions
+        scene_dims = data.get("scene_dims", [20, 20])
+        world_width = scene_dims[0] if len(scene_dims) > 0 else 20
+        world_height = scene_dims[1] if len(scene_dims) > 1 else 20
+        
+        # Format data for frontend (same format as parse_json in load_experiment_config)
+        trial_data = {
+            "barriers": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                         for key, value in item.items()} 
+                        for item in data.get("barriers", [])],
+            "occluders": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                          for key, value in item.items()} 
+                         for item in data.get("occluders", [])],
+            "step_data": {int(k): {'x': v['x'], 'y': v['y']} 
+                         for k, v in data.get("step_data", {}).items()},
+            "red_sensor": data.get("red_sensor", {}),
+            "green_sensor": data.get("green_sensor", {}),
+            "timestep": round(data.get("timestep", 0), 2),
+            "fps": int(data.get("fps", 30)),
+            "radius": data.get('target', {}).get('size', 0) / 2,
+            "rg_outcome": data.get("rg_outcome", ""),
+            "worldWidth": world_width,
+            "worldHeight": world_height,
+        }
+        
+        return jsonify(trial_data), 200
+    except Exception as e:
+        print(f"Error loading trial data: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/save_data', methods=['POST'])
 def save_data():

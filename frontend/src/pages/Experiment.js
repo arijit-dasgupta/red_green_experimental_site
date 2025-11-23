@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import TransitionPage from './Transition';
 import { config } from '../config';
+import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
+import P8CanvasPage from '../components/P8CanvasPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -117,6 +119,17 @@ const ExperimentPage = ({
         return (
             <TransitionPage
                 trialInfo={trialInfo}
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+
+    // Check if this is p8 (familiarization trial 8)
+    const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
+    if (familiarizationPageType === 'p8') {
+        return (
+            <P8CanvasPage
                 fetchNextScene={fetchNextScene}
                 setdisableCountdownTrigger={setdisableCountdownTrigger}
             />

@@ -94,9 +94,10 @@ export const FAMILIARIZATION_PAGE_SPECS = {
     audio: '/audios/8_ball_intro.mp3',
     image: {
       src: '/images/elmo.png',
-      position: 'left_of_canvas',
-      size: '20%'
+      position: 'left_middle_canvas',
+      size: '10%'
     },
+    trialFolder: 'T_ball_still', // Specific trial folder for p8
     isDemonstration: true, // No key recording
     waitForSpacebar: false, // Autoplay video
   },
