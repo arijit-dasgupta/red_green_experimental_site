@@ -194,11 +194,11 @@ const BackstoryPage = () => {
         }
     };
 
-    // Add keyboard shortcut for testing: Press 'Q' to skip to next page
+    // Add keyboard shortcuts for testing: Press 'Q' or 'Shift+S' to skip to next page
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.key === 'Q' || e.key === 'q') {
-                console.log("SKIP KEY PRESSED: Q key detected in BackstoryPage");
+            if (e.key === 'Q' || e.key === 'q' || (e.shiftKey && (e.key === 'S' || e.key === 's'))) {
+                console.log("SKIP KEY PRESSED: Skip key detected in BackstoryPage");
                 e.preventDefault();
                 e.stopPropagation();
                 handleNext();

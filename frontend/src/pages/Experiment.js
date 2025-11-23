@@ -95,6 +95,24 @@ const ExperimentPage = ({
         };
     }, [fetchNextScene, finished, isTransitionPage]);
 
+    // Add keyboard shortcut for testing: Press 'Shift+S' to skip to next page
+    useEffect(() => {
+        const handleKeyPress = (e) => {
+            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+                console.log("SKIP KEY PRESSED: Shift+S detected in ExperimentPage, skipping to next page");
+                e.preventDefault();
+                e.stopPropagation();
+                fetchNextScene(setdisableCountdownTrigger);
+                return false;
+            }
+        };
+        
+        document.addEventListener('keydown', handleKeyPress, true);
+        return () => {
+            document.removeEventListener('keydown', handleKeyPress, true);
+        };
+    }, [fetchNextScene, setdisableCountdownTrigger]);
+
     if (isTransitionPage) {
         return (
             <TransitionPage
