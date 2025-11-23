@@ -6,7 +6,7 @@ export const config = {
   // Set to null or empty string to disable texture and use default blue fill
   ballTexturePath: '/ball.png',
   // Ball texture rotation rate in degrees per second (animation time)
-  ballRotationRate: 90, // Set to 0 to disable rotation, or a positive/negative value for rotation speed
+  ballRotationRate: 180, // Set to 0 to disable rotation, or a positive/negative value for rotation speed
   // Barrier texture path relative to public folder
   // Set to null or empty string to disable texture and use default black fill
   barrierTexturePath: '/barrier.png',

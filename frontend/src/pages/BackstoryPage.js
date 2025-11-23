@@ -11,6 +11,7 @@ const BackstoryPage = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [audioPlayed, setAudioPlayed] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     // Backstory page specifications (p1-p7) - Using the enhanced content that was working
     const backstoryPages = {
@@ -45,8 +46,14 @@ const BackstoryPage = () => {
             audio: '/audios/6_cookiemonster_lake.mp3',
         },
         7: {
-            images: [{ src: '/images/old_machine.png', position: 'center', size: '80%' }],
-            audio: '/audios/7_area.mp3',
+            timedImages: true, // Flag to indicate this page uses timed images
+            timedImagesConfig: [
+                { src: '/images/rule_1.png', startTime: 0, endTime: 13, position: 'center', size: '90%' },
+                { src: '/images/rule_2.png', startTime: 13, endTime: 18, position: 'center', size: '90%' },
+                { src: '/images/rule_3.png', startTime: 18, endTime: null, position: 'center', size: '90%' },
+            ],
+            images: [{ src: '/images/rule_1.png', position: 'center', size: '90%' }], // Default/initial image
+            audio: '/audios/11_rules.mp3',
         },
     };
 
@@ -57,6 +64,7 @@ const BackstoryPage = () => {
         console.log("BackstoryPage: Page changed to", currentPage);
         setAudioPlayed(false);
         setAudioFinished(false);
+        setCurrentImageIndex(0);
         if (audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.pause();
@@ -90,6 +98,41 @@ const BackstoryPage = () => {
         };
     }, [currentPage]);
 
+    // Handle timed image switching for p7
+    useEffect(() => {
+        const pageSpec = backstoryPages[currentPage];
+        if (!pageSpec || !pageSpec.timedImages || !pageSpec.timedImagesConfig) {
+            return;
+        }
+
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const handleTimeUpdate = () => {
+            const currentTime = audio.currentTime;
+            const timedImages = pageSpec.timedImagesConfig;
+            
+            // Find the correct image index based on current time
+            for (let i = timedImages.length - 1; i >= 0; i--) {
+                const img = timedImages[i];
+                if (currentTime >= img.startTime && (img.endTime === null || currentTime < img.endTime)) {
+                    setCurrentImageIndex(prevIndex => {
+                        if (prevIndex !== i) {
+                            return i;
+                        }
+                        return prevIndex;
+                    });
+                    break;
+                }
+            }
+        };
+
+        audio.addEventListener('timeupdate', handleTimeUpdate);
+        return () => {
+            audio.removeEventListener('timeupdate', handleTimeUpdate);
+        };
+    }, [currentPage, audioPlayed]);
+
     const handleNext = async () => {
         if (currentPage < 7) {
             console.log("BackstoryPage: Moving to next page", currentPage + 1);
@@ -101,9 +144,26 @@ const BackstoryPage = () => {
                 const prolific_pid = sessionStorage.getItem("prolific_pid");
                 const study_id = sessionStorage.getItem("study_id");
                 const prolific_session_id = sessionStorage.getItem("prolific_session_id");
+                
+                console.log("BackstoryPage: Prolific parameters:", {
+                    prolific_pid,
+                    study_id,
+                    prolific_session_id
+                });
+
+                // Use test values if Prolific parameters are missing (for development/testing)
+                const testPid = prolific_pid || `test_${Date.now()}`;
+                const testStudyId = study_id || 'test_study';
+                const testSessionId = prolific_session_id || `test_session_${Date.now()}`;
+
+                console.log("BackstoryPage: Using parameters:", {
+                    testPid,
+                    testStudyId,
+                    testSessionId
+                });
 
                 const response = await fetch(
-                    `/start_experiment/redgreen?PROLIFIC_PID=${prolific_pid}&STUDY_ID=${study_id}&SESSION_ID=${prolific_session_id}`,
+                    `/start_experiment/redgreen?PROLIFIC_PID=${testPid}&STUDY_ID=${testStudyId}&SESSION_ID=${testSessionId}`,
                     { method: "POST", 
                         headers: { 
                             'ngrok-skip-browser-warning': 'true',
@@ -114,7 +174,9 @@ const BackstoryPage = () => {
                 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    console.error("Error starting experiment:", errorData);
+                    console.error("Error starting experiment - Status:", response.status);
+                    console.error("Error starting experiment - Data:", errorData);
+                    console.error("Error starting experiment - Message:", errorData.message || 'No message');
                     return;
                 }
 
@@ -213,14 +275,30 @@ const BackstoryPage = () => {
             </div>
 
             {/* Images */}
-            {currentPageSpec.images.map((image, index) => (
-                <img
-                    key={index}
-                    src={image.src}
-                    alt=""
-                    style={getImageStyle(image)}
-                />
-            ))}
+            {currentPageSpec.timedImages && currentPageSpec.timedImagesConfig ? (
+                // Render timed images (p7)
+                (() => {
+                    const currentImage = currentPageSpec.timedImagesConfig[currentImageIndex] || currentPageSpec.timedImagesConfig[0];
+                    return (
+                        <img
+                            key={currentImageIndex}
+                            src={currentImage.src}
+                            alt=""
+                            style={getImageStyle(currentImage)}
+                        />
+                    );
+                })()
+            ) : (
+                // Render regular images (p1-p6)
+                currentPageSpec.images.map((image, index) => (
+                    <img
+                        key={index}
+                        src={image.src}
+                        alt=""
+                        style={getImageStyle(image)}
+                    />
+                ))
+            )}
 
             {/* Audio playing indicator */}
             {audioPlayed && !audioFinished && (

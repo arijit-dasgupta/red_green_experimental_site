@@ -81,13 +81,13 @@ export const FAMILIARIZATION_PAGE_SPECS = {
     audio: '/audios/6_cookiemonster_lake.mp3',
   },
   p7: {
-    type: 'image_audio',
-    image: {
-      src: '/images/old_machine.png',
-      position: 'center',
-      size: '80%'
-    },
-    audio: '/audios/7_area.mp3',
+    type: 'timed_images_audio',
+    audio: '/audios/11_rules.mp3',
+    timedImages: [
+      { src: '/images/rule_1.png', startTime: 0, endTime: 13, position: 'center', size: '90%' },
+      { src: '/images/rule_2.png', startTime: 13, endTime: 18, position: 'center', size: '90%' },
+      { src: '/images/rule_3.png', startTime: 18, endTime: null, position: 'center', size: '90%' }, // null means until end
+    ],
   },
   p8: {
     type: 'canvas_audio_image',
