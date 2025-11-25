@@ -789,11 +789,15 @@ def load_trial_data(trial_folder):
     Used for special pages like p8 that need specific trial data.
     """
     try:
-        # Construct path to trial data
-        trial_path = os.path.join(PATH_TO_DATA_FOLDER, DATASET_NAME, trial_folder, 'simulation_data.json')
+        # Convert relative path to absolute path based on this Python file's location
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        trial_path = os.path.join(script_dir, PATH_TO_DATA_FOLDER, DATASET_NAME, trial_folder, 'simulation_data.json')
+        
+        print(f"Loading trial data from: {trial_path}")
         
         if not os.path.exists(trial_path):
-            return jsonify({"error": f"Trial folder {trial_folder} not found"}), 404
+            print(f"❌ Error: Trial data file not found at {trial_path}")
+            return jsonify({"error": f"Trial data for {trial_folder} not found"}), 404
         
         # Parse JSON file
         with open(trial_path, 'r') as f:
