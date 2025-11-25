@@ -17,8 +17,10 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const [currentFrame, setCurrentFrame] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
+    const [videoFinished, setVideoFinished] = useState(false);
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
+    const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -397,6 +399,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     lastTimestampRef.current = timestamp;
                 } else {
                     setIsPlaying(false);
+                    setVideoFinished(true);
                 }
             }
 
@@ -413,11 +416,15 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, currentFrame, sceneData]);
 
-    // Auto-start when scene data is loaded
+    // Auto-start when scene data is loaded and reset states
     useEffect(() => {
-        if (sceneData && !isPlaying) {
-            setIsPlaying(true);
+        if (sceneData) {
+            setIsPlaying(false);
             setCurrentFrame(0);
+            setVideoFinished(false);
+            setAudioFinished(false);
+            hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
+            setIsPlaying(true);
             renderFrame(0);
         }
     }, [sceneData]);
@@ -446,10 +453,17 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, []);
 
-    // Handle next button
-    const handleNext = () => {
-        fetchNextScene(setdisableCountdownTrigger);
-    };
+    // Auto-advance when both audio and video finish (whichever finishes last)
+    useEffect(() => {
+        if (audioFinished && videoFinished && !hasAutoAdvancedRef.current) {
+            // Both finished, auto-advance after a short delay (only once)
+            hasAutoAdvancedRef.current = true;
+            const timer = setTimeout(() => {
+                fetchNextScene(setdisableCountdownTrigger);
+            }, 500); // 500ms delay for smooth transition
+            return () => clearTimeout(timer);
+        }
+    }, [audioFinished, videoFinished, fetchNextScene, setdisableCountdownTrigger]);
 
     // Add keyboard shortcut: Press 'Shift+S' to skip to next page
     useEffect(() => {
@@ -579,36 +593,16 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Next button appears after audio finishes */}
-            {audioFinished && (
-                <button
-                    onClick={handleNext}
-                    style={{
-                        marginTop: "30px",
-                        padding: "15px 30px",
-                        fontSize: "1.2rem",
-                        color: "white",
-                        backgroundColor: "#007bff",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                        boxShadow: "0 4px 8px rgba(0, 0, 0, 0.2)",
-                    }}
-                >
-                    Next
-                </button>
-            )}
-
-            {/* Audio playing indicator */}
-            {!audioFinished && (
+            {/* Audio/video playing indicator */}
+            {(!audioFinished || !videoFinished) && (
                 <div style={{
                     marginTop: "20px",
                     fontSize: "1.2rem",
                     color: "#666",
                     fontStyle: "italic",
                 }}>
-                    Playing audio...
+                    {!audioFinished && !videoFinished ? "Playing audio and video..." : 
+                     !audioFinished ? "Playing audio..." : "Playing video..."}
                 </div>
             )}
         </div>

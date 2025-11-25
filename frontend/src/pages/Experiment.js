@@ -128,7 +128,9 @@ const ExperimentPage = ({
     // Check if this is p8 (first familiarization trial after backstory p1-p7)
     // After BackstoryPage (p1-p7), the first familiarization trial is ftrial_i=1, which should be p8
     const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
-    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1; // First familiarization trial = p8
+    // p8 is the first familiarization trial (ftrial_i === 1) after backstory
+    // Note: getFamiliarizationPageType(1) returns 'p1', but we want p8 to be rendered for ftrial_i === 1
+    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
     
     console.log("ExperimentPage: Checking for p8", {
         is_ftrial: trialInfo.is_ftrial,

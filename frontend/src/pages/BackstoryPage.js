@@ -12,6 +12,7 @@ const BackstoryPage = () => {
     const [audioPlayed, setAudioPlayed] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced for current page
 
     // Backstory page specifications (p1-p7) - Using the enhanced content that was working
     const backstoryPages = {
@@ -65,6 +66,7 @@ const BackstoryPage = () => {
         setAudioPlayed(false);
         setAudioFinished(false);
         setCurrentImageIndex(0);
+        hasAutoAdvancedRef.current = false; // Reset auto-advance flag when page changes
         if (audioRef.current) {
             audioRef.current.currentTime = 0;
             audioRef.current.pause();
@@ -83,57 +85,8 @@ const BackstoryPage = () => {
         }
     }, [audioPlayed, currentPage, currentPageSpec]);
 
-    // Listen for audio end event
-    useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        const handleAudioEnd = () => {
-            setAudioFinished(true);
-        };
-
-        audio.addEventListener('ended', handleAudioEnd);
-        return () => {
-            audio.removeEventListener('ended', handleAudioEnd);
-        };
-    }, [currentPage]);
-
-    // Handle timed image switching for p7
-    useEffect(() => {
-        const pageSpec = backstoryPages[currentPage];
-        if (!pageSpec || !pageSpec.timedImages || !pageSpec.timedImagesConfig) {
-            return;
-        }
-
-        const audio = audioRef.current;
-        if (!audio) return;
-
-        const handleTimeUpdate = () => {
-            const currentTime = audio.currentTime;
-            const timedImages = pageSpec.timedImagesConfig;
-            
-            // Find the correct image index based on current time
-            for (let i = timedImages.length - 1; i >= 0; i--) {
-                const img = timedImages[i];
-                if (currentTime >= img.startTime && (img.endTime === null || currentTime < img.endTime)) {
-                    setCurrentImageIndex(prevIndex => {
-                        if (prevIndex !== i) {
-                            return i;
-                        }
-                        return prevIndex;
-                    });
-                    break;
-                }
-            }
-        };
-
-        audio.addEventListener('timeupdate', handleTimeUpdate);
-        return () => {
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-        };
-    }, [currentPage, audioPlayed]);
-
-    const handleNext = async () => {
+    // Define handleNext before using it in useEffect
+    const handleNext = React.useCallback(async () => {
         if (currentPage < 7) {
             console.log("BackstoryPage: Moving to next page", currentPage + 1);
             setCurrentPage(currentPage + 1);
@@ -216,7 +169,64 @@ const BackstoryPage = () => {
                 console.error("Error starting experiment:", error);
             }
         }
-    };
+    }, [currentPage, navigate]);
+
+    // Listen for audio end event and auto-advance
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const handleAudioEnd = () => {
+            setAudioFinished(true);
+            // Auto-advance to next page after a short delay (only once)
+            if (!hasAutoAdvancedRef.current) {
+                hasAutoAdvancedRef.current = true;
+                setTimeout(() => {
+                    handleNext();
+                }, 500); // 500ms delay for smooth transition
+            }
+        };
+
+        audio.addEventListener('ended', handleAudioEnd);
+        return () => {
+            audio.removeEventListener('ended', handleAudioEnd);
+        };
+    }, [currentPage, handleNext]);
+
+    // Handle timed image switching for p7
+    useEffect(() => {
+        const pageSpec = backstoryPages[currentPage];
+        if (!pageSpec || !pageSpec.timedImages || !pageSpec.timedImagesConfig) {
+            return;
+        }
+
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const handleTimeUpdate = () => {
+            const currentTime = audio.currentTime;
+            const timedImages = pageSpec.timedImagesConfig;
+            
+            // Find the correct image index based on current time
+            for (let i = timedImages.length - 1; i >= 0; i--) {
+                const img = timedImages[i];
+                if (currentTime >= img.startTime && (img.endTime === null || currentTime < img.endTime)) {
+                    setCurrentImageIndex(prevIndex => {
+                        if (prevIndex !== i) {
+                            return i;
+                        }
+                        return prevIndex;
+                    });
+                    break;
+                }
+            }
+        };
+
+        audio.addEventListener('timeupdate', handleTimeUpdate);
+        return () => {
+            audio.removeEventListener('timeupdate', handleTimeUpdate);
+        };
+    }, [currentPage, audioPlayed]);
 
     // Add keyboard shortcuts for testing: Press 'Q' or 'Shift+S' to skip to next page
     useEffect(() => {
@@ -234,7 +244,7 @@ const BackstoryPage = () => {
         return () => {
             document.removeEventListener('keydown', handleKeyPress, true);
         };
-    }, [currentPage]);
+    }, [handleNext]);
 
     if (!currentPageSpec) {
         return <div>Page {currentPage} not found</div>;
@@ -337,29 +347,6 @@ const BackstoryPage = () => {
                 }}>
                     Playing audio...
                 </div>
-            )}
-
-            {/* Next button (appears after audio finishes) */}
-            {audioFinished && (
-                <button
-                    onClick={handleNext}
-                    style={{
-                        position: "absolute",
-                        bottom: "50px",
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        padding: "15px 30px",
-                        fontSize: "18px",
-                        backgroundColor: "#007bff",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                        zIndex: 10,
-                    }}
-                >
-                    {currentPage < 7 ? 'Next' : 'Continue to Game'}
-                </button>
             )}
         </div>
     );
