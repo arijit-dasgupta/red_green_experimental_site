@@ -631,17 +631,20 @@ const P9CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Audio/video playing indicator */}
+            {/* Audio/video playing indicator - always rendered to prevent layout shift */}
             <div style={{
                 marginTop: "20px",
                 fontSize: "1.2rem",
                 color: "#666",
                 fontStyle: "italic",
-                minHeight: "30px", // Prevent layout shift
+                minHeight: "30px", // Fixed height to prevent layout shift
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
             }}>
                 {!audioFinished && !videoFinished ? "Playing audio and video..." : 
                  !audioFinished ? "Playing audio..." : 
-                 !videoFinished ? "Playing video..." : "Loading..."}
+                 !videoFinished ? "Playing video..." : ""}
             </div>
         </div>
     );
