@@ -2,15 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 
 /**
- * Dedicated component for p8: Canvas with audio and image overlay
- * - Audio: 8_ball_intro.mp3
- * - Canvas: T_ball_still trial data
- * - Image: elmo.png on left middle of canvas, 10% size
+ * Dedicated component for p10: Canvas with audio and image overlay
+ * - Audio: 10_barrier.mp3
+ * - Canvas: T_barrier2complex trial data
+ * - Image: elmo.png on left middle of canvas, 25% size (matching p8/p9)
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
-const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+const P10CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    console.log("🎬 P10CanvasPage: Component mounted/rendered");
     const canvasRef = useRef(null);
     const audioRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
@@ -38,101 +39,81 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         // Ball texture
         if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const ballTexture = new Image();
-            ballTexture.src = config.ballTexturePath;
-            ballTexture.onload = () => {
-                ballTextureRef.current = ballTexture;
-            };
+            const img = new Image();
+            img.src = config.ballTexturePath;
+            img.onload = () => { ballTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load ball texture:", config.ballTexturePath); };
         }
 
         // Barrier texture
         if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const barrierTexture = new Image();
-            barrierTexture.src = config.barrierTexturePath;
-            barrierTexture.onload = () => {
-                barrierTextureRef.current = barrierTexture;
-            };
+            const img = new Image();
+            img.src = config.barrierTexturePath;
+            img.onload = () => { barrierTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load barrier texture:", config.barrierTexturePath); };
         }
 
         // Red sensor texture
         if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const redSensorTexture = new Image();
-            redSensorTexture.src = config.redSensorTexturePath;
-            redSensorTexture.onload = () => {
-                redSensorTextureRef.current = redSensorTexture;
-            };
+            const img = new Image();
+            img.src = config.redSensorTexturePath;
+            img.onload = () => { redSensorTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load red sensor texture:", config.redSensorTexturePath); };
         }
 
         // Green sensor texture
         if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const greenSensorTexture = new Image();
-            greenSensorTexture.src = config.greenSensorTexturePath;
-            greenSensorTexture.onload = () => {
-                greenSensorTextureRef.current = greenSensorTexture;
-            };
+            const img = new Image();
+            img.src = config.greenSensorTexturePath;
+            img.onload = () => { greenSensorTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load green sensor texture:", config.greenSensorTexturePath); };
         }
 
         // Occluder texture
         if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const occluderTexture = new Image();
-            occluderTexture.src = config.occluderTexturePath;
-            occluderTexture.onload = () => {
-                occluderTextureRef.current = occluderTexture;
-            };
+            const img = new Image();
+            img.src = config.occluderTexturePath;
+            img.onload = () => { occluderTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load occluder texture:", config.occluderTexturePath); };
         }
     }, []);
 
-    // drawTiledTexture function (matching App.js)
+    // Helper to draw tiled textures (copied from App.js)
     const drawTiledTexture = (ctx, texture, x, y, width, height) => {
         if (!texture || !texture.complete) return false;
-        
         ctx.save();
-        
-        // Clip to the rectangle bounds
         ctx.beginPath();
         ctx.rect(x, y, width, height);
         ctx.clip();
-        
-        // Calculate aspect ratios
         const imgRatio = texture.width / texture.height;
         const containerRatio = width / height;
-        
         let newW, newH, newX, newY;
-        
-        // Determine how to fit the image while maintaining aspect ratio
         if (imgRatio > containerRatio) {
-            // Image is wider - fit to height, may overflow width
             newH = height;
             newW = height * imgRatio;
-            newX = x - (newW - width) / 2; // Center horizontally
+            newX = x - (newW - width) / 2;
             newY = y;
         } else {
-            // Image is taller - fit to width, may overflow height
             newW = width;
             newH = width / imgRatio;
             newX = x;
-            newY = y - (newH - height) / 2; // Center vertically
+            newY = y - (newH - height) / 2;
         }
-        
-        // Flip vertically to compensate for the coordinate system flip (scale(1, -1))
         ctx.save();
         ctx.translate(newX, newY + newH);
         ctx.scale(1, -1);
-        
-        // Draw the full texture image at calculated size
         ctx.drawImage(texture, 0, 0, newW, newH);
-        
         ctx.restore();
         ctx.restore();
-        
         return true;
     };
 
-    // Load T_ball_still trial data
+    // Load T_barrier2complex trial data
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                const response = await fetch('/api/load_trial_data/T_ball_still', {
+                console.log('📥 P10CanvasPage: Loading T_barrier2complex trial data from /api/load_trial_data/T_barrier2complex...');
+                const response = await fetch('/api/load_trial_data/T_barrier2complex', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -141,14 +122,26 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('P8CanvasPage: Loaded trial data:', data);
+                    const frameCount = Object.keys(data.step_data || {}).length;
+                    console.log('✅ P10CanvasPage: Successfully loaded trial data');
+                    console.log('📊 P10CanvasPage: Data summary:', {
+                        numFrames: frameCount,
+                        fps: data.fps,
+                        worldWidth: data.worldWidth,
+                        worldHeight: data.worldHeight,
+                        hasBarriers: (data.barriers || []).length > 0,
+                        hasOccluders: (data.occluders || []).length > 0,
+                        hasRedSensor: !!data.red_sensor,
+                        hasGreenSensor: !!data.green_sensor,
+                        radius: data.radius
+                    });
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('Failed to load T_ball_still data:', response.status, errorText);
+                    console.error('❌ P10CanvasPage: Failed to load T_barrier2complex data:', response.status, errorText);
                 }
             } catch (error) {
-                console.error('Error loading trial data:', error);
+                console.error('❌ P10CanvasPage: Error loading trial data:', error);
             }
         };
 
@@ -156,9 +149,12 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     }, []);
 
     // Render frame function (matching App.js rendering logic)
-    const renderFrame = (frameIndex) => {
+    const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
-        if (!canvas || !sceneData) return;
+        if (!canvas || !sceneData) {
+            console.log('P10CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
+            return;
+        }
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
@@ -266,7 +262,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             
             // Debug logging
             if (frameIndex === 0) {
-                console.log('P8CanvasPage: Rendering ball at frame 0', {
+                console.log('P10CanvasPage: Rendering ball at frame 0', {
                     x, y, radius, centerX, centerY, ballRadius, scale,
                     worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
                 });
@@ -376,11 +372,18 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         });
 
         ctx.restore();
-    };
+    }, [sceneData, ballTextureRef, barrierTextureRef, redSensorTextureRef, greenSensorTextureRef, occluderTextureRef, ballOffscreenCanvasRef, isPlaying]);
 
     // Animation loop
     useEffect(() => {
-        if (!isPlaying || !sceneData) return;
+        if (!isPlaying || !sceneData) {
+            // Cancel animation if not playing
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            return;
+        }
 
         const animate = (timestamp) => {
             if (!lastTimestampRef.current) {
@@ -406,6 +409,10 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     renderFrame(nextFrame);
                     // Update lastTimestamp to account for the frames we advanced
                     lastTimestampRef.current = timestamp - (elapsed % frameTime);
+                    // Continue animation
+                    if (isPlaying) {
+                        animationRef.current = requestAnimationFrame(animate);
+                    }
                 } else {
                     // Video finished - render the last frame
                     currentFrameRef.current = maxFrames - 1;
@@ -413,46 +420,87 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     renderFrame(maxFrames - 1);
                     setIsPlaying(false);
                     setVideoFinished(true);
+                    if (startTimeRef.current) {
+                        const actualDuration = (timestamp - startTimeRef.current) / 1000;
+                        const expectedDuration = maxFrames / (sceneData.fps || 30);
+                        console.log(`🏁 P10CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
+                        console.log(`⏱️ P10CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
+                    }
                     lastTimestampRef.current = null;
                 }
-            }
-
-            if (isPlaying) {
-                animationRef.current = requestAnimationFrame(animate);
+            } else {
+                // Not enough time elapsed, continue animation
+                if (isPlaying) {
+                    animationRef.current = requestAnimationFrame(animate);
+                }
             }
         };
 
+        // Start animation loop
         animationRef.current = requestAnimationFrame(animate);
+        
         return () => {
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
             }
+            lastTimestampRef.current = null;
         };
     }, [isPlaying, sceneData, renderFrame]);
+
+    // Track start time for duration calculation
+    const startTimeRef = useRef(null);
 
     // Auto-start when scene data is loaded and reset states
     useEffect(() => {
         if (sceneData) {
+            const maxFrames = Object.keys(sceneData.step_data || {}).length;
+            const fps = sceneData.fps || 30;
+            const expectedVideoDuration = maxFrames / fps;
+            console.log('P10CanvasPage: Scene data loaded, starting animation and audio');
+            console.log(`📊 P10CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
             setIsPlaying(false);
             setCurrentFrame(0);
             currentFrameRef.current = 0; // Reset ref as well
             setVideoFinished(false);
             setAudioFinished(false);
             hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
+            startTimeRef.current = null; // Reset start time
             lastTimestampRef.current = null; // Reset animation timestamp
-            setIsPlaying(true);
+            
+            // Render first frame immediately
             renderFrame(0);
+            
+            // Start video animation after a brief delay to ensure state is set
+            setTimeout(() => {
+                startTimeRef.current = performance.now();
+                console.log('🎬 P10CanvasPage: Starting video animation at', new Date().toISOString());
+                setIsPlaying(true);
+            }, 100);
+            
+            // Start audio playback
+            if (audioRef.current) {
+                console.log('🔊 P10CanvasPage: Starting audio playback');
+                console.log('🔊 P10CanvasPage: Audio src:', audioRef.current.src);
+                console.log('🔊 P10CanvasPage: Audio readyState:', audioRef.current.readyState);
+                audioRef.current.currentTime = 0; // Reset audio to start
+                const playPromise = audioRef.current.play();
+                if (playPromise !== undefined) {
+                    playPromise
+                        .then(() => {
+                            console.log('✅ P10CanvasPage: Audio playback started successfully');
+                            console.log('🔊 P10CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
+                            console.log(`📊 P10CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
+                        })
+                        .catch(error => {
+                            console.error("❌ P10CanvasPage: Audio autoplay prevented:", error);
+                        });
+                }
+            } else {
+                console.error('❌ P10CanvasPage: Audio ref is null - cannot play audio');
+            }
         }
     }, [sceneData]);
-
-    // Auto-play audio
-    useEffect(() => {
-        if (audioRef.current && !audioFinished) {
-            audioRef.current.play().catch(error => {
-                console.log("Audio autoplay prevented:", error);
-            });
-        }
-    }, []);
 
     // Listen for audio end
     useEffect(() => {
@@ -460,6 +508,10 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         if (!audio) return;
 
         const handleAudioEnd = () => {
+            console.log('🏁 P10CanvasPage: Audio ended at', new Date().toISOString());
+            if (audioRef.current) {
+                console.log(`⏱️ P10CanvasPage: Audio actual duration: ${audioRef.current.duration.toFixed(2)}s`);
+            }
             setAudioFinished(true);
         };
 
@@ -473,10 +525,10 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         if (audioFinished && videoFinished && !hasAutoAdvancedRef.current) {
             // Both finished, auto-advance after a short delay (only once)
-            console.log("🎬 P8CanvasPage: Audio and video finished, auto-advancing to next scene...");
+            console.log("🎬 P10CanvasPage: Audio and video finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
             const timer = setTimeout(() => {
-                console.log("🎬 P8CanvasPage: Calling fetchNextScene to load p9...");
+                console.log("🎬 P10CanvasPage: Calling fetchNextScene to load next page...");
                 fetchNextScene(setdisableCountdownTrigger);
             }, 500); // 500ms delay for smooth transition
             return () => clearTimeout(timer);
@@ -487,7 +539,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P8CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Shift+S detected in P10CanvasPage, skipping to next page");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -526,8 +578,13 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }}>
             <audio
                 ref={audioRef}
-                src="/audios/8_ball_intro.mp3"
+                src="/audios/10_barrier.mp3"
                 preload="auto"
+                onLoadedData={() => console.log('🔊 P10CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
+                onPlay={() => console.log('▶️ P10CanvasPage: Audio started playing')}
+                onPause={() => console.log('⏸️ P10CanvasPage: Audio paused')}
+                onEnded={() => console.log('🏁 P10CanvasPage: Audio ended')}
+                onError={(e) => console.error('❌ P10CanvasPage: Audio error:', e)}
             />
 
             {/* Canvas container - centered on page */}
@@ -630,4 +687,5 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     );
 };
 
-export default P8CanvasPage;
+export default P10CanvasPage;
+

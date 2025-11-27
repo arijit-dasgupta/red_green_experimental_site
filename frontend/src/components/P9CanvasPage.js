@@ -16,6 +16,7 @@ const P9CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const audioRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
+    const currentFrameRef = useRef(0); // Use ref to track current frame for animation loop
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [videoFinished, setVideoFinished] = useState(false);
@@ -391,21 +392,32 @@ const P9CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
             const elapsed = timestamp - lastTimestampRef.current;
             const frameTime = 1000 / (sceneData.fps || 30);
+            const maxFrames = Object.keys(sceneData.step_data || {}).length;
             
-            if (elapsed >= frameTime) {
-                const nextFrame = currentFrame + 1;
-                const maxFrames = Object.keys(sceneData.step_data || {}).length;
+            // Calculate how many frames should have advanced based on elapsed time
+            // Cap at 5 frames per update to avoid huge jumps that look choppy
+            const framesToAdvance = Math.min(Math.floor(elapsed / frameTime), 5);
+            
+            if (framesToAdvance > 0) {
+                // Use ref to get current frame value (avoids stale closure issues)
+                const nextFrame = currentFrameRef.current + framesToAdvance;
 
                 if (nextFrame < maxFrames) {
+                    // Advance to the correct frame (may skip frames if browser is slow)
+                    currentFrameRef.current = nextFrame;
                     setCurrentFrame(nextFrame);
                     renderFrame(nextFrame);
-                    lastTimestampRef.current = timestamp;
+                    // Update lastTimestamp to account for the frames we advanced
+                    lastTimestampRef.current = timestamp - (elapsed % frameTime);
                     // Continue animation
                     if (isPlaying) {
                         animationRef.current = requestAnimationFrame(animate);
                     }
                 } else {
-                    // Video finished
+                    // Video finished - render the last frame
+                    currentFrameRef.current = maxFrames - 1;
+                    setCurrentFrame(maxFrames - 1);
+                    renderFrame(maxFrames - 1);
                     setIsPlaying(false);
                     setVideoFinished(true);
                     lastTimestampRef.current = null;
@@ -428,7 +440,7 @@ const P9CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             }
             lastTimestampRef.current = null;
         };
-    }, [isPlaying, currentFrame, sceneData]);
+    }, [isPlaying, sceneData, renderFrame]);
 
     // Auto-start when scene data is loaded and reset states
     useEffect(() => {
@@ -436,9 +448,11 @@ const P9CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             console.log('P9CanvasPage: Scene data loaded, starting animation and audio');
             setIsPlaying(false);
             setCurrentFrame(0);
+            currentFrameRef.current = 0; // Reset ref as well
             setVideoFinished(false);
             setAudioFinished(false);
             hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
+            lastTimestampRef.current = null; // Reset animation timestamp
             
             // Render first frame immediately
             renderFrame(0);
