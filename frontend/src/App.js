@@ -760,6 +760,26 @@ const renderCurrentPage = () => {
       if (!response.ok) throw new Error('Backend Failed to load next scene');
   
       const data = await response.json();
+      
+      console.log("📥 Frontend received from backend:", {
+        ftrial_i: data.ftrial_i,
+        trial_i: data.trial_i,
+        is_ftrial: data.is_ftrial,
+        is_trial: data.is_trial,
+        unique_trial_id: data.unique_trial_id,
+        num_ftrials: data.num_ftrials
+      });
+      
+      // Debug: Check if this should be p8 or p9
+      if (data.is_ftrial) {
+        if (data.ftrial_i === 1) {
+          console.log("🎯 Frontend: This should be P8 (ftrial_i=1)");
+        } else if (data.ftrial_i === 2) {
+          console.log("🎯 Frontend: This should be P9 (ftrial_i=2)");
+        } else {
+          console.log(`⚠️ Frontend: Unexpected ftrial_i=${data.ftrial_i} for familiarization trial`);
+        }
+      }
   
       if (data.finish) {
         setFinished(false);
@@ -783,6 +803,13 @@ const renderCurrentPage = () => {
   
       setdisableCountdownTrigger(false); // Enable countdown trigger
       setSceneData(data);
+      console.log("🔄 Frontend updating trialInfo with:", {
+        ftrial_i: data.ftrial_i,
+        trial_i: data.trial_i,
+        is_ftrial: data.is_ftrial,
+        is_trial: data.is_trial,
+      });
+      
       setTrialInfo({
         ftrial_i: data.ftrial_i,
         trial_i: data.trial_i,

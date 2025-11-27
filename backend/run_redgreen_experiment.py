@@ -629,7 +629,8 @@ def load_next_scene():
     is_ftrial = config['is_ftrial']
     is_trial = config['is_trial']
     
-    print(f"STATE DEBUG: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
+    print(f"🔍 STATE DEBUG: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
+    print(f"🔍 FAMILIARIZATION DEBUG: num_ftrials={config['num_ftrials']}, ftrial_i={ftrial_i}")
     
     # Validate config state integrity
     if resume_from_trial is not None:
@@ -644,11 +645,20 @@ def load_next_scene():
     
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
+    # IMPORTANT: Don't adjust ftrial_i for demonstration pages (p8=ftrial_i=1, p9=ftrial_i=2) 
+    # which don't save scores. The score-checking logic should only apply to regular trials.
     if (resume_from_trial is None and 
         not config.get('is_resume_mode', False) and 
         not config.get('was_resumed', False)):
-        if len(fscores) < ftrial_i:
+        # Only adjust ftrial_i if we're past the demonstration pages (ftrial_i > 2)
+        # or if we have scores that indicate we've completed regular familiarization trials
+        if len(fscores) < ftrial_i and ftrial_i > 2:
+            # Only decrement if we're past p8/p9 and there's a mismatch
+            print(f"⚠️ Adjusting ftrial_i: len(fscores)={len(fscores)}, ftrial_i={ftrial_i}")
             ftrial_i -= 1
+        elif len(fscores) < ftrial_i and ftrial_i <= 2:
+            # For p8 (ftrial_i=1) and p9 (ftrial_i=2), don't adjust - they're demonstration pages
+            print(f"ℹ️ Skipping ftrial_i adjustment for demonstration page: ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
         if len(tscores) < trial_i:
             trial_i -= 1
 
@@ -660,10 +670,13 @@ def load_next_scene():
     # Determine which trial/scene to show next based on current progress
     if ftrial_i < config["num_ftrials"]:
         # Still in familiarization phase
+        print(f"📋 FAMILIARIZATION: Loading ftrial_datas[{ftrial_i}] (will become ftrial_i={ftrial_i + 1} after increment)")
         npz_data = config["ftrial_datas"][ftrial_i]
+        old_ftrial_i = ftrial_i
         ftrial_i += 1
         is_ftrial = True
         finish = False
+        print(f"✅ FAMILIARIZATION: Incremented ftrial_i from {old_ftrial_i} to {ftrial_i}")
     elif ftrial_i == config["num_ftrials"] and is_ftrial:
         # Just finished familiarization - show transition page
         transition_to_exp_page = True
@@ -726,16 +739,25 @@ def load_next_scene():
         print(f"-------------------------------")
 
     # Update configuration with new progress state
-    config.update({
-        'trial_i': trial_i,
-        'ftrial_i': ftrial_i,
-        'is_ftrial': is_ftrial,
-        'is_trial': is_trial,
-        'transition_to_exp_page': transition_to_exp_page
-    })
+    # Direct assignment to ensure SQLAlchemy detects the change
+    config['trial_i'] = trial_i
+    config['ftrial_i'] = ftrial_i
+    config['is_ftrial'] = is_ftrial
+    config['is_trial'] = is_trial
+    config['transition_to_exp_page'] = transition_to_exp_page
+    
+    # Explicitly set the config_data to trigger SQLAlchemy change detection
     config_entry.config_data = config
     flag_modified(config_entry, "config_data")  # Mark as dirty for SQLAlchemy
     db.session.commit()
+    
+    # Verify the save worked
+    db.session.refresh(config_entry)
+    saved_ftrial_i = config_entry.config_data.get('ftrial_i')
+    if saved_ftrial_i != ftrial_i:
+        print(f"⚠️ WARNING: ftrial_i save verification failed! Expected {ftrial_i}, got {saved_ftrial_i}")
+    else:
+        print(f"✅ CONFIG SAVE VERIFIED: ftrial_i={ftrial_i} saved successfully")
 
     # Handle experiment completion
     if finish:
@@ -780,6 +802,7 @@ def load_next_scene():
         "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id
     }
 
+    print(f"📤 RETURNING SCENE DATA: ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
     return jsonify(scene_data)
 
 @app.route('/api/load_trial_data/<trial_folder>', methods=['GET'])

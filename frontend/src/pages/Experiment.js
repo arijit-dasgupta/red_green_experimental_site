@@ -4,6 +4,7 @@ import TransitionPage from './Transition';
 import { config } from '../config';
 import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
 import P8CanvasPage from '../components/P8CanvasPage';
+import P9CanvasPage from '../components/P9CanvasPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -125,25 +126,50 @@ const ExperimentPage = ({
         );
     }
 
-    // Check if this is p8 (first familiarization trial after backstory p1-p7)
+    // Check if this is p8 or p9 (special canvas pages)
     // After BackstoryPage (p1-p7), the first familiarization trial is ftrial_i=1, which should be p8
+    // The second familiarization trial is ftrial_i=2, which should be p9
     const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
     // p8 is the first familiarization trial (ftrial_i === 1) after backstory
+    // p9 is the second familiarization trial (ftrial_i === 2) after backstory
     // Note: getFamiliarizationPageType(1) returns 'p1', but we want p8 to be rendered for ftrial_i === 1
     const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
+    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;
     
-    console.log("ExperimentPage: Checking for p8", {
+    console.log("🔍 ExperimentPage: Checking for p8/p9", {
         is_ftrial: trialInfo.is_ftrial,
         ftrial_i: trialInfo.ftrial_i,
         familiarizationPageType,
         isP8,
+        isP9,
+        unique_trial_id: trialInfo.unique_trial_id,
         trialInfo
     });
+    
+    if (isP8) {
+        console.log("✅ ExperimentPage: DETECTED P8 - Rendering P8CanvasPage");
+    } else if (isP9) {
+        console.log("✅ ExperimentPage: DETECTED P9 - Rendering P9CanvasPage");
+        console.log("🎬 ExperimentPage: P9 should load T_ball_move trial data");
+    } else if (trialInfo.is_ftrial) {
+        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9, ftrial_i:", trialInfo.ftrial_i);
+        console.log("⚠️ ExperimentPage: Expected ftrial_i to be 1 (p8) or 2 (p9), but got:", trialInfo.ftrial_i);
+    }
     
     if (isP8) {
         console.log("ExperimentPage: Rendering P8CanvasPage");
         return (
             <P8CanvasPage
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+    
+    if (isP9) {
+        console.log("ExperimentPage: Rendering P9CanvasPage");
+        return (
+            <P9CanvasPage
                 fetchNextScene={fetchNextScene}
                 setdisableCountdownTrigger={setdisableCountdownTrigger}
             />
