@@ -645,19 +645,19 @@ def load_next_scene():
     
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
-    # IMPORTANT: Don't adjust ftrial_i for demonstration pages (p8=ftrial_i=1, p9=ftrial_i=2, p10=ftrial_i=3, p11=ftrial_i=4) 
+    # IMPORTANT: Don't adjust ftrial_i for demonstration pages (p8=ftrial_i=1, p9=ftrial_i=2, p10=ftrial_i=3, p11=ftrial_i=4, p12=ftrial_i=5) 
     # which don't save scores. The score-checking logic should only apply to regular trials.
     if (resume_from_trial is None and 
         not config.get('is_resume_mode', False) and 
         not config.get('was_resumed', False)):
-        # Only adjust ftrial_i if we're past the demonstration pages (ftrial_i > 4)
+        # Only adjust ftrial_i if we're past the demonstration pages (ftrial_i > 5)
         # or if we have scores that indicate we've completed regular familiarization trials
-        if len(fscores) < ftrial_i and ftrial_i > 4:
-            # Only decrement if we're past p8/p9/p10/p11 and there's a mismatch
+        if len(fscores) < ftrial_i and ftrial_i > 5:
+            # Only decrement if we're past p8/p9/p10/p11/p12 and there's a mismatch
             print(f"⚠️ Adjusting ftrial_i: len(fscores)={len(fscores)}, ftrial_i={ftrial_i}")
             ftrial_i -= 1
-        elif len(fscores) < ftrial_i and ftrial_i <= 4:
-            # For p8 (ftrial_i=1), p9 (ftrial_i=2), p10 (ftrial_i=3), and p11 (ftrial_i=4), don't adjust - they're demonstration pages
+        elif len(fscores) < ftrial_i and ftrial_i <= 5:
+            # For p8 (ftrial_i=1), p9 (ftrial_i=2), p10 (ftrial_i=3), p11 (ftrial_i=4), and p12 (ftrial_i=5), don't adjust - they're demonstration pages
             print(f"ℹ️ Skipping ftrial_i adjustment for demonstration page: ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
         if len(tscores) < trial_i:
             trial_i -= 1
