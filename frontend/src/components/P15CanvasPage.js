@@ -3,8 +3,8 @@ import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
 
 /**
- * Dedicated component for p14: Interactive canvas page (practice trial)
- * - Canvas: T_greeneasy trial data
+ * Dedicated component for p15: Interactive canvas page (practice trial)
+ * - Canvas: T_redeasy trial data
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for red, J for green)
  * - Records key states during playback
@@ -13,15 +13,14 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
-const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
-    console.log("🎬 P14CanvasPage: Component mounted/rendered");
+const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    console.log("🎬 P15CanvasPage: Component mounted/rendered");
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
     const currentFrameRef = useRef(0); // Use ref to track current frame for animation loop
     const [isPlaying, setIsPlaying] = useState(false);
     const [videoFinished, setVideoFinished] = useState(false);
-    const [showCongratulations, setShowCongratulations] = useState(false);
     const [keyStates, setKeyStates] = useState({ f: false, j: false });
     const [countdown, setCountdown] = useState(null);
     const animationRef = useRef(null);
@@ -33,7 +32,6 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const countdownIntervalRef = useRef(null); // Store countdown interval ID
     const renderFrameRef = useRef(null); // Store renderFrame function reference
     const lastSceneDataRef = useRef(null); // Track which sceneData we've already processed
-    const congratulationsTimerRef = useRef(null); // Store congratulations auto-advance timer
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -131,8 +129,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P14CanvasPage: Loading T_greeneasy trial data from /api/load_trial_data/T_greeneasy...');
-                const response = await fetch('/api/load_trial_data/T_greeneasy', {
+                console.log('📥 P15CanvasPage: Loading T_redeasy trial data from /api/load_trial_data/T_redeasy...');
+                const response = await fetch('/api/load_trial_data/T_redeasy', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -142,8 +140,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 if (response.ok) {
                     const data = await response.json();
                     const frameCount = Object.keys(data.step_data || {}).length;
-                    console.log('✅ P14CanvasPage: Successfully loaded trial data');
-                    console.log('📊 P14CanvasPage: Data summary:', {
+                    console.log('✅ P15CanvasPage: Successfully loaded trial data');
+                    console.log('📊 P15CanvasPage: Data summary:', {
                         numFrames: frameCount,
                         fps: data.fps,
                         worldWidth: data.worldWidth,
@@ -157,10 +155,10 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P14CanvasPage: Failed to load T_greeneasy data:', response.status, errorText);
+                    console.error('❌ P15CanvasPage: Failed to load T_redeasy data:', response.status, errorText);
                 }
             } catch (error) {
-                console.error('❌ P14CanvasPage: Error loading trial data:', error);
+                console.error('❌ P15CanvasPage: Error loading trial data:', error);
             }
         };
 
@@ -171,7 +169,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
         if (!canvas || !sceneData) {
-            console.log('P14CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
+            console.log('P15CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
             return;
         }
 
@@ -282,17 +280,17 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             // Use keyStatesRef to avoid dependency on keyStates state
             const currentKeyStates = keyStatesRef.current;
             
-            // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
-            if (currentKeyStates.f && !currentKeyStates.j && isPlaying) {
+            // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed
+            if (currentKeyStates.j && !currentKeyStates.f && isPlaying) {
                 ctx.save();
                 const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with dark green color (RGB: 0, 102, 0 - dark green)
+                // Draw glowing border beneath sensor with #009900 green color
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 102, 0, 0.8)"; // Dark green with alpha
-                ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`; // Dark green with varying alpha
+                ctx.shadowColor = "rgba(0, 153, 0, 0.8)"; // #009900 with alpha
+                ctx.strokeStyle = `rgba(0, 153, 0, ${0.6 + 0.4 * pulseIntensity})`; // #009900 with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -309,12 +307,18 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
                     // Fallback to green fill if texture draw failed
-                    ctx.fillStyle = "green";
+                    ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                } else if (currentKeyStates.j && !currentKeyStates.f) {
+                    // Add brightness overlay when key is pressed
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.globalAlpha = 1.0;
                 }
             } else {
                 // Use original green fill if no texture path or texture not loaded
-                ctx.fillStyle = "green";
+                ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -329,7 +333,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             
             // Debug logging
             if (frameIndex === 0) {
-                console.log('P14CanvasPage: Rendering ball at frame 0', {
+                console.log('P15CanvasPage: Rendering ball at frame 0', {
                     x, y, radius, centerX, centerY, ballRadius, scale,
                     worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
                 });
@@ -522,9 +526,9 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     if (startTimeRef.current) {
                         const actualDuration = (timestamp - startTimeRef.current) / 1000;
                         const expectedDuration = maxFrames / (sceneData.fps || 30);
-                        console.log(`🏁 P14CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
-                        console.log(`⏱️ P14CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
-                        console.log(`📊 P14CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
+                        console.log(`🏁 P15CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
+                        console.log(`⏱️ P15CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
+                        console.log(`📊 P15CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
                     }
                     lastTimestampRef.current = null;
                 }
@@ -566,18 +570,13 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
             const fps = sceneData.fps || 30;
             const expectedVideoDuration = maxFrames / fps;
-            console.log('P14CanvasPage: Scene data loaded, starting countdown automatically');
-            console.log(`📊 P14CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
+            console.log('P15CanvasPage: Scene data loaded, starting countdown automatically');
+            console.log(`📊 P15CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
             setIsPlaying(false);
             setCurrentFrame(0);
             currentFrameRef.current = 0; // Reset ref as well
             setVideoFinished(false);
-            setShowCongratulations(false);
             hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
-            if (congratulationsTimerRef.current) {
-                clearTimeout(congratulationsTimerRef.current);
-                congratulationsTimerRef.current = null;
-            }
             startTimeRef.current = null; // Reset start time
             lastTimestampRef.current = null; // Reset animation timestamp
             recordedKeyStates.current = []; // Reset recorded key states
@@ -612,7 +611,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     
                     // Start video animation after countdown
                     startTimeRef.current = performance.now();
-                    console.log('🎬 P14CanvasPage: Starting video animation at', new Date().toISOString());
+                    console.log('🎬 P15CanvasPage: Starting video animation at', new Date().toISOString());
                     setIsPlaying(true);
                 }
             }, 750); // 750ms between countdown numbers
@@ -626,59 +625,25 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }
     }, [sceneData, setdisableCountdownTrigger]);
 
-    // Show congratulations page when video finishes
+    // Auto-advance when video finishes
     useEffect(() => {
-        console.log("🔍 P14CanvasPage: Checking videoFinished state:", { videoFinished, showCongratulations });
-        if (videoFinished && !showCongratulations) {
-            console.log("🎉 P14CanvasPage: Video finished, showing congratulations page...");
-            setShowCongratulations(true);
-        }
-    }, [videoFinished, showCongratulations]);
-
-    // Auto-advance 1s after congratulations page is shown
-    useEffect(() => {
-        console.log("🔍 P14CanvasPage: Auto-advance useEffect running", { showCongratulations, hasAutoAdvanced: hasAutoAdvancedRef.current, timerExists: !!congratulationsTimerRef.current });
-        
-        if (showCongratulations && !congratulationsTimerRef.current) {
-            console.log("⏱️ P14CanvasPage: Setting up auto-advance timer (1s delay)...");
+        if (videoFinished && !hasAutoAdvancedRef.current) {
+            // Video finished, auto-advance after a short delay (only once)
+            console.log("🎬 P15CanvasPage: Video finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
-            
-            congratulationsTimerRef.current = setTimeout(() => {
-                console.log("🎬 P14CanvasPage: Timer fired! Auto-advancing to next page...");
-                const timerId = congratulationsTimerRef.current;
-                congratulationsTimerRef.current = null;
-                
-                // Call fetchNextScene
-                console.log("🎬 P14CanvasPage: Calling fetchNextScene...");
-                if (fetchNextScene) {
-                    fetchNextScene(setdisableCountdownTrigger).then(() => {
-                        console.log("✅ P14CanvasPage: fetchNextScene completed");
-                    }).catch((error) => {
-                        console.error("❌ P14CanvasPage: fetchNextScene error:", error);
-                    });
-                } else {
-                    console.error("❌ P14CanvasPage: fetchNextScene is not defined!");
-                }
-            }, 2000); // 2 second delay after congratulations page
-            
-            console.log("⏱️ P14CanvasPage: Timer set with ID:", congratulationsTimerRef.current);
+            const timer = setTimeout(() => {
+                console.log("🎬 P15CanvasPage: Calling fetchNextScene to load next page...");
+                fetchNextScene(setdisableCountdownTrigger);
+            }, 500); // 500ms delay for smooth transition
+            return () => clearTimeout(timer);
         }
-        
-        return () => {
-            // Only cleanup if component is unmounting, not on every render
-            if (congratulationsTimerRef.current && !showCongratulations) {
-                console.log("🧹 P14CanvasPage: Cleaning up auto-advance timer");
-                clearTimeout(congratulationsTimerRef.current);
-                congratulationsTimerRef.current = null;
-            }
-        };
-    }, [showCongratulations, fetchNextScene, setdisableCountdownTrigger]);
+    }, [videoFinished, fetchNextScene, setdisableCountdownTrigger]);
 
     // Add keyboard shortcut: Press 'Shift+S' to skip to next page
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P14CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Shift+S detected in P15CanvasPage, skipping to next page");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -932,52 +897,9 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
-
-            {/* Congratulations page - shown after video finishes */}
-            {showCongratulations && (
-                <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    backdropFilter: "blur(5px)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 20,
-                }}>
-                    <div style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: "20px"
-                    }}>
-                        <div style={{
-                            fontSize: "6rem",
-                            lineHeight: "1"
-                        }}>
-                            👍
-                        </div>
-                        <div>
-                            <p style={{
-                                fontSize: "1.8rem",
-                                fontWeight: "bold",
-                                color: "#333",
-                                marginBottom: "15px",
-                                textAlign: "center"
-                            }}>
-                                Great job! You're doing awesome! 🎉
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
 
-export default P14CanvasPage;
+export default P15CanvasPage;
 
