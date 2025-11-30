@@ -635,12 +635,12 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }
     }, [videoFinished, showCongratulations]);
 
-    // Auto-advance 1s after congratulations page is shown
+    // Auto-advance 2s after congratulations page is shown
     useEffect(() => {
         console.log("🔍 P14CanvasPage: Auto-advance useEffect running", { showCongratulations, hasAutoAdvanced: hasAutoAdvancedRef.current, timerExists: !!congratulationsTimerRef.current });
         
-        if (showCongratulations && !congratulationsTimerRef.current) {
-            console.log("⏱️ P14CanvasPage: Setting up auto-advance timer (1s delay)...");
+        if (showCongratulations && !congratulationsTimerRef.current && !hasAutoAdvancedRef.current) {
+            console.log("⏱️ P14CanvasPage: Setting up auto-advance timer (2s delay)...");
             hasAutoAdvancedRef.current = true;
             
             congratulationsTimerRef.current = setTimeout(() => {
@@ -651,11 +651,17 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 // Call fetchNextScene
                 console.log("🎬 P14CanvasPage: Calling fetchNextScene...");
                 if (fetchNextScene) {
-                    fetchNextScene(setdisableCountdownTrigger).then(() => {
-                        console.log("✅ P14CanvasPage: fetchNextScene completed");
-                    }).catch((error) => {
-                        console.error("❌ P14CanvasPage: fetchNextScene error:", error);
-                    });
+                    const result = fetchNextScene(setdisableCountdownTrigger);
+                    // Handle both promise and non-promise returns
+                    if (result && typeof result.then === 'function') {
+                        result.then(() => {
+                            console.log("✅ P14CanvasPage: fetchNextScene completed");
+                        }).catch((error) => {
+                            console.error("❌ P14CanvasPage: fetchNextScene error:", error);
+                        });
+                    } else {
+                        console.log("✅ P14CanvasPage: fetchNextScene called (non-promise return)");
+                    }
                 } else {
                     console.error("❌ P14CanvasPage: fetchNextScene is not defined!");
                 }
@@ -665,11 +671,13 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }
         
         return () => {
-            // Only cleanup if component is unmounting, not on every render
+            // Only cleanup if showCongratulations becomes false (component state change)
+            // Don't cleanup on every render - we want the timer to complete
             if (congratulationsTimerRef.current && !showCongratulations) {
-                console.log("🧹 P14CanvasPage: Cleaning up auto-advance timer");
+                console.log("🧹 P14CanvasPage: Cleaning up auto-advance timer (showCongratulations is false)");
                 clearTimeout(congratulationsTimerRef.current);
                 congratulationsTimerRef.current = null;
+                hasAutoAdvancedRef.current = false; // Reset flag if we're cleaning up
             }
         };
     }, [showCongratulations, fetchNextScene, setdisableCountdownTrigger]);

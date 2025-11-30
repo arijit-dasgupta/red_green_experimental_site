@@ -3,17 +3,18 @@ import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
 
 /**
- * Dedicated component for p15: Interactive canvas page (practice trial)
- * - Canvas: T_redeasy trial data
+ * Dedicated component for p16: Interactive canvas page (practice trial)
+ * - Canvas: T_greenmid trial data
  * - Auto-starts without spacebar
- * - Shows key press indicators (F for red, J for green)
+ * - Shows key press indicators (F for green, J for red)
  * - Records key states during playback
  * - Auto-advances when finished
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
-const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    console.log("🎬 P16CanvasPage: Component mounted/rendered");
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -22,7 +23,6 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const [videoFinished, setVideoFinished] = useState(false);
     const [keyStates, setKeyStates] = useState({ f: false, j: false });
     const [countdown, setCountdown] = useState(null);
-    const [showCongratulations, setShowCongratulations] = useState(false);
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
     const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
@@ -32,21 +32,6 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const countdownIntervalRef = useRef(null); // Store countdown interval ID
     const renderFrameRef = useRef(null); // Store renderFrame function reference
     const lastSceneDataRef = useRef(null); // Track which sceneData we've already processed
-    const congratulationsTimerRef = useRef(null); // Store congratulations auto-advance timer
-    const hasLoadedDataRef = useRef(false); // Track if we've loaded trial data
-    const renderCountRef = useRef(0); // Track render count for debugging
-    
-    // Track render count
-    renderCountRef.current += 1;
-    console.log(`🎬 P15CanvasPage: Component rendered (render #${renderCountRef.current})`);
-    
-    // Track component mount/unmount
-    useEffect(() => {
-        console.log('🎬 P15CanvasPage: Component MOUNTED');
-        return () => {
-            console.log('🎬 P15CanvasPage: Component UNMOUNTED');
-        };
-    }, []);
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -140,24 +125,12 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load T_redeasy trial data (only once on mount)
+    // Load T_greeneasy trial data
     useEffect(() => {
-        // Only load if we don't already have scene data
-        if (sceneData) {
-            console.log('ℹ️ P15CanvasPage: Scene data already exists, skipping load');
-            return;
-        }
-
-        if (hasLoadedDataRef.current) {
-            console.log('ℹ️ P15CanvasPage: Already attempted to load data, skipping');
-            return;
-        }
-
-        hasLoadedDataRef.current = true;
         const loadTrialData = async () => {
             try {
-                console.log('📥 P15CanvasPage: Loading T_redeasy trial data from /api/load_trial_data/T_redeasy...');
-                const response = await fetch('/api/load_trial_data/T_redeasy', {
+                console.log('📥 P16CanvasPage: Loading T_greenmid trial data from /api/load_trial_data/T_greenmid...');
+                const response = await fetch('/api/load_trial_data/T_greenmid', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -167,8 +140,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 if (response.ok) {
                     const data = await response.json();
                     const frameCount = Object.keys(data.step_data || {}).length;
-                    console.log('✅ P15CanvasPage: Successfully loaded trial data');
-                    console.log('📊 P15CanvasPage: Data summary:', {
+                    console.log('✅ P16CanvasPage: Successfully loaded trial data');
+                    console.log('📊 P16CanvasPage: Data summary:', {
                         numFrames: frameCount,
                         fps: data.fps,
                         worldWidth: data.worldWidth,
@@ -182,23 +155,21 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P15CanvasPage: Failed to load T_redeasy data:', response.status, errorText);
-                    hasLoadedDataRef.current = false; // Reset on error so we can retry
+                    console.error('❌ P16CanvasPage: Failed to load T_greenmid data:', response.status, errorText);
                 }
             } catch (error) {
-                console.error('❌ P15CanvasPage: Error loading trial data:', error);
-                hasLoadedDataRef.current = false; // Reset on error so we can retry
+                console.error('❌ P16CanvasPage: Error loading trial data:', error);
             }
         };
 
         loadTrialData();
-    }, []); // Empty dependency array - only run once on mount
+    }, []);
 
     // Render frame function (matching App.js rendering logic)
     const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
         if (!canvas || !sceneData) {
-            console.log('P15CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
+            console.log('P16CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
             return;
         }
 
@@ -309,8 +280,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             // Use keyStatesRef to avoid dependency on keyStates state
             const currentKeyStates = keyStatesRef.current;
             
-            // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed
-            if (currentKeyStates.j && !currentKeyStates.f && isPlaying) {
+            // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
+            if (currentKeyStates.f && !currentKeyStates.j && isPlaying) {
                 ctx.save();
                 const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
@@ -362,7 +333,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             
             // Debug logging
             if (frameIndex === 0) {
-                console.log('P15CanvasPage: Rendering ball at frame 0', {
+                console.log('P16CanvasPage: Rendering ball at frame 0', {
                     x, y, radius, centerX, centerY, ballRadius, scale,
                     worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
                 });
@@ -491,9 +462,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
     // Animation loop
     useEffect(() => {
-        console.log('🎬 P15CanvasPage: Animation useEffect running', { isPlaying, hasSceneData: !!sceneData, renderCount: renderCountRef.current });
         if (!isPlaying || !sceneData) {
-            console.log('🎬 P15CanvasPage: Animation not starting - isPlaying:', isPlaying, 'hasSceneData:', !!sceneData);
             // Cancel animation if not playing
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
@@ -501,7 +470,6 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             }
             return;
         }
-        console.log('🎬 P15CanvasPage: Starting animation loop');
 
         const animate = (timestamp) => {
             if (!lastTimestampRef.current) {
@@ -554,15 +522,13 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                         utc_timestamp: new Date().toISOString(),
                     });
                     setIsPlaying(false);
-                    console.log(`🏁 P15CanvasPage: Setting videoFinished to TRUE`);
                     setVideoFinished(true);
-                    console.log(`🏁 P15CanvasPage: videoFinished state set, current render count: ${renderCountRef.current}`);
                     if (startTimeRef.current) {
                         const actualDuration = (timestamp - startTimeRef.current) / 1000;
                         const expectedDuration = maxFrames / (sceneData.fps || 30);
-                        console.log(`🏁 P15CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
-                        console.log(`⏱️ P15CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
-                        console.log(`📊 P15CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
+                        console.log(`🏁 P16CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
+                        console.log(`⏱️ P16CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
+                        console.log(`📊 P16CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
                     }
                     lastTimestampRef.current = null;
                 }
@@ -575,11 +541,9 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
 
         // Start animation loop
-        console.log('🎬 P15CanvasPage: Requesting animation frame');
         animationRef.current = requestAnimationFrame(animate);
         
         return () => {
-            console.log('🎬 P15CanvasPage: Animation useEffect cleanup - canceling animation');
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
                 animationRef.current = null;
@@ -606,18 +570,13 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
             const fps = sceneData.fps || 30;
             const expectedVideoDuration = maxFrames / fps;
-            console.log('P15CanvasPage: Scene data loaded, starting countdown automatically');
-            console.log(`📊 P15CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
+            console.log('P16CanvasPage: Scene data loaded, starting countdown automatically');
+            console.log(`📊 P16CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
             setIsPlaying(false);
             setCurrentFrame(0);
             currentFrameRef.current = 0; // Reset ref as well
             setVideoFinished(false);
-            setShowCongratulations(false);
             hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
-            if (congratulationsTimerRef.current) {
-                clearTimeout(congratulationsTimerRef.current);
-                congratulationsTimerRef.current = null;
-            }
             startTimeRef.current = null; // Reset start time
             lastTimestampRef.current = null; // Reset animation timestamp
             recordedKeyStates.current = []; // Reset recorded key states
@@ -652,10 +611,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     
                     // Start video animation after countdown
                     startTimeRef.current = performance.now();
-                    console.log('🎬 P15CanvasPage: Starting video animation at', new Date().toISOString());
-                    console.log('🎬 P15CanvasPage: Setting isPlaying to TRUE');
+                    console.log('🎬 P16CanvasPage: Starting video animation at', new Date().toISOString());
                     setIsPlaying(true);
-                    console.log('🎬 P15CanvasPage: isPlaying set to TRUE, render count:', renderCountRef.current);
                 }
             }, 750); // 750ms between countdown numbers
             
@@ -668,99 +625,25 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }
     }, [sceneData, setdisableCountdownTrigger]);
 
-    // Show congratulations page when video finishes
+    // Auto-advance when video finishes
     useEffect(() => {
-        console.log("🔍 P15CanvasPage: Congratulations useEffect running", { 
-            videoFinished, 
-            showCongratulations, 
-            isPlaying,
-            renderCount: renderCountRef.current,
-            timestamp: new Date().toISOString()
-        });
-        if (videoFinished && !showCongratulations) {
-            console.log("🎉 P15CanvasPage: Video finished, showing congratulations page...");
-            console.log("🎉 P15CanvasPage: Calling setShowCongratulations(true)");
-            setShowCongratulations(true);
-            console.log("🎉 P15CanvasPage: setShowCongratulations(true) called");
-        } else if (videoFinished && showCongratulations) {
-            console.log("✅ P15CanvasPage: Video finished and congratulations already showing");
-        } else if (!videoFinished) {
-            console.log("⏳ P15CanvasPage: Video not finished yet");
+        if (videoFinished && !hasAutoAdvancedRef.current) {
+            // Video finished, auto-advance after a short delay (only once)
+            console.log("🎬 P16CanvasPage: Video finished, auto-advancing to next scene...");
+            hasAutoAdvancedRef.current = true;
+            const timer = setTimeout(() => {
+                console.log("🎬 P16CanvasPage: Calling fetchNextScene to load next page...");
+                fetchNextScene(setdisableCountdownTrigger);
+            }, 500); // 500ms delay for smooth transition
+            return () => clearTimeout(timer);
         }
-    }, [videoFinished, showCongratulations, isPlaying]);
-    
-    // Debug: Track when showCongratulations changes
-    useEffect(() => {
-        console.log("🎉 P15CanvasPage: showCongratulations state changed:", showCongratulations, "render count:", renderCountRef.current);
-    }, [showCongratulations]);
-    
-    // Debug: Track when videoFinished changes
-    useEffect(() => {
-        console.log("🏁 P15CanvasPage: videoFinished state changed:", videoFinished, "render count:", renderCountRef.current);
-    }, [videoFinished]);
-
-    // Auto-advance 2s after congratulations page is shown
-    useEffect(() => {
-        console.log("🔍 P15CanvasPage: Auto-advance useEffect running", { 
-            showCongratulations, 
-            hasAutoAdvanced: hasAutoAdvancedRef.current, 
-            timerExists: !!congratulationsTimerRef.current,
-            videoFinished 
-        });
-        
-        // Only set up timer if congratulations is showing, no timer exists, and we haven't already advanced
-        if (showCongratulations && !congratulationsTimerRef.current && !hasAutoAdvancedRef.current) {
-            console.log("⏱️ P15CanvasPage: Setting up auto-advance timer (2s delay)...");
-            hasAutoAdvancedRef.current = true; // Set flag immediately to prevent duplicate timers
-            
-            congratulationsTimerRef.current = setTimeout(() => {
-                console.log("🎬 P15CanvasPage: Timer fired! Auto-advancing to next page...");
-                const timerId = congratulationsTimerRef.current;
-                congratulationsTimerRef.current = null; // Clear ref before calling fetchNextScene
-                
-                // Call fetchNextScene
-                console.log("🎬 P15CanvasPage: Calling fetchNextScene...");
-                if (fetchNextScene) {
-                    try {
-                        const result = fetchNextScene(setdisableCountdownTrigger);
-                        // Handle both promise and non-promise returns
-                        if (result && typeof result.then === 'function') {
-                            result.then(() => {
-                                console.log("✅ P15CanvasPage: fetchNextScene completed");
-                            }).catch((error) => {
-                                console.error("❌ P15CanvasPage: fetchNextScene error:", error);
-                            });
-                        } else {
-                            console.log("✅ P15CanvasPage: fetchNextScene called (non-promise return)");
-                        }
-                    } catch (error) {
-                        console.error("❌ P15CanvasPage: Error calling fetchNextScene:", error);
-                    }
-                } else {
-                    console.error("❌ P15CanvasPage: fetchNextScene is not defined!");
-                }
-            }, 2000); // 2 second delay after congratulations page
-            
-            console.log("⏱️ P15CanvasPage: Timer set with ID:", congratulationsTimerRef.current);
-        }
-        
-        return () => {
-            // Only cleanup timer if showCongratulations becomes false (user navigated away or state reset)
-            // We DON'T want to cleanup on normal re-renders while congratulations is showing
-            if (congratulationsTimerRef.current && !showCongratulations) {
-                console.log("🧹 P15CanvasPage: Cleaning up auto-advance timer (showCongratulations became false)");
-                clearTimeout(congratulationsTimerRef.current);
-                congratulationsTimerRef.current = null;
-                hasAutoAdvancedRef.current = false; // Reset flag if we're cleaning up
-            }
-        };
-    }, [showCongratulations, fetchNextScene, setdisableCountdownTrigger, videoFinished]);
+    }, [videoFinished, fetchNextScene, setdisableCountdownTrigger]);
 
     // Add keyboard shortcut: Press 'Shift+S' to skip to next page
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P15CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Shift+S detected in P16CanvasPage, skipping to next page");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -1014,55 +897,9 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
-
-            {/* Congratulations page - shown after video finishes */}
-            {showCongratulations && (() => {
-                console.log("🎉 P15CanvasPage: Rendering congratulations page!");
-                return (
-                <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(255, 255, 255, 0.8)",
-                    backdropFilter: "blur(5px)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 9999,
-                }}>
-                    <div style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        gap: "20px"
-                    }}>
-                        <div style={{
-                            fontSize: "6rem",
-                            lineHeight: "1"
-                        }}>
-                            👍
-                        </div>
-                        <div>
-                            <p style={{
-                                fontSize: "1.8rem",
-                                fontWeight: "bold",
-                                color: "#333",
-                                marginBottom: "15px",
-                                textAlign: "center"
-                            }}>
-                                Great job! You're doing awesome! 🎉
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                );
-            })()}
         </div>
     );
 };
 
-export default P15CanvasPage;
+export default P16CanvasPage;
 

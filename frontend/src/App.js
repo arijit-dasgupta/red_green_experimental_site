@@ -776,6 +776,18 @@ const renderCurrentPage = () => {
           console.log("🎯 Frontend: This should be P8 (ftrial_i=1)");
         } else if (data.ftrial_i === 2) {
           console.log("🎯 Frontend: This should be P9 (ftrial_i=2)");
+        } else if (data.ftrial_i === 3) {
+          console.log("🎯 Frontend: This should be P10 (ftrial_i=3)");
+        } else if (data.ftrial_i === 4) {
+          console.log("🎯 Frontend: This should be P11 (ftrial_i=4)");
+        } else if (data.ftrial_i === 5) {
+          console.log("🎯 Frontend: This should be P12 (ftrial_i=5)");
+        } else if (data.ftrial_i === 6) {
+          console.log("🎯 Frontend: This should be P14 (ftrial_i=6)");
+        } else if (data.ftrial_i === 7) {
+          console.log("🎯 Frontend: This should be P15 (ftrial_i=7)");
+        } else if (data.ftrial_i === 8) {
+          console.log("🎯 Frontend: This should be P16 (ftrial_i=8)");
         } else {
           console.log(`⚠️ Frontend: Unexpected ftrial_i=${data.ftrial_i} for familiarization trial`);
         }

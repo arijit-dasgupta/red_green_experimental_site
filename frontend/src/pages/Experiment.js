@@ -10,6 +10,7 @@ import P11CanvasPage from '../components/P11CanvasPage';
 import P12CanvasPage from '../components/P12CanvasPage';
 import P14CanvasPage from '../components/P14CanvasPage';
 import P15CanvasPage from '../components/P15CanvasPage';
+import P16CanvasPage from '../components/P16CanvasPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -144,6 +145,7 @@ const ExperimentPage = ({
     // p12 is the fifth familiarization trial (ftrial_i === 5) after backstory
     // p14 is the sixth familiarization trial (ftrial_i === 6) after backstory (interactive practice)
     // p15 is the seventh familiarization trial (ftrial_i === 7) after backstory (interactive practice)
+    // p16 is the eighth familiarization trial (ftrial_i === 8) after backstory (interactive practice)
     // Note: getFamiliarizationPageType(1) returns 'p1', but we want p8 to be rendered for ftrial_i === 1
     const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
     const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;
@@ -152,8 +154,9 @@ const ExperimentPage = ({
     const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 5;
     const isP14 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;
     const isP15 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;
+    const isP16 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;
     
-    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15", {
+    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16", {
         is_ftrial: trialInfo.is_ftrial,
         ftrial_i: trialInfo.ftrial_i,
         familiarizationPageType,
@@ -164,6 +167,7 @@ const ExperimentPage = ({
         isP12,
         isP14,
         isP15,
+        isP16,
         unique_trial_id: trialInfo.unique_trial_id,
         trialInfo
     });
@@ -188,8 +192,11 @@ const ExperimentPage = ({
     } else if (isP15) {
         console.log("✅ ExperimentPage: DETECTED P15 - Rendering P15CanvasPage");
         console.log("🎬 ExperimentPage: P15 should load T_redeasy trial data (interactive practice)");
+    } else if (isP16) {
+        console.log("✅ ExperimentPage: DETECTED P16 - Rendering P16CanvasPage");
+        console.log("🎬 ExperimentPage: P16 should load T_greenmid trial data (interactive practice)");
     } else if (trialInfo.is_ftrial) {
-        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9/p10/p11/p12/p14/p15, ftrial_i:", trialInfo.ftrial_i);
+        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9/p10/p11/p12/p14/p15/p16, ftrial_i:", trialInfo.ftrial_i);
     }
     
     if (isP8) {
@@ -256,6 +263,17 @@ const ExperimentPage = ({
         console.log("ExperimentPage: Rendering P15CanvasPage");
         return (
             <P15CanvasPage
+                key={`p15-${trialInfo.unique_trial_id}`}
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+    
+    if (isP16) {
+        console.log("ExperimentPage: Rendering P16CanvasPage");
+        return (
+            <P16CanvasPage
                 fetchNextScene={fetchNextScene}
                 setdisableCountdownTrigger={setdisableCountdownTrigger}
             />
