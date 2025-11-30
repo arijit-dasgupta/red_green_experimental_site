@@ -3,8 +3,8 @@ import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
 
 /**
- * Dedicated component for p16: Interactive canvas page (practice trial)
- * - Canvas: T_greenmid trial data
+ * Dedicated component for p17: Interactive canvas page (practice trial)
+ * - Canvas: T_redmid trial data
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for green, J for red)
  * - Records key states during playback
@@ -13,8 +13,8 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
-const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
-    console.log("🎬 P16CanvasPage: Component mounted/rendered");
+const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    console.log("🎬 P17CanvasPage: Component mounted/rendered");
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -131,8 +131,8 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P16CanvasPage: Loading T_greenmid trial data from /api/load_trial_data/T_greenmid...');
-                const response = await fetch('/api/load_trial_data/T_greenmid', {
+                console.log('📥 P17CanvasPage: Loading T_redmid trial data from /api/load_trial_data/T_redmid...');
+                const response = await fetch('/api/load_trial_data/T_redmid', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -142,8 +142,8 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 if (response.ok) {
                     const data = await response.json();
                     const frameCount = Object.keys(data.step_data || {}).length;
-                    console.log('✅ P16CanvasPage: Successfully loaded trial data');
-                    console.log('📊 P16CanvasPage: Data summary:', {
+                    console.log('✅ P17CanvasPage: Successfully loaded trial data');
+                    console.log('📊 P17CanvasPage: Data summary:', {
                         numFrames: frameCount,
                         fps: data.fps,
                         worldWidth: data.worldWidth,
@@ -157,10 +157,10 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P16CanvasPage: Failed to load T_greenmid data:', response.status, errorText);
+                    console.error('❌ P17CanvasPage: Failed to load T_redmid data:', response.status, errorText);
                 }
             } catch (error) {
-                console.error('❌ P16CanvasPage: Error loading trial data:', error);
+                console.error('❌ P17CanvasPage: Error loading trial data:', error);
             }
         };
 
@@ -171,7 +171,7 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
         if (!canvas || !sceneData) {
-            console.log('P16CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
+            console.log('P17CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
             return;
         }
 
@@ -335,7 +335,7 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             
             // Debug logging
             if (frameIndex === 0) {
-                console.log('P16CanvasPage: Rendering ball at frame 0', {
+                console.log('P17CanvasPage: Rendering ball at frame 0', {
                     x, y, radius, centerX, centerY, ballRadius, scale,
                     worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
                 });
@@ -528,9 +528,9 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     if (startTimeRef.current) {
                         const actualDuration = (timestamp - startTimeRef.current) / 1000;
                         const expectedDuration = maxFrames / (sceneData.fps || 30);
-                        console.log(`🏁 P16CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
-                        console.log(`⏱️ P16CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
-                        console.log(`📊 P16CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
+                        console.log(`🏁 P17CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
+                        console.log(`⏱️ P17CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
+                        console.log(`📊 P17CanvasPage: Recorded ${recordedKeyStates.current.length} key state frames`);
                     }
                     lastTimestampRef.current = null;
                 }
@@ -572,8 +572,8 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
             const fps = sceneData.fps || 30;
             const expectedVideoDuration = maxFrames / fps;
-            console.log('P16CanvasPage: Scene data loaded, starting countdown automatically');
-            console.log(`📊 P16CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
+            console.log('P17CanvasPage: Scene data loaded, starting countdown automatically');
+            console.log(`📊 P17CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
             setIsPlaying(false);
             setCurrentFrame(0);
             currentFrameRef.current = 0; // Reset ref as well
@@ -618,7 +618,7 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     
                     // Start video animation after countdown
                     startTimeRef.current = performance.now();
-                    console.log('🎬 P16CanvasPage: Starting video animation at', new Date().toISOString());
+                    console.log('🎬 P17CanvasPage: Starting video animation at', new Date().toISOString());
                     setIsPlaying(true);
                 }
             }, 750); // 750ms between countdown numbers
@@ -634,20 +634,20 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
     // Show congratulations page when video finishes
     useEffect(() => {
-        console.log("🔍 P16CanvasPage: Checking videoFinished state:", { videoFinished, showCongratulations });
+        console.log("🔍 P17CanvasPage: Checking videoFinished state:", { videoFinished, showCongratulations });
         if (videoFinished && !showCongratulations) {
-            console.log("🎉 P16CanvasPage: Video finished, showing congratulations page...");
+            console.log("🎉 P17CanvasPage: Video finished, showing congratulations page...");
             setShowCongratulations(true);
         } else if (videoFinished && showCongratulations) {
-            console.log("✅ P16CanvasPage: Video finished and congratulations already showing");
+            console.log("✅ P17CanvasPage: Video finished and congratulations already showing");
         } else if (!videoFinished) {
-            console.log("⏳ P16CanvasPage: Video not finished yet");
+            console.log("⏳ P17CanvasPage: Video not finished yet");
         }
     }, [videoFinished, showCongratulations]);
 
     // Auto-advance 2s after congratulations page is shown
     useEffect(() => {
-        console.log("🔍 P16CanvasPage: Auto-advance useEffect running", { 
+        console.log("🔍 P17CanvasPage: Auto-advance useEffect running", { 
             showCongratulations, 
             hasAutoAdvanced: hasAutoAdvancedRef.current, 
             timerExists: !!congratulationsTimerRef.current,
@@ -656,45 +656,45 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         
         // Only set up timer if congratulations is showing, no timer exists, and we haven't already advanced
         if (showCongratulations && !congratulationsTimerRef.current && !hasAutoAdvancedRef.current) {
-            console.log("⏱️ P16CanvasPage: Setting up auto-advance timer (2s delay)...");
+            console.log("⏱️ P17CanvasPage: Setting up auto-advance timer (2s delay)...");
             hasAutoAdvancedRef.current = true; // Set flag immediately to prevent duplicate timers
             
             congratulationsTimerRef.current = setTimeout(() => {
-                console.log("🎬 P16CanvasPage: Timer fired! Auto-advancing to next page...");
+                console.log("🎬 P17CanvasPage: Timer fired! Auto-advancing to next page...");
                 const timerId = congratulationsTimerRef.current;
                 congratulationsTimerRef.current = null; // Clear ref before calling fetchNextScene
                 
                 // Call fetchNextScene
-                console.log("🎬 P16CanvasPage: Calling fetchNextScene...");
+                console.log("🎬 P17CanvasPage: Calling fetchNextScene...");
                 if (fetchNextScene) {
                     try {
                         const result = fetchNextScene(setdisableCountdownTrigger);
                         // Handle both promise and non-promise returns
                         if (result && typeof result.then === 'function') {
                             result.then(() => {
-                                console.log("✅ P16CanvasPage: fetchNextScene completed");
+                                console.log("✅ P17CanvasPage: fetchNextScene completed");
                             }).catch((error) => {
-                                console.error("❌ P16CanvasPage: fetchNextScene error:", error);
+                                console.error("❌ P17CanvasPage: fetchNextScene error:", error);
                             });
                         } else {
-                            console.log("✅ P16CanvasPage: fetchNextScene called (non-promise return)");
+                            console.log("✅ P17CanvasPage: fetchNextScene called (non-promise return)");
                         }
                     } catch (error) {
-                        console.error("❌ P16CanvasPage: Error calling fetchNextScene:", error);
+                        console.error("❌ P17CanvasPage: Error calling fetchNextScene:", error);
                     }
                 } else {
-                    console.error("❌ P16CanvasPage: fetchNextScene is not defined!");
+                    console.error("❌ P17CanvasPage: fetchNextScene is not defined!");
                 }
             }, 2000); // 2 second delay after congratulations page
             
-            console.log("⏱️ P16CanvasPage: Timer set with ID:", congratulationsTimerRef.current);
+            console.log("⏱️ P17CanvasPage: Timer set with ID:", congratulationsTimerRef.current);
         }
         
         return () => {
             // Only cleanup timer if showCongratulations becomes false (user navigated away or state reset)
             // We DON'T want to cleanup on normal re-renders while congratulations is showing
             if (congratulationsTimerRef.current && !showCongratulations) {
-                console.log("🧹 P16CanvasPage: Cleaning up auto-advance timer (showCongratulations became false)");
+                console.log("🧹 P17CanvasPage: Cleaning up auto-advance timer (showCongratulations became false)");
                 clearTimeout(congratulationsTimerRef.current);
                 congratulationsTimerRef.current = null;
                 hasAutoAdvancedRef.current = false; // Reset flag if we're cleaning up
@@ -706,7 +706,7 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P16CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Shift+S detected in P17CanvasPage, skipping to next page");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -963,7 +963,7 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
             {/* Congratulations page - shown after video finishes */}
             {showCongratulations && (() => {
-                console.log("🎉 P16CanvasPage: Rendering congratulations page!");
+                console.log("🎉 P17CanvasPage: Rendering congratulations page!");
                 return (
                 <div style={{
                     position: "absolute",
@@ -1010,5 +1010,5 @@ const P16CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     );
 };
 
-export default P16CanvasPage;
+export default P17CanvasPage;
 
