@@ -1,12 +1,13 @@
-[
+{
+  "entities": [
     {
       "id": 1761156780033,
       "type": "target",
-      "x": 4.9,
-      "y": 15.3,
+      "x": 2.4000000000000004,
+      "y": 2.6,
       "width": 1,
       "height": 1,
-      "direction": 0.15499998893704564
+      "direction": 0.7317474763206154
     },
     {
       "id": 1761156803345,
@@ -17,4 +18,12 @@
       "height": 9.3,
       "direction": 0
     }
-  ]
+  ],
+  "simulationParams": {
+    "videoLength": 10,
+    "ballSpeed": 3,
+    "fps": 30,
+    "worldWidth": 20,
+    "worldHeight": 20
+  }
+}

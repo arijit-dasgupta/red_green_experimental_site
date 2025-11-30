@@ -101,5 +101,17 @@ export const FAMILIARIZATION_PAGE_SPECS = {
     isDemonstration: true, // No key recording
     waitForSpacebar: false, // Autoplay video
   },
-  // Will add p9-p15 as needed
+  p9: {
+    type: 'canvas_audio_image',
+    audio: '/audios/9_ball_movement.mp3',
+    image: {
+      src: '/images/elmo.png',
+      position: 'left_middle_canvas',
+      size: '25%'
+    },
+    trialFolder: 'T_ball_move', // Specific trial folder for p9
+    isDemonstration: true, // No key recording
+    waitForSpacebar: false, // Autoplay video
+  },
+  // Will add p10-p15 as needed
 };

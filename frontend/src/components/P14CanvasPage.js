@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
-import { renderKeyState, renderEmptyKeyState } from './renderKeyState';
 
 /**
  * Dedicated component for p14: Interactive canvas page (practice trial)
@@ -222,7 +221,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             });
         }
 
-        // Draw sensors with texture
+        // Draw sensors with texture and highlight when keys are pressed
         if (red_sensor) {
             const { x, y, width, height } = red_sensor;
             const scaledX = x * scale;
@@ -230,18 +229,48 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
+            // Use keyStatesRef to avoid dependency on keyStates state
+            const currentKeyStates = keyStatesRef.current;
+            
+            // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed
+            if (currentKeyStates.f && !currentKeyStates.j && isPlaying) {
+                ctx.save();
+                const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
+                const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
+                const glowSize = 8 * pulseIntensity; // Pulsing glow size
+                
+                // Draw glowing border beneath sensor
+                ctx.shadowBlur = 20 * pulseIntensity;
+                ctx.shadowColor = "rgba(255, 0, 0, 0.8)";
+                ctx.strokeStyle = `rgba(255, 0, 0, ${0.6 + 0.4 * pulseIntensity})`;
+                ctx.lineWidth = 4 * pulseIntensity;
+                ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
+                ctx.restore();
+            }
+            
+            // Draw sensor ON TOP of glow
             ctx.save();
+            // Ensure no shadow effects on sensor
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
+            
             // Check if texture path is provided and texture is loaded
             if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
                 redSensorTextureRef.current && redSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
                     // Fallback to red fill if texture draw failed
-                    ctx.fillStyle = "red";
+                    ctx.fillStyle = currentKeyStates.f && !currentKeyStates.j ? "rgba(255, 0, 0, 0.9)" : "red";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                } else if (currentKeyStates.f && !currentKeyStates.j) {
+                    // Add brightness overlay when key is pressed
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.globalAlpha = 1.0;
                 }
             } else {
                 // Use original red fill if no texture path or texture not loaded
-                ctx.fillStyle = "red";
+                ctx.fillStyle = currentKeyStates.f && !currentKeyStates.j ? "rgba(255, 0, 0, 0.9)" : "red";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -254,18 +283,48 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
+            // Use keyStatesRef to avoid dependency on keyStates state
+            const currentKeyStates = keyStatesRef.current;
+            
+            // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed
+            if (currentKeyStates.j && !currentKeyStates.f && isPlaying) {
+                ctx.save();
+                const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
+                const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
+                const glowSize = 8 * pulseIntensity; // Pulsing glow size
+                
+                // Draw glowing border beneath sensor with #009900 green color
+                ctx.shadowBlur = 20 * pulseIntensity;
+                ctx.shadowColor = "rgba(0, 153, 0, 0.8)"; // #009900 with alpha
+                ctx.strokeStyle = `rgba(0, 153, 0, ${0.6 + 0.4 * pulseIntensity})`; // #009900 with varying alpha
+                ctx.lineWidth = 4 * pulseIntensity;
+                ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
+                ctx.restore();
+            }
+            
+            // Draw sensor ON TOP of glow
             ctx.save();
+            // Ensure no shadow effects on sensor
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
+            
             // Check if texture path is provided and texture is loaded
             if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
                 greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
                     // Fallback to green fill if texture draw failed
-                    ctx.fillStyle = "green";
+                    ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                } else if (currentKeyStates.j && !currentKeyStates.f) {
+                    // Add brightness overlay when key is pressed
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.globalAlpha = 1.0;
                 }
             } else {
                 // Use original green fill if no texture path or texture not loaded
-                ctx.fillStyle = "green";
+                ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -721,7 +780,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Key State Indicators - Below Canvas, Texture-based */}
+            {/* Key State Indicators - Below Canvas, Image-based */}
             <div style={{
                 display: "flex",
                 flexDirection: "column",
@@ -737,6 +796,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     const baseSize = 400;
                     const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
                     const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                    const size = "70px";
+                    
                     return (
                         <div style={{
                             display: "flex",
@@ -745,9 +806,99 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                             alignItems: "center",
                             width: "100%",
                         }}>
-                            {renderKeyState("f", redSensorTextureRef, keyStates, canvasSize)}
-                            {renderKeyState("j", greenSensorTextureRef, keyStates, canvasSize)}
-                            {renderEmptyKeyState(keyStates, canvasSize)}
+                            {/* Show kermit.png when F key is pressed (for green sensor) */}
+                            {keyStates.f && !keyStates.j && (
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                }}>
+                                    <div
+                                        style={{
+                                            width: size,
+                                            height: size,
+                                            borderRadius: "8px",
+                                            overflow: "hidden",
+                                            animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                            boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                            marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                            border: "2px solid rgba(255, 255, 255, 0.8)",
+                                            backgroundColor: "#f0f0f0",
+                                            position: "relative",
+                                        }}
+                                    >
+                                        <img
+                                            src="/images/kermit.png"
+                                            alt="Kermit"
+                                            style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "contain",
+                                                display: "block",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                            {keyStates.j && !keyStates.f && (
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                }}>
+                                    <div
+                                        style={{
+                                            width: size,
+                                            height: size,
+                                            borderRadius: "8px",
+                                            overflow: "hidden",
+                                            animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                            boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                            marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                            border: "2px solid rgba(255, 255, 255, 0.8)",
+                                            backgroundColor: "#f0f0f0",
+                                            position: "relative",
+                                        }}
+                                    >
+                                        <img
+                                            src="/images/cookiemonster.png"
+                                            alt="Cookie Monster"
+                                            style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "contain",
+                                                display: "block",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Empty placeholder when both or neither keys are pressed */}
+                            {((keyStates.f && keyStates.j) || (!keyStates.f && !keyStates.j)) && (
+                                <div style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                }}>
+                                    <div
+                                        style={{
+                                            width: size,
+                                            height: size,
+                                            borderRadius: "8px",
+                                            boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.1)`,
+                                            marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                            backgroundColor: "#e0e0e0",
+                                            border: "2px dashed #999",
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
                     );
                 })()}

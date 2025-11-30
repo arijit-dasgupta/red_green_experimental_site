@@ -1,0 +1,29 @@
+{
+  "entities": [
+    {
+      "id": 1764301125466,
+      "type": "red_sensor",
+      "x": 16.4,
+      "y": 0,
+      "width": 3.6,
+      "height": 9.4,
+      "direction": 0
+    },
+    {
+      "id": 1764301136163,
+      "type": "target",
+      "x": 2,
+      "y": 16,
+      "width": 1,
+      "height": 1,
+      "direction": -0.7749351670474938
+    }
+  ],
+  "simulationParams": {
+    "videoLength": 10,
+    "ballSpeed": 3,
+    "fps": 30,
+    "worldWidth": 20,
+    "worldHeight": 20
+  }
+}
