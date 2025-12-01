@@ -237,7 +237,7 @@ const ExperimentPage = ({
         console.log("🎬 ExperimentPage: P17 should load T_redmid trial data (interactive practice)");
     } else if (isP18) {
         console.log("✅ ExperimentPage: DETECTED P18 - Rendering P18CanvasPage");
-        console.log("🎬 ExperimentPage: P18 should load T_switch_keys_easy trial data (demonstration)");
+        console.log("🎬 ExperimentPage: P18 should load T_blank trial data (demonstration)");
     } else if (isP19) {
         console.log("✅ ExperimentPage: DETECTED P19 - Rendering P19CanvasPage");
         console.log("🎬 ExperimentPage: P19 should load T_switch_keys_easy trial data (interactive practice)");

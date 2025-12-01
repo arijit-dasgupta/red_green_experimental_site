@@ -4,7 +4,7 @@ import { config } from '../config';
 /**
  * Dedicated component for p18: Canvas with audio
  * - Audio: 14_switchkeys_onekey.mp3
- * - Canvas: T_switch_keys_easy trial data
+ * - Canvas: T_blank trial data
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
@@ -107,13 +107,13 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return true;
     };
 
-    // Load T_switch_keys_easy trial data
+    // Load T_blank trial data
     useEffect(() => {
         console.log('🚨 P18CanvasPage: useEffect for loadTrialData is RUNNING!');
         const loadTrialData = async () => {
             try {
-                const trialFolderName = 'T_switch_keys_easy';
-                console.log('📥 P18CanvasPage: Loading T_switch_keys_easy trial data from /api/load_trial_data/T_switch_keys_easy...');
+                const trialFolderName = 'T_blank';
+                console.log('📥 P18CanvasPage: Loading T_blank trial data from /api/load_trial_data/T_blank...');
                 console.log('🔍 P18CanvasPage: VERIFY - trialFolderName =', trialFolderName);
                 console.log('🚨 P18CanvasPage: ABOUT TO FETCH with trialFolderName:', trialFolderName);
                 // Add cache-busting timestamp to ensure fresh data
@@ -132,7 +132,7 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     const data = await response.json();
                     const frameCount = Object.keys(data.step_data || {}).length;
                     console.log('✅ P18CanvasPage: Successfully loaded trial data');
-                    console.log('🔍 P18CanvasPage: BACKEND should have loaded from: backend/trial_data/chs_training_zoom/T_switch_keys_easy/simulation_data.json');
+                    console.log('🔍 P18CanvasPage: BACKEND should have loaded from: backend/trial_data/chs_training_zoom/T_blank/simulation_data.json');
                     console.log('📊 P18CanvasPage: Data summary:', {
                         numFrames: frameCount,
                         fps: data.fps,
@@ -147,7 +147,7 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P18CanvasPage: Failed to load T_switch_keys_easy data:', response.status, errorText);
+                    console.error('❌ P18CanvasPage: Failed to load T_blank data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P18CanvasPage: Error loading trial data:', error);
