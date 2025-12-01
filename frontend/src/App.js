@@ -790,6 +790,10 @@ const renderCurrentPage = () => {
           console.log("🎯 Frontend: This should be P16 (ftrial_i=8)");
         } else if (data.ftrial_i === 9) {
           console.log("🎯 Frontend: This should be P17 (ftrial_i=9)");
+        } else if (data.ftrial_i === 10) {
+          console.log("🎯 Frontend: This should be P18 (ftrial_i=10)");
+        } else if (data.ftrial_i === 11) {
+          console.log("🎯 Frontend: This should be P19 (ftrial_i=11)");
         } else {
           console.log(`⚠️ Frontend: Unexpected ftrial_i=${data.ftrial_i} for familiarization trial`);
         }
