@@ -15,6 +15,7 @@ import P17CanvasPage from '../components/P17CanvasPage';
 import P18CanvasPage from '../components/P18CanvasPage';
 import P19CanvasPage from '../components/P19CanvasPage';
 import P20CanvasPage from '../components/P20CanvasPage';
+import P21CanvasPage from '../components/P21CanvasPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -165,6 +166,7 @@ const ExperimentPage = ({
     const isP18 = trialInfo.is_ftrial && trialInfo.ftrial_i === 10;
     const isP19 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11;
     const isP20 = trialInfo.is_ftrial && trialInfo.ftrial_i === 12;
+    const isP21 = trialInfo.is_ftrial && trialInfo.ftrial_i === 13;
     
     // Debug: Explicitly log isP18 calculation - ALWAYS log when ftrial_i is 10
     if (trialInfo.ftrial_i === 10) {
@@ -205,7 +207,20 @@ const ExperimentPage = ({
         });
     }
     
-    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20", {
+    // Debug: Explicitly log isP21 calculation - ALWAYS log when ftrial_i is 13
+    if (trialInfo.ftrial_i === 13) {
+        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 13!", {
+            is_ftrial: trialInfo.is_ftrial,
+            ftrial_i: trialInfo.ftrial_i,
+            isP21: isP21,
+            'trialInfo.is_ftrial': trialInfo.is_ftrial,
+            'trialInfo.ftrial_i': trialInfo.ftrial_i,
+            'trialInfo.ftrial_i === 13': trialInfo.ftrial_i === 13,
+            'trialInfo.is_ftrial && trialInfo.ftrial_i === 13': trialInfo.is_ftrial && trialInfo.ftrial_i === 13
+        });
+    }
+    
+    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21", {
             is_ftrial: trialInfo.is_ftrial,
             ftrial_i: trialInfo.ftrial_i,
             familiarizationPageType,
@@ -221,6 +236,7 @@ const ExperimentPage = ({
             isP18,
             isP19,
             isP20,
+            isP21,
             unique_trial_id: trialInfo.unique_trial_id,
             trialInfo
         });
@@ -258,7 +274,7 @@ const ExperimentPage = ({
         console.log("✅ ExperimentPage: DETECTED P19 - Rendering P19CanvasPage");
         console.log("🎬 ExperimentPage: P19 should load T_switch_keys_easy trial data (interactive practice)");
     } else if (trialInfo.is_ftrial) {
-        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19, ftrial_i:", trialInfo.ftrial_i);
+        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21, ftrial_i:", trialInfo.ftrial_i);
     }
     
     if (isP8) {
@@ -426,11 +442,35 @@ const ExperimentPage = ({
         );
     }
     
-    // Debug: Log if we reach here without matching p8-p20
-    if (trialInfo.is_ftrial) {
-        console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p20 matched!", {
+    if (isP21) {
+        console.log("✅ ExperimentPage: RENDERING P21CanvasPage - isP21 is TRUE");
+        console.log("🔍 ExperimentPage: P21 details", {
+            is_ftrial: trialInfo.is_ftrial,
             ftrial_i: trialInfo.ftrial_i,
-            isP8, isP9, isP10, isP11, isP12, isP14, isP15, isP16, isP17, isP18, isP19, isP20,
+            unique_trial_id: trialInfo.unique_trial_id,
+            'P21CanvasPage component': typeof P21CanvasPage
+        });
+        
+        // Double-check that component is available
+        if (!P21CanvasPage) {
+            console.error("❌ ExperimentPage: P21CanvasPage component is not imported!");
+            return <div>Error: P21CanvasPage not found</div>;
+        }
+        
+        return (
+            <P21CanvasPage
+                key={`p21-${trialInfo.unique_trial_id}`}
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+    
+    // Debug: Log if we reach here without matching p8-p21
+    if (trialInfo.is_ftrial) {
+        console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p21 matched!", {
+            ftrial_i: trialInfo.ftrial_i,
+            isP8, isP9, isP10, isP11, isP12, isP14, isP15, isP16, isP17, isP18, isP19, isP20, isP21,
             familiarizationPageType
         });
     }
