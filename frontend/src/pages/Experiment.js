@@ -16,6 +16,7 @@ import P18CanvasPage from '../components/P18CanvasPage';
 import P19CanvasPage from '../components/P19CanvasPage';
 import P20CanvasPage from '../components/P20CanvasPage';
 import P21CanvasPage from '../components/P21CanvasPage';
+import P22CanvasPage from '../components/P22CanvasPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -167,6 +168,7 @@ const ExperimentPage = ({
     const isP19 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11;
     const isP20 = trialInfo.is_ftrial && trialInfo.ftrial_i === 12;
     const isP21 = trialInfo.is_ftrial && trialInfo.ftrial_i === 13;
+    const isP22 = trialInfo.is_ftrial && trialInfo.ftrial_i === 14;
     
     // Debug: Explicitly log isP18 calculation - ALWAYS log when ftrial_i is 10
     if (trialInfo.ftrial_i === 10) {
@@ -220,7 +222,20 @@ const ExperimentPage = ({
         });
     }
     
-    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21", {
+    // Debug: Explicitly log isP22 calculation - ALWAYS log when ftrial_i is 14
+    if (trialInfo.ftrial_i === 14) {
+        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 14!", {
+            is_ftrial: trialInfo.is_ftrial,
+            ftrial_i: trialInfo.ftrial_i,
+            isP22: isP22,
+            'trialInfo.is_ftrial': trialInfo.is_ftrial,
+            'trialInfo.ftrial_i': trialInfo.ftrial_i,
+            'trialInfo.ftrial_i === 14': trialInfo.ftrial_i === 14,
+            'trialInfo.is_ftrial && trialInfo.ftrial_i === 14': trialInfo.is_ftrial && trialInfo.ftrial_i === 14
+        });
+    }
+    
+    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21/p22", {
             is_ftrial: trialInfo.is_ftrial,
             ftrial_i: trialInfo.ftrial_i,
             familiarizationPageType,
@@ -237,6 +252,8 @@ const ExperimentPage = ({
             isP19,
             isP20,
             isP21,
+            isP22,
+            isP22,
             unique_trial_id: trialInfo.unique_trial_id,
             trialInfo
         });
@@ -466,11 +483,35 @@ const ExperimentPage = ({
         );
     }
     
-    // Debug: Log if we reach here without matching p8-p21
-    if (trialInfo.is_ftrial) {
-        console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p21 matched!", {
+    if (isP22) {
+        console.log("✅ ExperimentPage: RENDERING P22CanvasPage - isP22 is TRUE");
+        console.log("🔍 ExperimentPage: P22 details", {
+            is_ftrial: trialInfo.is_ftrial,
             ftrial_i: trialInfo.ftrial_i,
-            isP8, isP9, isP10, isP11, isP12, isP14, isP15, isP16, isP17, isP18, isP19, isP20, isP21,
+            unique_trial_id: trialInfo.unique_trial_id,
+            'P22CanvasPage component': typeof P22CanvasPage
+        });
+        
+        // Double-check that component is available
+        if (!P22CanvasPage) {
+            console.error("❌ ExperimentPage: P22CanvasPage component is not imported!");
+            return <div>Error: P22CanvasPage not found</div>;
+        }
+        
+        return (
+            <P22CanvasPage
+                key={`p22-${trialInfo.unique_trial_id}`}
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+    
+    // Debug: Log if we reach here without matching p8-p22
+    if (trialInfo.is_ftrial) {
+        console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p22 matched!", {
+            ftrial_i: trialInfo.ftrial_i,
+            isP8, isP9, isP10, isP11, isP12, isP14, isP15, isP16, isP17, isP18, isP19, isP20, isP21, isP22,
             familiarizationPageType
         });
     }

@@ -1,0 +1,65 @@
+{
+  "entities": [
+    {
+      "id": 1764558706291,
+      "type": "barrier",
+      "x": 10.3,
+      "y": 14.9,
+      "width": 8.1,
+      "height": 2.1,
+      "direction": 0
+    },
+    {
+      "id": 1764558711678,
+      "type": "barrier",
+      "x": 3.4000000000000004,
+      "y": 1.6,
+      "width": 2,
+      "height": 7.1000000000000005,
+      "direction": 0
+    },
+    {
+      "id": 1764558719099,
+      "type": "green_sensor",
+      "x": 15.5,
+      "y": 0.2,
+      "width": 4.5,
+      "height": 5.800000000000001,
+      "direction": 0
+    },
+    {
+      "id": 1764558726052,
+      "type": "red_sensor",
+      "x": 0.1,
+      "y": 13.2,
+      "width": 4.7,
+      "height": 6.800000000000001,
+      "direction": 0
+    },
+    {
+      "id": 1764558733527,
+      "type": "occluder",
+      "x": 8.1,
+      "y": 4.800000000000001,
+      "width": 3.3000000000000003,
+      "height": 6.5,
+      "direction": 0
+    },
+    {
+      "id": 1764558744162,
+      "type": "target",
+      "x": 11.5,
+      "y": 0.7000000000000001,
+      "width": 1,
+      "height": 1,
+      "direction": 2.346464057093535
+    }
+  ],
+  "simulationParams": {
+    "videoLength": 30,
+    "ballSpeed": 3,
+    "fps": 30,
+    "worldWidth": 20,
+    "worldHeight": 20
+  }
+}

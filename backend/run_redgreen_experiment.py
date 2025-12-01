@@ -645,19 +645,19 @@ def load_next_scene():
     
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
-    # IMPORTANT: Don't adjust ftrial_i for demonstration/practice pages (p8=ftrial_i=1, p9=ftrial_i=2, p10=ftrial_i=3, p11=ftrial_i=4, p12=ftrial_i=5, p14=ftrial_i=6, p15=ftrial_i=7, p16=ftrial_i=8, p17=ftrial_i=9, p18=ftrial_i=10, p19=ftrial_i=11, p20=ftrial_i=12, p21=ftrial_i=13) 
+    # IMPORTANT: Don't adjust ftrial_i for demonstration/practice pages (p8=ftrial_i=1, p9=ftrial_i=2, p10=ftrial_i=3, p11=ftrial_i=4, p12=ftrial_i=5, p14=ftrial_i=6, p15=ftrial_i=7, p16=ftrial_i=8, p17=ftrial_i=9, p18=ftrial_i=10, p19=ftrial_i=11, p20=ftrial_i=12, p21=ftrial_i=13, p22=ftrial_i=14) 
     # which don't save scores. The score-checking logic should only apply to regular trials.
     if (resume_from_trial is None and 
         not config.get('is_resume_mode', False) and 
         not config.get('was_resumed', False)):
-        # Only adjust ftrial_i if we're past the demonstration/practice pages (ftrial_i > 13)
+        # Only adjust ftrial_i if we're past the demonstration/practice pages (ftrial_i > 14)
         # or if we have scores that indicate we've completed regular familiarization trials
-        if len(fscores) < ftrial_i and ftrial_i > 13:
-            # Only decrement if we're past p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21 and there's a mismatch
+        if len(fscores) < ftrial_i and ftrial_i > 14:
+            # Only decrement if we're past p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21/p22 and there's a mismatch
             print(f"⚠️ Adjusting ftrial_i: len(fscores)={len(fscores)}, ftrial_i={ftrial_i}")
             ftrial_i -= 1
-        elif len(fscores) < ftrial_i and ftrial_i <= 13:
-            # For p8 (ftrial_i=1), p9 (ftrial_i=2), p10 (ftrial_i=3), p11 (ftrial_i=4), p12 (ftrial_i=5), p14 (ftrial_i=6), p15 (ftrial_i=7), p16 (ftrial_i=8), p17 (ftrial_i=9), p18 (ftrial_i=10), p19 (ftrial_i=11), p20 (ftrial_i=12), and p21 (ftrial_i=13), don't adjust - they're demonstration/practice pages
+        elif len(fscores) < ftrial_i and ftrial_i <= 14:
+            # For p8 (ftrial_i=1), p9 (ftrial_i=2), p10 (ftrial_i=3), p11 (ftrial_i=4), p12 (ftrial_i=5), p14 (ftrial_i=6), p15 (ftrial_i=7), p16 (ftrial_i=8), p17 (ftrial_i=9), p18 (ftrial_i=10), p19 (ftrial_i=11), p20 (ftrial_i=12), p21 (ftrial_i=13), and p22 (ftrial_i=14), don't adjust - they're demonstration/practice pages
             print(f"ℹ️ Skipping ftrial_i adjustment for demonstration/practice page: ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
         if len(tscores) < trial_i:
             trial_i -= 1
