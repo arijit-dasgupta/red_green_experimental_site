@@ -34,6 +34,9 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const renderFrameRef = useRef(null); // Store renderFrame function reference
     const lastSceneDataRef = useRef(null); // Track which sceneData we've already processed
     const congratulationsTimerRef = useRef(null); // Store congratulations auto-advance timer
+    const startAudioRef = useRef(null); // Audio element for start sound file
+    const endAudioRef = useRef(null); // Audio element for end sound file
+    const firstFramePlayedRef = useRef(false); // Track if start sound has been played
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -45,6 +48,38 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
 
     // Fixed canvas size (matching testing trials)
     const canvasSize = { width: 600, height: 600 };
+
+    // Load start audio file
+    useEffect(() => {
+        if (config.startingAudioPath && config.startingAudioPath.trim() !== '') {
+            const audio = new Audio(config.startingAudioPath);
+            audio.preload = 'auto';
+            audio.onloadeddata = () => {
+                startAudioRef.current = audio;
+                console.log('P14CanvasPage: Starting audio file loaded:', config.startingAudioPath);
+            };
+            audio.onerror = () => {
+                console.warn('P14CanvasPage: Failed to load starting audio file from:', config.startingAudioPath);
+                startAudioRef.current = null;
+            };
+        }
+    }, []);
+
+    // Load end audio file
+    useEffect(() => {
+        if (config.endingAudioPath && config.endingAudioPath.trim() !== '') {
+            const audio = new Audio(config.endingAudioPath);
+            audio.preload = 'auto';
+            audio.onloadeddata = () => {
+                endAudioRef.current = audio;
+                console.log('P14CanvasPage: Ending audio file loaded:', config.endingAudioPath);
+            };
+            audio.onerror = () => {
+                console.warn('P14CanvasPage: Failed to load ending audio file from:', config.endingAudioPath);
+                endAudioRef.current = null;
+            };
+        }
+    }, []);
 
     // Load all textures (matching App.js)
     useEffect(() => {
@@ -519,6 +554,16 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     });
                     setIsPlaying(false);
                     setVideoFinished(true);
+                    
+                    // Play end sound
+                    if (endAudioRef.current) {
+                        endAudioRef.current.currentTime = 0;
+                        endAudioRef.current.play().catch(error => {
+                            console.warn('P14CanvasPage: Failed to play end audio:', error);
+                        });
+                        console.log('🔊 P14CanvasPage: End sound played');
+                    }
+                    
                     if (startTimeRef.current) {
                         const actualDuration = (timestamp - startTimeRef.current) / 1000;
                         const expectedDuration = maxFrames / (sceneData.fps || 30);
@@ -574,6 +619,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             setVideoFinished(false);
             setShowCongratulations(false);
             hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
+            firstFramePlayedRef.current = false; // Reset start sound flag
             if (congratulationsTimerRef.current) {
                 clearTimeout(congratulationsTimerRef.current);
                 congratulationsTimerRef.current = null;
@@ -614,6 +660,15 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     startTimeRef.current = performance.now();
                     console.log('🎬 P14CanvasPage: Starting video animation at', new Date().toISOString());
                     setIsPlaying(true);
+                    
+                    // Play start sound
+                    if (startAudioRef.current) {
+                        startAudioRef.current.currentTime = 0;
+                        startAudioRef.current.play().catch(error => {
+                            console.warn('P14CanvasPage: Failed to play start audio:', error);
+                        });
+                        console.log('🔊 P14CanvasPage: Start sound played');
+                    }
                 }
             }, 750); // 750ms between countdown numbers
             

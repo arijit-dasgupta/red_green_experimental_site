@@ -35,6 +35,9 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const congratulationsTimerRef = useRef(null); // Store congratulations auto-advance timer
     const hasLoadedDataRef = useRef(false); // Track if we've loaded trial data
     const renderCountRef = useRef(0); // Track render count for debugging
+    const startAudioRef = useRef(null); // Audio element for start sound file
+    const endAudioRef = useRef(null); // Audio element for end sound file
+    const firstFramePlayedRef = useRef(false); // Track if start sound has been played
     
     // Track render count
     renderCountRef.current += 1;
@@ -46,6 +49,38 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return () => {
             console.log('🎬 P15CanvasPage: Component UNMOUNTED');
         };
+    }, []);
+
+    // Load start audio file
+    useEffect(() => {
+        if (config.startingAudioPath && config.startingAudioPath.trim() !== '') {
+            const audio = new Audio(config.startingAudioPath);
+            audio.preload = 'auto';
+            audio.onloadeddata = () => {
+                startAudioRef.current = audio;
+                console.log('P15CanvasPage: Starting audio file loaded:', config.startingAudioPath);
+            };
+            audio.onerror = () => {
+                console.warn('P15CanvasPage: Failed to load starting audio file from:', config.startingAudioPath);
+                startAudioRef.current = null;
+            };
+        }
+    }, []);
+
+    // Load end audio file
+    useEffect(() => {
+        if (config.endingAudioPath && config.endingAudioPath.trim() !== '') {
+            const audio = new Audio(config.endingAudioPath);
+            audio.preload = 'auto';
+            audio.onloadeddata = () => {
+                endAudioRef.current = audio;
+                console.log('P15CanvasPage: Ending audio file loaded:', config.endingAudioPath);
+            };
+            audio.onerror = () => {
+                console.warn('P15CanvasPage: Failed to load ending audio file from:', config.endingAudioPath);
+                endAudioRef.current = null;
+            };
+        }
     }, []);
     
     // Texture refs (matching App.js)
@@ -556,6 +591,15 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setIsPlaying(false);
                     console.log(`🏁 P15CanvasPage: Setting videoFinished to TRUE`);
                     setVideoFinished(true);
+                    
+                    // Play end sound
+                    if (endAudioRef.current) {
+                        endAudioRef.current.currentTime = 0;
+                        endAudioRef.current.play().catch(error => {
+                            console.warn('P15CanvasPage: Failed to play end audio:', error);
+                        });
+                        console.log('🔊 P15CanvasPage: End sound played');
+                    }
                     console.log(`🏁 P15CanvasPage: videoFinished state set, current render count: ${renderCountRef.current}`);
                     if (startTimeRef.current) {
                         const actualDuration = (timestamp - startTimeRef.current) / 1000;
@@ -655,6 +699,15 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     console.log('🎬 P15CanvasPage: Starting video animation at', new Date().toISOString());
                     console.log('🎬 P15CanvasPage: Setting isPlaying to TRUE');
                     setIsPlaying(true);
+                    
+                    // Play start sound
+                    if (startAudioRef.current) {
+                        startAudioRef.current.currentTime = 0;
+                        startAudioRef.current.play().catch(error => {
+                            console.warn('P15CanvasPage: Failed to play start audio:', error);
+                        });
+                        console.log('🔊 P15CanvasPage: Start sound played');
+                    }
                     console.log('🎬 P15CanvasPage: isPlaying set to TRUE, render count:', renderCountRef.current);
                 }
             }, 750); // 750ms between countdown numbers

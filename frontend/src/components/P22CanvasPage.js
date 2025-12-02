@@ -210,12 +210,23 @@ const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 if (playPromise !== undefined) {
                     playPromise
                         .then(() => {
-                            console.log('✅ P22CanvasPage: Audio playback started successfully');
-                            console.log('🔊 P22CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
-                            console.log(`📊 P22CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
+                            // Check if audio element still exists before logging success
+                            if (audioRef.current) {
+                                console.log('✅ P22CanvasPage: Audio playback started successfully');
+                                console.log('🔊 P22CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
+                                console.log(`📊 P22CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
+                            }
                         })
                         .catch(error => {
-                            console.error("❌ P22CanvasPage: Audio autoplay prevented:", error);
+                            // Only log error if it's not the expected "interrupted" error
+                            // This can happen in React Strict Mode or during component re-renders
+                            if (error.name !== 'AbortError' || !error.message.includes('interrupted')) {
+                                console.error("❌ P22CanvasPage: Audio autoplay prevented:", error);
+                            } else {
+                                // This is expected in some cases (React Strict Mode, re-renders)
+                                // Audio will play on the next attempt
+                                console.log('ℹ️ P22CanvasPage: Audio play() interrupted (likely due to React re-render), will retry');
+                            }
                         });
                 }
             } else {

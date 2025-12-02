@@ -1,27 +1,46 @@
-# Page-by-Page Summary: Red-Green Experiment Familiarization Phase
+# Complete Page Summary: Red-Green Experiment
 
-## Page Order and Mapping
-- **ftrial_i = 0**: Not used (starts at 1)
-- **ftrial_i = 1**: P8
-- **ftrial_i = 2**: P9
-- **ftrial_i = 3**: P10
-- **ftrial_i = 4**: P11
-- **ftrial_i = 5**: P12
-- **ftrial_i = 6**: P13
-- **ftrial_i = 7**: P14
-- **ftrial_i = 8**: P15
-- **ftrial_i = 9**: P16
-- **ftrial_i = 10**: P17
-- **ftrial_i = 11**: P18
-- **ftrial_i = 12**: P19
-- **ftrial_i = 13**: P20
-- **ftrial_i = 14**: P21
-- **ftrial_i = 15**: P22
+## Experiment Structure
+
+The experiment consists of three main phases:
+1. **Training Pages** (P1-P7): Introduction and instruction pages
+2. **Familiarization Trials** (P8-P22): Demonstration and practice trials
+3. **Experimental Trials**: Data collection trials (randomized order)
 
 ---
 
-## P1 (ftrial_i = 0, but handled separately) - Image with Audio
+## Pre-Experiment Pages
 
+### Parent Consent Page
+- **Type**: Consent form
+- **Content**: Parent/guardian consent form for child participation
+- **Interaction**: Requires consent checkbox and submission
+
+### Parent Instructions Page
+- **Type**: Information page
+- **Content**: Instructions for parents about the experiment
+- **Interaction**: Manual advance
+
+### Child Assent Intro Page
+- **Type**: Introduction page
+- **Content**: Introduction to child participant
+- **Interaction**: Manual advance
+
+### Child Assent Page
+- **Type**: Assent form
+- **Content**: Child assent form
+- **Interaction**: Requires assent and submission
+
+### Final Words to Parents Page
+- **Type**: Information page
+- **Content**: Final instructions for parents
+- **Interaction**: Auto-advances to backstory phase
+
+---
+
+## Training Pages (P1-P7)
+
+### P1 - Image with Audio
 **Type**: Image + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -38,8 +57,7 @@
 
 ---
 
-## P2 (ftrial_i = 0, but handled separately) - Image with Audio
-
+### P2 - Image with Audio
 **Type**: Image + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -56,8 +74,7 @@
 
 ---
 
-## P3 (ftrial_i = 0, but handled separately) - Image with Audio
-
+### P3 - Image with Audio
 **Type**: Image + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -74,8 +91,7 @@
 
 ---
 
-## P4 (ftrial_i = 0, but handled separately) - Images with Audio
-
+### P4 - Images with Audio
 **Type**: Images + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -93,8 +109,7 @@
 
 ---
 
-## P5 (ftrial_i = 0, but handled separately) - Image with Audio
-
+### P5 - Image with Audio
 **Type**: Image + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -111,8 +126,7 @@
 
 ---
 
-## P6 (ftrial_i = 0, but handled separately) - Images with Audio
-
+### P6 - Images with Audio
 **Type**: Images + Audio (non-interactive demonstration)
 
 **Audio**: 
@@ -130,17 +144,16 @@
 
 ---
 
-## P7 (ftrial_i = 0, but handled separately) - Timed Images with Audio
-
+### P7 - Timed Images with Audio
 **Type**: Timed Images + Audio (non-interactive demonstration)
 
 **Audio**: 
 - `7_area.mp3`
 
 **Images** (timed sequence):
-- `rule_1.png` centered, 90% size (0-13 seconds)
-- `rule_2.png` centered, 90% size (13-18 seconds)
-- `rule_3.png` centered, 90% size (18 seconds to end)
+- `areaintro_1.png` centered, 90% size (0-9 seconds)
+- `areaintro_2.png` centered, 90% size (9-15 seconds)
+- `areaintro_3.png` centered, 90% size (15 seconds to end)
 
 **Sequence**:
 - Audio plays automatically
@@ -150,8 +163,29 @@
 
 ---
 
-## P8 (ftrial_i = 1) - Canvas Demonstration with Audio
+## Familiarization Trials (P8-P22)
 
+**Note**: P13 does not exist. The sequence goes directly from P12 to P14.
+
+### Page-to-ftrial_i Mapping
+- **ftrial_i = 1**: P8
+- **ftrial_i = 2**: P9
+- **ftrial_i = 3**: P10
+- **ftrial_i = 4**: P11
+- **ftrial_i = 5**: P12
+- **ftrial_i = 6**: P14 (P13 skipped)
+- **ftrial_i = 7**: P15
+- **ftrial_i = 8**: P16
+- **ftrial_i = 9**: P17
+- **ftrial_i = 10**: P18
+- **ftrial_i = 11**: P19
+- **ftrial_i = 12**: P20
+- **ftrial_i = 13**: P21
+- **ftrial_i = 14**: P22
+
+---
+
+### P8 (ftrial_i = 1) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio and image overlay
 
 **Audio**: 
@@ -163,7 +197,7 @@
 - Border: 20px with barrier texture
 
 **Images**:
-- `elmo.png` on left middle of canvas, 25% size (positioned to left of canvas with 20px gap)
+- `elmo.png` on left middle of canvas, 10% size (positioned to left of canvas with 20px gap)
 
 **Sequence**:
 - Audio and canvas animation start simultaneously
@@ -174,8 +208,7 @@
 
 ---
 
-## P9 (ftrial_i = 2) - Canvas Demonstration with Audio
-
+### P9 (ftrial_i = 2) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio and image overlay
 
 **Audio**: 
@@ -198,8 +231,7 @@
 
 ---
 
-## P10 (ftrial_i = 3) - Canvas Demonstration with Audio
-
+### P10 (ftrial_i = 3) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio and image overlay
 
 **Audio**: 
@@ -222,8 +254,7 @@
 
 ---
 
-## P11 (ftrial_i = 4) - Demonstration Page with Video Sequence
-
+### P11 (ftrial_i = 4) - Demonstration Page with Video Sequence
 **Type**: Non-interactive demonstration with video overlays
 
 **Audio**:
@@ -255,8 +286,7 @@
 
 ---
 
-## P12 (ftrial_i = 5) - Canvas Demonstration with Audio
-
+### P12 (ftrial_i = 5) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio
 
 **Audio**: 
@@ -276,16 +306,7 @@
 
 ---
 
-## P13 (ftrial_i = 6) - [Page Details To Be Added]
-
-**Type**: [To be determined]
-
-**Note**: P13 component details need to be added. This page comes after P12 and before P14.
-
----
-
-## P14 (ftrial_i = 7) - Interactive Practice Trial
-
+### P14 (ftrial_i = 6) - Interactive Practice Trial
 **Type**: Interactive canvas page (practice trial with key recording)
 
 **Canvas**: 
@@ -311,8 +332,7 @@
 
 ---
 
-## P15 (ftrial_i = 8) - Interactive Practice Trial
-
+### P15 (ftrial_i = 7) - Interactive Practice Trial
 **Type**: Interactive canvas page (practice trial with key recording)
 
 **Canvas**: 
@@ -338,8 +358,7 @@
 
 ---
 
-## P16 (ftrial_i = 9) - Interactive Practice Trial (Swapped Keys)
-
+### P16 (ftrial_i = 8) - Interactive Practice Trial (Swapped Keys)
 **Type**: Interactive canvas page (practice trial with key recording, keys swapped)
 
 **Canvas**: 
@@ -365,8 +384,7 @@
 
 ---
 
-## P17 (ftrial_i = 10) - Interactive Practice Trial (Swapped Keys)
-
+### P17 (ftrial_i = 9) - Interactive Practice Trial (Swapped Keys)
 **Type**: Interactive canvas page (practice trial with key recording, keys swapped)
 
 **Canvas**: 
@@ -392,8 +410,7 @@
 
 ---
 
-## P18 (ftrial_i = 11) - Canvas Demonstration with Audio
-
+### P18 (ftrial_i = 10) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio
 
 **Audio**: 
@@ -413,8 +430,7 @@
 
 ---
 
-## P19 (ftrial_i = 12) - Interactive Practice Trial (Swapped Keys)
-
+### P19 (ftrial_i = 11) - Interactive Practice Trial (Swapped Keys)
 **Type**: Interactive canvas page (practice trial with key recording, keys swapped)
 
 **Canvas**: 
@@ -440,8 +456,7 @@
 
 ---
 
-## P20 (ftrial_i = 13) - Interactive Practice Trial (Swapped Keys)
-
+### P20 (ftrial_i = 12) - Interactive Practice Trial (Swapped Keys)
 **Type**: Interactive canvas page (practice trial with key recording, keys swapped)
 
 **Canvas**: 
@@ -467,8 +482,7 @@
 
 ---
 
-## P21 (ftrial_i = 14) - Canvas Demonstration with Audio
-
+### P21 (ftrial_i = 13) - Canvas Demonstration with Audio
 **Type**: Non-interactive canvas demonstration with audio
 
 **Audio**: 
@@ -488,34 +502,73 @@
 
 ---
 
-## P22 (ftrial_i = 15) - Video with Audio and Video Overlays
-
+### P22 (ftrial_i = 14) - Video with Audio and Video Overlays
 **Type**: Non-interactive video demonstration with audio and video overlays
 
 **Audio**: 
-- `19_final_reminder.mp3` (starts immediately)
+- `19_final_reminder_corrected.mp3` (starts immediately)
 
 **Main Video**: 
 - `final_reminder.mp4` (appears immediately, starts playing at 22 seconds into audio)
 
 **Videos** (visual only, muted, centered overlay, 70% size):
-- `Fkey_short.mp4` plays 47 seconds into `19_final_reminder.mp3`
-- `Jkey_short.mp4` plays 52 seconds into `19_final_reminder.mp3`
+- `Fkey_short.mp4` plays 47 seconds into `19_final_reminder_corrected.mp3`
+- `Jkey_short.mp4` plays 52 seconds into `19_final_reminder_corrected.mp3`
 
 **Sequence**:
-- `19_final_reminder.mp3` starts immediately
+- `19_final_reminder_corrected.mp3` starts immediately
 - `final_reminder.mp4` appears immediately but starts playing at 22 seconds into audio
-- 47 seconds into `19_final_reminder.mp3`, `Fkey_short.mp4` plays (centered overlay)
-- 52 seconds into `19_final_reminder.mp3`, `Jkey_short.mp4` plays (centered overlay)
-- Auto-advances when `19_final_reminder.mp3` finishes
+- 47 seconds into `19_final_reminder_corrected.mp3`, `Fkey_short.mp4` plays (centered overlay)
+- 52 seconds into `19_final_reminder_corrected.mp3`, `Jkey_short.mp4` plays (centered overlay)
+- Auto-advances when `19_final_reminder_corrected.mp3` finishes
 
 **Setup**: Main video displayed, overlay videos centered and muted
 
 ---
 
+## Experimental Trials
+
+**Type**: Interactive canvas trials (data collection)
+
+**Characteristics**:
+- Trial data loaded from randomized trial folders
+- Canvas size: 600x600px
+- Border: 20px with barrier texture
+- Key recording: Frame-by-frame recording of F and J key presses
+- Scoring: Calculated based on correct/incorrect responses against ground truth
+- Order: Randomized per participant profile
+
+**Interaction**:
+- Spacebar to start
+- F key for red sensor, J key for green sensor (or swapped based on trial)
+- Key states recorded during playback
+- Score displayed after completion
+- Auto-advances after score display
+
+---
+
+## Post-Experiment Pages
+
+### Finish Page
+- **Type**: Results page
+- **Content**: Displays average score from experimental trials
+- **Interaction**: Manual advance
+
+### Thank You Page
+- **Type**: Completion page
+- **Content**: Thank you message
+- **Interaction**: Final page
+
+### Timeout Page
+- **Type**: Error page
+- **Content**: Message indicating session timeout
+- **Interaction**: Display only
+
+---
+
 ## General Setup Notes
 
-**Canvas Configuration** (for all canvas pages):
+### Canvas Configuration (for all canvas pages):
 - Size: 600x600 pixels
 - Border: 20px thickness with barrier texture
 - Textures enabled:
@@ -526,17 +579,24 @@
   - Occluder texture: `/cloud.jpg`
 - Ball rotation: 180 degrees per second
 
-**Key Mapping**:
+### Key Mapping:
 - **Normal mode**: F = Red, J = Green
 - **Swapped mode** (P16, P17, P19, P20): F = Green, J = Red
 
-**Auto-advance Behavior**:
+### Auto-advance Behavior:
 - Most pages auto-advance after audio/video completion
 - Practice pages (P14-P15, P16-P17, P19-P20) show congratulations before advancing
 - 500ms delay before auto-advance for smooth transitions
 
-**Note**: P13 details are to be added. The page sequence now includes P13 between P12 and P14.
-
-**Skip Shortcut**: 
+### Debug Shortcuts:
 - Press `Shift+S` or `Q` to skip to next page (for testing/debugging)
 
+---
+
+## Experiment Flow Summary
+
+1. **Pre-Experiment**: Consent and assent pages
+2. **Training Phase**: P1-P7 (introduction and instructions)
+3. **Familiarization Phase**: P8-P22 (demonstrations and practice)
+4. **Experimental Phase**: Randomized trials (data collection)
+5. **Post-Experiment**: Results and thank you pages

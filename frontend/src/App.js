@@ -813,8 +813,13 @@ const renderCurrentPage = () => {
       }
   
       if (data.fam_to_exp_page) {
+        // Skip transition page and automatically fetch next scene (first experimental trial)
         setFinished(false); // to disable spacebar pressing
-        setIsTransitionPage(true);
+        setIsTransitionPage(false);
+        // Automatically fetch the next scene (first experimental trial) without showing transition page
+        setTimeout(() => {
+          fetchNextScene(setdisableCountdownTrigger);
+        }, 100); // Small delay to ensure state is updated
         return;
       }
 

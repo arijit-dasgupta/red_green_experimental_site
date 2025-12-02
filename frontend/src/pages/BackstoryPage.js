@@ -2,17 +2,128 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 
 /**
+ * Build complete timeline with all media/content information for each page
+ */
+const buildCompleteTimeline = (backendData, backstoryPages) => {
+    const timeline = [];
+    
+    // Training Pages (P1-P7)
+    for (let i = 1; i <= 7; i++) {
+        const pageSpec = backstoryPages[i];
+        const pageInfo = {
+            page: `P${i}`,
+            ftrial_i: 0,
+            phase: "training",
+            type: pageSpec.timedImages ? "timed_images_audio" : "image_audio",
+            audio: pageSpec.audio || null,
+            images: pageSpec.images || (pageSpec.image ? [pageSpec.image] : []),
+            timedImages: pageSpec.timedImagesConfig || null,
+            trialData: null,
+            videos: null,
+            isInteractive: false,
+        };
+        timeline.push(pageInfo);
+    }
+    
+    // Familiarization Trials (P8-P22) - Map ftrial_i to pages
+    // ftrial_i mapping: 1=P8, 2=P9, 3=P10, 4=P11, 5=P12, 6=P14, 7=P15, 8=P16, 9=P17, 10=P18, 11=P19, 12=P20, 13=P21, 14=P22
+    const ftrialToPage = {
+        1: { page: "P8", audio: "/audios/8_ball_intro.mp3", trialData: "T_ball_still", images: [{ src: "/images/elmo.png", position: "left_middle_canvas", size: "10%" }], type: "canvas_demonstration" },
+        2: { page: "P9", audio: "/audios/9_ball_movement.mp3", trialData: "T_ball_move", images: [{ src: "/images/elmo.png", position: "left_middle_canvas", size: "25%" }], type: "canvas_demonstration" },
+        3: { page: "P10", audio: "/audios/10_barrier.mp3", trialData: "T_barrier2complex", images: [{ src: "/images/elmo.png", position: "left_middle_canvas", size: "25%" }], type: "canvas_demonstration" },
+        4: { page: "P11", audio: ["/audios/11_red_green.mp3", "/audios/12_F_J.mp3"], trialData: "T_red_green", images: [
+            { src: "/images/elmo.png", position: "left_middle_canvas", size: "25%" },
+            { src: "/images/kermit.png", position: "right_top", size: "20%" },
+            { src: "/images/cookiemonster.png", position: "right_bottom", size: "20%" }
+        ], videos: ["/videos/Fkey_short.mp4", "/videos/Jkey_short.mp4"], type: "canvas_demonstration" },
+        5: { page: "P12", audio: "/audios/13_press_keys.mp3", trialData: "T_red_green", images: null, type: "canvas_demonstration" },
+        6: { page: "P14", audio: null, trialData: "T_greeneasy", images: null, type: "interactive_practice", keysSwapped: false },
+        7: { page: "P15", audio: null, trialData: "T_redeasy", images: null, type: "interactive_practice", keysSwapped: false },
+        8: { page: "P16", audio: null, trialData: "T_greenmid", images: null, type: "interactive_practice", keysSwapped: true },
+        9: { page: "P17", audio: null, trialData: "T_redmid", images: null, type: "interactive_practice", keysSwapped: true },
+        10: { page: "P18", audio: "/audios/14_switchkeys_onekey.mp3", trialData: "T_blank", images: null, type: "canvas_demonstration" },
+        11: { page: "P19", audio: null, trialData: "T_switch_keys_easy", images: null, type: "interactive_practice", keysSwapped: true },
+        12: { page: "P20", audio: null, trialData: "T_switch_keys_hard", images: null, type: "interactive_practice", keysSwapped: true },
+        13: { page: "P21", audio: "/audios/18_occluder_trimmed.mp3", trialData: "T_occluder_intro", images: null, type: "canvas_demonstration" },
+        14: { page: "P22", audio: "/audios/19_final_reminder_corrected.mp3", trialData: null, images: null, videos: ["/videos/final_reminder.mp4", "/videos/Fkey_short.mp4", "/videos/Jkey_short.mp4"], type: "video_demonstration" },
+    };
+    
+    // Add familiarization trials in order from backend (only first 14, ftrial_i 1-14, P8-P22)
+    if (backendData.f_trial_order && backendData.f_trial_order.length > 0) {
+        // Only process the first 14 familiarization trials (ftrial_i 1-14, corresponding to P8-P22)
+        const maxFamiliarizationTrials = 14;
+        const familiarizationTrialsToProcess = backendData.f_trial_order.slice(0, maxFamiliarizationTrials);
+        
+        familiarizationTrialsToProcess.forEach((trialFolderName, idx) => {
+            const ftrial_i = idx + 1;
+            const pageMapping = ftrialToPage[ftrial_i];
+            
+            if (pageMapping) {
+                // For P22 (ftrial_i = 14), trialData and trialFolderName should be null (it's a video page, not canvas)
+                const isP22 = ftrial_i === 14;
+                
+                timeline.push({
+                    page: pageMapping.page,
+                    ftrial_i: ftrial_i,
+                    phase: "familiarization",
+                    type: pageMapping.type,
+                    audio: pageMapping.audio || null,
+                    images: pageMapping.images || null,
+                    videos: pageMapping.videos || null,
+                    trialData: isP22 ? null : (pageMapping.trialData !== null && pageMapping.trialData !== undefined ? pageMapping.trialData : trialFolderName),
+                    trialFolderName: isP22 ? null : trialFolderName,
+                    isInteractive: pageMapping.type === "interactive_practice",
+                    keysSwapped: pageMapping.keysSwapped || false,
+                });
+            }
+            // No fallback - if pageMapping doesn't exist for ftrial_i 1-14, something is wrong
+        });
+    }
+    
+    // Experimental Trials
+    if (backendData.randomized_trial_order && backendData.randomized_trial_order.length > 0) {
+        backendData.randomized_trial_order.forEach((trialFolderName, idx) => {
+            timeline.push({
+                page: null,
+                ftrial_i: null,
+                trial_i: idx,
+                phase: "experimental",
+                type: "interactive_trial",
+                audio: null,
+                images: null,
+                videos: null,
+                trialData: trialFolderName,
+                trialFolderName: trialFolderName,
+                isInteractive: true,
+            });
+        });
+    }
+    
+    return {
+        summary: {
+            total_items: timeline.length,
+            training_pages: 7,
+            familiarization_trials: backendData.num_ftrials || 0,
+            experimental_trials: backendData.num_trials || 0,
+        },
+        timeline: timeline,
+    };
+};
+
+/**
  * BackstoryPage component for presenting story content (p1-p7) before familiarization
  * Each page shows images with audio narration
  */
 const BackstoryPage = () => {
     const { navigate } = useNavigation();
     const audioRef = useRef(null);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState(1); // 1-7 = training pages (P1-P7)
     const [audioPlayed, setAudioPlayed] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced for current page
+    const [timelineData, setTimelineData] = useState(null);
+    const [experimentStarted, setExperimentStarted] = useState(false);
 
     // Backstory page specifications (p1-p7) - Using the enhanced content that was working
     const backstoryPages = {
@@ -58,18 +169,86 @@ const BackstoryPage = () => {
         },
     };
 
+    // Start experiment session when component mounts (before showing timeline)
+    useEffect(() => {
+        if (!experimentStarted) {
+            const startExperimentSession = async () => {
+                try {
+                    const prolific_pid = sessionStorage.getItem("prolific_pid");
+                    const study_id = sessionStorage.getItem("study_id");
+                    const prolific_session_id = sessionStorage.getItem("prolific_session_id");
+                    
+                    console.log("BackstoryPage: Starting experiment session to get timeline");
+
+                    const timestamp = Date.now();
+                    const random = Math.random().toString(36).substring(2, 9);
+                    const testPid = prolific_pid || `test_${timestamp}_${random}`;
+                    const testStudyId = study_id || 'test_study';
+                    const testSessionId = prolific_session_id || `test_session_${timestamp}_${random}`;
+
+                    const response = await fetch(
+                        `/start_experiment/redgreen?PROLIFIC_PID=${testPid}&STUDY_ID=${testStudyId}&SESSION_ID=${testSessionId}`,
+                        { method: "POST", 
+                            headers: { 
+                                'ngrok-skip-browser-warning': 'true',
+                                'User-Agent': 'React-Experiment-App',
+                             } 
+                        }
+                    );
+                    
+                    if (!response.ok) {
+                        console.error("Error starting experiment session");
+                        return;
+                    }
+
+                    const data = await response.json();
+                    sessionStorage.setItem("sessionId", data.session_id);
+                    sessionStorage.setItem("startTimeUtc", data.start_time_utc);
+                    sessionStorage.setItem("timeoutPeriod", data.timeout_period_seconds);
+                    sessionStorage.setItem("checkTimeoutInterval", data.check_timeout_interval_seconds);
+
+                    setTimelineData({
+                        full_timeline: data.full_timeline || [],
+                        f_trial_order: data.f_trial_order || [],
+                        randomized_trial_order: data.randomized_trial_order || [],
+                        num_ftrials: data.num_ftrials || 0,
+                        num_trials: data.num_trials || 0,
+                    });
+
+                    setExperimentStarted(true);
+                } catch (error) {
+                    console.error("Error starting experiment session:", error);
+                }
+            };
+            
+            startExperimentSession();
+        }
+    }, [experimentStarted]);
+
     const currentPageSpec = backstoryPages[currentPage];
 
-    // Reset audio state when page changes
+    // Print timeline JSON when P1 loads (currentPage === 1)
     useEffect(() => {
-        console.log("BackstoryPage: Page changed to", currentPage);
-        setAudioPlayed(false);
-        setAudioFinished(false);
-        setCurrentImageIndex(0);
-        hasAutoAdvancedRef.current = false; // Reset auto-advance flag when page changes
-        if (audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.pause();
+        if (currentPage === 1 && timelineData && experimentStarted) {
+            const completeTimeline = buildCompleteTimeline(timelineData, backstoryPages);
+            console.log("=== COMPLETE EXPERIMENT TIMELINE (JSON) ===");
+            console.log(JSON.stringify(completeTimeline, null, 2));
+            console.log("============================================");
+        }
+    }, [currentPage, timelineData, experimentStarted]);
+
+    // Reset audio state when page changes (only for training pages)
+    useEffect(() => {
+        if (currentPage > 0) {
+            console.log("BackstoryPage: Page changed to", currentPage);
+            setAudioPlayed(false);
+            setAudioFinished(false);
+            setCurrentImageIndex(0);
+            hasAutoAdvancedRef.current = false; // Reset auto-advance flag when page changes
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.pause();
+            }
         }
     }, [currentPage]);
 
@@ -87,87 +266,18 @@ const BackstoryPage = () => {
 
     // Define handleNext before using it in useEffect
     const handleNext = React.useCallback(async () => {
-        if (currentPage < 7) {
+        if (currentPage === 0) {
+            // From timeline page, go to first training page
+            console.log("BackstoryPage: Moving from timeline to P1");
+            setCurrentPage(1);
+        } else if (currentPage < 7) {
+            // Between training pages
             console.log("BackstoryPage: Moving to next page", currentPage + 1);
             setCurrentPage(currentPage + 1);
         } else {
-            console.log("BackstoryPage: Backstory complete, starting experiment session");
-            // After p7, we need to start the experiment session and go to experiment phase
-            try {
-                const prolific_pid = sessionStorage.getItem("prolific_pid");
-                const study_id = sessionStorage.getItem("study_id");
-                const prolific_session_id = sessionStorage.getItem("prolific_session_id");
-                
-                console.log("BackstoryPage: Prolific parameters:", {
-                    prolific_pid,
-                    study_id,
-                    prolific_session_id
-                });
-
-                // Use test values if Prolific parameters are missing (for development/testing)
-                // Generate unique IDs to avoid duplicate_pid errors
-                const timestamp = Date.now();
-                const random = Math.random().toString(36).substring(2, 9);
-                const testPid = prolific_pid || `test_${timestamp}_${random}`;
-                const testStudyId = study_id || 'test_study';
-                const testSessionId = prolific_session_id || `test_session_${timestamp}_${random}`;
-
-                console.log("BackstoryPage: Using parameters:", {
-                    testPid,
-                    testStudyId,
-                    testSessionId
-                });
-
-                const response = await fetch(
-                    `/start_experiment/redgreen?PROLIFIC_PID=${testPid}&STUDY_ID=${testStudyId}&SESSION_ID=${testSessionId}`,
-                    { method: "POST", 
-                        headers: { 
-                            'ngrok-skip-browser-warning': 'true',
-                            'User-Agent': 'React-Experiment-App',
-                         } 
-                    }
-                );
-                
-                if (!response.ok) {
-                    let errorData;
-                    const contentType = response.headers.get("content-type");
-                    try {
-                        if (contentType && contentType.includes("application/json")) {
-                            errorData = await response.json();
-                        } else {
-                            const text = await response.text();
-                            console.error("Error starting experiment - Non-JSON response:", text.substring(0, 200));
-                            errorData = { message: `Server error (${response.status}): ${text.substring(0, 100)}` };
-                        }
-                    } catch (parseError) {
-                        console.error("Error parsing error response:", parseError);
-                        errorData = { message: `Server error (${response.status}): Unable to parse response` };
-                    }
-                    console.error("Error starting experiment - Status:", response.status);
-                    console.error("Error starting experiment - Data:", errorData);
-                    console.error("Error starting experiment - Message:", errorData.message || 'No message');
-                    return;
-                }
-
-                let data;
-                try {
-                    data = await response.json();
-                } catch (parseError) {
-                    console.error("Error parsing success response:", parseError);
-                    const text = await response.text();
-                    console.error("Response text:", text.substring(0, 200));
-                    throw new Error("Failed to parse server response as JSON");
-                }
-                sessionStorage.setItem("sessionId", data.session_id);
-                sessionStorage.setItem("startTimeUtc", data.start_time_utc);
-                sessionStorage.setItem("timeoutPeriod", data.timeout_period_seconds);
-                sessionStorage.setItem("checkTimeoutInterval", data.check_timeout_interval_seconds);
-
-                console.log("BackstoryPage: Experiment session started, navigating to experiment");
-                navigate('experiment');
-            } catch (error) {
-                console.error("Error starting experiment:", error);
-            }
+            // After p7, navigate to experiment phase
+            console.log("BackstoryPage: Backstory complete, navigating to experiment");
+            navigate('experiment');
         }
     }, [currentPage, navigate]);
 
@@ -246,6 +356,7 @@ const BackstoryPage = () => {
         };
     }, [handleNext]);
 
+
     if (!currentPageSpec) {
         return <div>Page {currentPage} not found</div>;
     }
@@ -305,7 +416,7 @@ const BackstoryPage = () => {
                 color: "#333",
                 zIndex: 10,
             }}>
-                Backstory {currentPage}/7
+                Training Page {currentPage}/7
             </div>
 
             {/* Images */}

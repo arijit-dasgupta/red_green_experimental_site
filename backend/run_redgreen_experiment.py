@@ -267,10 +267,11 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         randomized_profile_id: Unique ID determining this participant's trial assignment
     
     Returns:
-        tuple: (f_paths, e_paths, randomized_trial_order)
+        tuple: (f_paths, e_paths, randomized_trial_order, f_trial_order)
             - f_paths: List of file paths for familiarization trials (F1, F2, F3, etc.)
             - e_paths: List of file paths for experimental trials in randomized order
-            - randomized_trial_order: List of trial folder names in the order they'll be presented
+            - randomized_trial_order: List of experimental trial folder names in the order they'll be presented
+            - f_trial_order: List of familiarization trial folder names in order
     
     The function ensures proper randomization while maintaining experimental constraints:
     - All participants get the same familiarization trials in order
@@ -292,6 +293,10 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         ]
         participants_f_assignments.sort()  # F1, F2, Q1 etc. in order if multiple prefixes
         
+        # Limit familiarization trials to first 14 (ftrial_i 1-14, corresponding to P8-P22)
+        MAX_FAMILIARIZATION_TRIALS = 14
+        participants_f_assignments = participants_f_assignments[:MAX_FAMILIARIZATION_TRIALS]
+        
         e_folders = [
             entry for entry in entries 
             if any(entry.startswith(prefix) for prefix in EXP_TRIAL_PREFIXES)
@@ -307,11 +312,11 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
                   for entry in e_folders_shuffled]
         
-        return f_paths, e_paths, e_folders_shuffled
+        return f_paths, e_paths, e_folders_shuffled, participants_f_assignments
 
     except (FileNotFoundError, PermissionError) as e:
         print(f"Error accessing {absolute_directory_path}: {e}")
-        return [], [], []
+        return [], [], [], []
 
 #=============================================================================
 # EXPERIMENT CONFIGURATION LOADING
@@ -343,14 +348,14 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         randomized_profile_id: Participant's unique profile ID for trial assignment
         
     Returns:
-        tuple: (config_dict, randomized_trial_order) or (None, None) if experiment not found
+        tuple: (config_dict, randomized_trial_order, f_trial_order) or (None, None, None) if experiment not found
     """
     config = EXPERIMENTS.get(experiment_name)
     if not config:
-        return None, None
+        return None, None, None
 
     major_path = config["major_path"]
-    ftrial_paths, trial_paths, randomized_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
+    ftrial_paths, trial_paths, randomized_trial_order, f_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
 
     def parse_json(file_path):
         """
@@ -413,7 +418,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     config["num_ftrials"] = len(config["ftrial_datas"])
     config["num_trials"] = len(config["trial_datas"])
 
-    return config, randomized_trial_order
+    return config, randomized_trial_order, f_trial_order
 
 #=============================================================================
 # API ENDPOINTS
@@ -485,7 +490,7 @@ def start_experiment(experiment_name):
         }), 403
     
     # Load experiment configuration for this participant's profile
-    config, randomized_trial_order = load_experiment_config(experiment_name, randomized_profile_id)
+    config, randomized_trial_order, f_trial_order = load_experiment_config(experiment_name, randomized_profile_id)
     if not config:
         return jsonify({"error": f"Experiment '{experiment_name}' not found"}), 404
     
@@ -555,6 +560,18 @@ def start_experiment(experiment_name):
     print(f"Timed Out Sessions (while live in experiment): {marked_timed_out_count}")
     print(f"=========================")
 
+    # Build full timeline: training pages + familiarization trials + experimental trials
+    training_pages = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+    full_timeline = training_pages + (f_trial_order if f_trial_order else []) + (randomized_trial_order if randomized_trial_order else [])
+    
+    # Print full timeline to server console
+    print(f"=== FULL TIMELINE ===")
+    print(f"Training Pages: {training_pages}")
+    print(f"Familiarization Trials: {f_trial_order if f_trial_order else []}")
+    print(f"Experimental Trials: {randomized_trial_order if randomized_trial_order else []}")
+    print(f"Full Timeline: {full_timeline}")
+    print(f"=====================")
+
     # Return session details to frontend
     return jsonify({
         "session_id": new_session.id,
@@ -564,6 +581,9 @@ def start_experiment(experiment_name):
         "timeout_period_seconds": TIMEOUT_PERIOD.total_seconds(),
         "check_timeout_interval_seconds": check_TIMEOUT_interval.total_seconds(),
         "start_time_utc": new_session.start_time.isoformat(),
+        "randomized_trial_order": randomized_trial_order,  # Experimental trials only
+        "f_trial_order": f_trial_order,  # Familiarization trials only
+        "full_timeline": full_timeline,  # Complete timeline: training + familiarization + experimental
     }), 200
 
 @app.route("/load_next_scene", methods=["POST"])
