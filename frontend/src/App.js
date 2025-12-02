@@ -250,7 +250,7 @@ const App = () => {
               ctx.restore();
           });
 
-          // Draw sensors with texture
+          // Draw sensors with texture and highlight when keys are pressed
           if (red_sensor) {
               const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
               const scaledX = x * scale;
@@ -258,7 +258,33 @@ const App = () => {
               const scaledWidth = width * scale;
               const scaledHeight = height * scale;
               
+              // Use keyStatesRef to avoid dependency on keyStates state
+              const currentKeyStates = keyStatesRef.current;
+              
+              // Key mapping: J key = red sensor (regardless of counterbalance)
+              // Counterbalance only swaps which sensor is shown in which position, not the key mapping
+              // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed (J key = red sensor)
+              if (currentKeyStates.j && !currentKeyStates.f && isCurrentlyPlaying) {
+                  ctx.save();
+                  const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
+                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
+                  const glowSize = 8 * pulseIntensity; // Pulsing glow size
+                  
+                  // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                  ctx.shadowBlur = 20 * pulseIntensity;
+                  ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
+                  ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                  ctx.lineWidth = 4 * pulseIntensity;
+                  ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
+                  ctx.restore();
+              }
+              
+              // Draw sensor ON TOP of glow
               ctx.save();
+              // Ensure no shadow effects on sensor
+              ctx.shadowBlur = 0;
+              ctx.shadowColor = "transparent";
+              
               // Check if texture path is provided and texture is loaded
               if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
                   redSensorTextureRef.current && redSensorTextureRef.current.complete) {
@@ -282,7 +308,33 @@ const App = () => {
               const scaledWidth = width * scale;
               const scaledHeight = height * scale;
               
+              // Use keyStatesRef to avoid dependency on keyStates state
+              const currentKeyStates = keyStatesRef.current;
+              
+              // Key mapping: F key = green sensor (regardless of counterbalance)
+              // Counterbalance only swaps which sensor is shown in which position, not the key mapping
+              // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
+              if (currentKeyStates.f && !currentKeyStates.j && isCurrentlyPlaying) {
+                  ctx.save();
+                  const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
+                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
+                  const glowSize = 8 * pulseIntensity; // Pulsing glow size
+                  
+                  // Draw glowing border beneath sensor with dark green color (RGB: 0, 102, 0 - dark green)
+                  ctx.shadowBlur = 20 * pulseIntensity;
+                  ctx.shadowColor = "rgba(0, 102, 0, 0.8)"; // Dark green with alpha
+                  ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`; // Dark green with varying alpha
+                  ctx.lineWidth = 4 * pulseIntensity;
+                  ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
+                  ctx.restore();
+              }
+              
+              // Draw sensor ON TOP of glow
               ctx.save();
+              // Ensure no shadow effects on sensor
+              ctx.shadowBlur = 0;
+              ctx.shadowColor = "transparent";
+              
               // Check if texture path is provided and texture is loaded
               if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
                   greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {

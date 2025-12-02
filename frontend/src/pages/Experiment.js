@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import TransitionPage from './Transition';
 import { config } from '../config';
 import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
@@ -847,6 +846,8 @@ const ExperimentPage = ({
                         const baseSize = 400;
                         const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
                         const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                        const size = `${Math.max(canvasSize.width * 0.12 * scaleFactor, 60)}px`;
+                        
                         return (
                             <div style={{
                                 display: "flex",
@@ -855,9 +856,99 @@ const ExperimentPage = ({
                                 alignItems: "center",
                                 width: "100%",
                             }}>
-                                {renderKeyState("f", redSensorTextureRef, keyStates, canvasSize)}
-                                {renderKeyState("j", greenSensorTextureRef, keyStates, canvasSize)}
-                                {renderEmptyKeyState(keyStates, canvasSize)}
+                                {/* Show kermit.png when F key is pressed (for green sensor) */}
+                                {keyStates.f && !keyStates.j && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                overflow: "hidden",
+                                                animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                border: "2px solid rgba(255, 255, 255, 0.8)",
+                                                backgroundColor: "#f0f0f0",
+                                                position: "relative",
+                                            }}
+                                        >
+                                            <img
+                                                src="/images/kermit.png"
+                                                alt="Kermit"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: "contain",
+                                                    display: "block",
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                                {keyStates.j && !keyStates.f && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                overflow: "hidden",
+                                                animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                border: "2px solid rgba(255, 255, 255, 0.8)",
+                                                backgroundColor: "#f0f0f0",
+                                                position: "relative",
+                                            }}
+                                        >
+                                            <img
+                                                src="/images/cookiemonster.png"
+                                                alt="Cookie Monster"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: "contain",
+                                                    display: "block",
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Empty placeholder when both or neither keys are pressed */}
+                                {((keyStates.f && keyStates.j) || (!keyStates.f && !keyStates.j)) && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.1)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                backgroundColor: "#e0e0e0",
+                                                border: "2px dashed #999",
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}
