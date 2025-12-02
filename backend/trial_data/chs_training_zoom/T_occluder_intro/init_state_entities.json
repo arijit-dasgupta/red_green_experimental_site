@@ -74,8 +74,8 @@
     }
   ],
   "simulationParams": {
-    "videoLength": 70,
-    "ballSpeed": 3,
+    "videoLength": 25,
+    "ballSpeed": 3.6,
     "fps": 30,
     "worldWidth": 20,
     "worldHeight": 20

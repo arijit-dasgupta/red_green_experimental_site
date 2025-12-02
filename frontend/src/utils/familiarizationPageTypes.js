@@ -82,11 +82,11 @@ export const FAMILIARIZATION_PAGE_SPECS = {
   },
   p7: {
     type: 'timed_images_audio',
-    audio: '/audios/11_rules.mp3',
+    audio: '/audios/7_area.mp3',
     timedImages: [
-      { src: '/images/rule_1.png', startTime: 0, endTime: 13, position: 'center', size: '90%' },
-      { src: '/images/rule_2.png', startTime: 13, endTime: 18, position: 'center', size: '90%' },
-      { src: '/images/rule_3.png', startTime: 18, endTime: null, position: 'center', size: '90%' }, // null means until end
+      { src: '/images/areaintro_1.png', startTime: 0, endTime: 9, position: 'center', size: '90%' },
+      { src: '/images/areaintro_2.png', startTime: 9, endTime: 15, position: 'center', size: '90%' },
+      { src: '/images/areaintro_3.png', startTime: 15, endTime: null, position: 'center', size: '90%' }, // null means until end
     ],
   },
   p8: {

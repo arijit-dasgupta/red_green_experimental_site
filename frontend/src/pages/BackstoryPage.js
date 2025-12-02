@@ -49,12 +49,12 @@ const BackstoryPage = () => {
         7: {
             timedImages: true, // Flag to indicate this page uses timed images
             timedImagesConfig: [
-                { src: '/images/rule_1.png', startTime: 0, endTime: 13, position: 'center', size: '90%' },
-                { src: '/images/rule_2.png', startTime: 13, endTime: 18, position: 'center', size: '90%' },
-                { src: '/images/rule_3.png', startTime: 18, endTime: null, position: 'center', size: '90%' },
+                { src: '/images/areaintro_1.png', startTime: 0, endTime: 9, position: 'center', size: '90%' },
+                { src: '/images/areaintro_2.png', startTime: 9, endTime: 15, position: 'center', size: '90%' },
+                { src: '/images/areaintro_3.png', startTime: 15, endTime: null, position: 'center', size: '90%' },
             ],
-            images: [{ src: '/images/rule_1.png', position: 'center', size: '90%' }], // Default/initial image
-            audio: '/audios/11_rules.mp3',
+            images: [{ src: '/images/areaintro_1.png', position: 'center', size: '90%' }], // Default/initial image
+            audio: '/audios/7_area.mp3',
         },
     };
 

@@ -2,16 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 
 /**
  * Dedicated component for p22: Video with audio and video overlays
- * - Audio: 19_final_reminder.mp3 (starts immediately)
+ * - Audio: 19_final_reminder_corrected.mp3 (starts immediately)
  * - Main video: final_reminder.mp4 (appears immediately, starts playing at 22 seconds into audio)
  * - Videos (visual only, muted, centered overlay, 70% size):
- *   - Fkey_short.mp4 plays 47 seconds into 19_final_reminder.mp3
- *   - Jkey_short.mp4 plays 52 seconds into 19_final_reminder.mp3
- * - Auto-advance when 19_final_reminder.mp3 finishes
+ *   - Fkey_short.mp4 plays 47 seconds into 19_final_reminder_corrected.mp3
+ *   - Jkey_short.mp4 plays 52 seconds into 19_final_reminder_corrected.mp3
+ * - Auto-advance when 19_final_reminder_corrected.mp3 finishes
  */
 const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P22CanvasPage: Component mounted/rendered");
-    const audioRef = useRef(null); // Audio: 19_final_reminder.mp3
+    const audioRef = useRef(null); // Audio: 19_final_reminder_corrected.mp3
     const mainVideoRef = useRef(null); // Main video: final_reminder.mp4
     const fkeyVideoRef = useRef(null); // Fkey_short.mp4 video
     const jkeyVideoRef = useRef(null); // Jkey_short.mp4 video
@@ -124,7 +124,7 @@ const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
 
         const handleAudioEnd = () => {
-            console.log('🏁 P22CanvasPage: Audio (19_final_reminder.mp3) ended at', new Date().toISOString());
+            console.log('🏁 P22CanvasPage: Audio (19_final_reminder_corrected.mp3) ended at', new Date().toISOString());
             if (audioRef.current) {
                 console.log(`⏱️ P22CanvasPage: Audio actual duration: ${audioRef.current.duration.toFixed(2)}s`);
             }
@@ -227,7 +227,7 @@ const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     useEffect(() => {
         if (audioFinished && !hasAutoAdvancedRef.current) {
             // Audio finished, auto-advance after a short delay (only once)
-            console.log("🎬 P22CanvasPage: Audio (19_final_reminder.mp3) finished, auto-advancing to next scene...");
+            console.log("🎬 P22CanvasPage: Audio (19_final_reminder_corrected.mp3) finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
             
             // Clean up any running timers
@@ -278,10 +278,10 @@ const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             padding: "20px",
             position: "relative",
         }}>
-            {/* Audio: 19_final_reminder.mp3 */}
+            {/* Audio: 19_final_reminder_corrected.mp3 */}
             <audio
                 ref={audioRef}
-                src="/audios/19_final_reminder.mp3"
+                src="/audios/19_final_reminder_corrected.mp3"
                 preload="auto"
                 onLoadedData={() => console.log('🔊 P22CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
                 onPlay={() => console.log('▶️ P22CanvasPage: Audio started playing')}
