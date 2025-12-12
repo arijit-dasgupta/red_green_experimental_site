@@ -61,7 +61,7 @@ DEPLOYMENT NOTES:
 
 from flask import send_from_directory, Flask, request, jsonify, has_request_context
 from flask_cors import CORS
-import numpy as np
+import json
 from datetime import datetime, timedelta
 import os
 import copy
@@ -83,8 +83,14 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'pilot_final'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+FAM_TRIAL_PREFIXES = ['F']
+EXP_TRIAL_PREFIXES = ['E']
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+EXPERIMENT_RUN_VERSION = 'ecog_v1'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
 NUM_PARTICIPANTS = 800  # Target number of participants to recruit
@@ -97,6 +103,9 @@ PARTICIPANT_BUFFER = 1500
 # Calculate maximum participants (target + buffer)
 MAX_NUM_PARTICIPANTS = NUM_PARTICIPANTS + PARTICIPANT_BUFFER
 
+# join experiment name and experiment run version to get the experiment name
+EXPERIMENT_NAME = f"{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}"
+
 # Setup paths for React frontend build files
 REACT_BUILD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/build"))
 
@@ -107,7 +116,7 @@ app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
 # Database configuration using SQLite with experiment-specific filename
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{EXPERIMENT_NAME}_redgreen.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'mysecretkey_redgreen_##$563456#$%^')
 app.config['ADMIN_EMAIL'] = 'arijitdg@mit.edu'
@@ -275,20 +284,26 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
-        # Separate familiarization (F) and experimental (E) trial folders
-        participants_f_assignments = [entry for entry in entries if entry.startswith('F')]
-        participants_f_assignments.sort()  # F1, F2, F3, etc. in order
+        # Separate familiarization (F) and experimental (E) trial folders, allowing multiple prefixes each
+        participants_f_assignments = [
+            entry for entry in entries 
+            if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
+        ]
+        participants_f_assignments.sort()  # F1, F2, F3 etc. in order if multiple prefixes
         
-        e_folders = [entry for entry in entries if entry.startswith('E')]
+        e_folders = [
+            entry for entry in entries 
+            if any(entry.startswith(prefix) for prefix in EXP_TRIAL_PREFIXES)
+        ]
 
         # Shuffle e_folders ONCE for all participants
         e_folders_shuffled = e_folders[:]
         random_.shuffle(e_folders_shuffled)
 
         # All participants get the same shuffled order
-        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
+        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
                   for entry in participants_f_assignments]
-        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'data.npz') 
+        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
                   for entry in e_folders_shuffled]
         
         return f_paths, e_paths, e_folders_shuffled
@@ -318,7 +333,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     
     This function:
     1. Gets trial file paths for the participant's assigned profile
-    2. Loads and parses NPZ trial data files 
+    2. Loads and parses JSON trial data files 
     3. Prepares trial data in format expected by frontend
     4. Returns configuration object and randomized trial order
     
@@ -336,11 +351,11 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     major_path = config["major_path"]
     ftrial_paths, trial_paths, randomized_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
 
-    def parse_npz(file_path):
+    def parse_json(file_path):
         """
-        Parse a single NPZ trial data file into frontend-compatible format.
+        Parse a single JSON trial data file into frontend-compatible format.
         
-        NPZ files contain:
+        JSON files contain:
         - barriers: Physical obstacles in the scene
         - occluders: Visual occlusion elements  
         - step_data: Frame-by-frame position data for moving objects
@@ -349,30 +364,43 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         - target: Information about the target object
         - rg_outcome: Ground truth answer ('red' or 'green')
         """
-        data = np.load(file_path, allow_pickle=True)
+        with open(file_path, 'r') as f:
+            data = json.load(f)
+        
+        # Extract world dimensions from scene_dims
+        scene_dims = data.get("scene_dims", [20, 20])
+        world_width = scene_dims[0] if len(scene_dims) > 0 else 20
+        world_height = scene_dims[1] if len(scene_dims) > 1 else 20
+        
         return {
             # Convert barrier/occluder data to list of dicts with rounded coordinates
-            "barriers": [{key: round(value, 2) for key, value in item.items()} 
-                        for item in data.get("barriers", []).tolist()],
-            "occluders": [{key: round(value, 2) for key, value in item.items()} 
-                         for item in data.get("occluders", []).tolist()],
+            "barriers": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                         for key, value in item.items()} 
+                        for item in data.get("barriers", [])],
+            "occluders": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
+                          for key, value in item.items()} 
+                         for item in data.get("occluders", [])],
             # Convert step data to frame-indexed position dictionary
             "step_data": {int(k): {'x': v['x'], 'y': v['y']} 
-                         for k, v in data.get("step_data", {}).item().items()},
+                         for k, v in data.get("step_data", {}).items()},
             # Sensor configuration data
-            "red_sensor": data.get("red_sensor", {}).item(),
-            "green_sensor": data.get("green_sensor", {}).item(),
+            "red_sensor": data.get("red_sensor", {}),
+            "green_sensor": data.get("green_sensor", {}),
             # Animation timing
-            "timestep": round(data.get("timestep", {}).item(), 2),
+            "timestep": round(data.get("timestep", 0), 2),
+            "fps": int(data.get("fps", 30)),  # FPS from simulation JSON
             # Target object radius (from size)
-            "radius": data['target'].item()['size'] / 2,
+            "radius": data.get('target', {}).get('size', 0) / 2,
             # Ground truth outcome for scoring
-            "rg_outcome": data.get("rg_outcome", {}).item(),
+            "rg_outcome": data.get("rg_outcome", ""),
+            # World dimensions
+            "worldWidth": world_width,
+            "worldHeight": world_height,
         }
 
     # Parse all trial data files for this participant
-    config["ftrial_datas"] = [parse_npz(file_path) for file_path in ftrial_paths]
-    config["trial_datas"] = [parse_npz(file_path) for file_path in trial_paths]
+    config["ftrial_datas"] = [parse_json(file_path) for file_path in ftrial_paths]
+    config["trial_datas"] = [parse_json(file_path) for file_path in trial_paths]
     config["num_ftrials"] = len(ftrial_paths)
     config["num_trials"] = len(trial_paths)
 
@@ -722,10 +750,14 @@ def load_next_scene():
 
     # Prepare scene data for frontend
     
+    # Extract world dimensions from the trial data (already parsed from JSON)
+    world_width = npz_data.get("worldWidth", 20)
+    world_height = npz_data.get("worldHeight", 20)
+    
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
-        "worldWidth": 20,
-        "worldHeight": 20,
+        "worldWidth": world_width,
+        "worldHeight": world_height,
         "counterbalance": False if (transition_to_exp_page or finish) else counterbalance,
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,

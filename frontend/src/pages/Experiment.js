@@ -22,7 +22,9 @@ const ExperimentPage = ({
     fetchNextScene,
     canvasRef,
     isStrictMode,
-    onPause
+    onPause,
+    showKeyStateLine,
+    enablePhotodiode
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -55,7 +57,7 @@ const ExperimentPage = ({
         setShowPauseConfirmation(false);
     };
 
-    // Use refs to avoid stale closure issues
+    // Use refs to avoid stale closure issues (same pattern as original ecog-jon branch)
     const stateRef = useRef({});
     stateRef.current = {
         isPlaying,
@@ -68,7 +70,15 @@ const ExperimentPage = ({
     useEffect(() => {
         const handleKeyDown = (e) => {
             // Accept both spacebar and numpad 0 for gamepad compatibility
-            if (e.code === 'Space' || e.key === '0' || e.keyCode === 48 || e.keyCode === 96) {
+            // Support both Spacebar and '0' key (keyCode 48 or 96, or Digit0/Numpad0 codes)
+            const isSpaceOrZero = e.code === 'Space' || 
+                                  e.code === 'Digit0' || 
+                                  e.code === 'Numpad0' ||
+                                  e.key === '0' || 
+                                  e.keyCode === 48 || 
+                                  e.keyCode === 96;
+            
+            if (isSpaceOrZero) {
                 e.preventDefault(); // Prevent default behavior
                 
                 const currentState = stateRef.current;
@@ -93,6 +103,7 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [handlePlayPause, setWaitingForScoreSpacebar, fetchNextScene, setdisableCountdownTrigger]); // Reduced dependencies
+    
     
     // Scoring instruction page disabled
 
@@ -145,16 +156,18 @@ const ExperimentPage = ({
             </div>
 
             {/* Photodiode Sensor Box - Top Right Corner */}
-            <div style={{
-                position: "absolute",
-                top: "10px",
-                right: "10px",
-                width: "96px",  // 
-                height: "192px", // 
-                backgroundColor: photodiodeColor,
-                border: "2px solid black",
-                zIndex: 150, // Higher than trial number display
-            }} />
+            {enablePhotodiode && (
+                <div style={{
+                    position: "absolute",
+                    top: "10px",
+                    right: "10px",
+                    width: "96px",
+                    height: "192px",
+                    backgroundColor: photodiodeColor,
+                    border: "2px solid black",
+                    zIndex: 150, // Higher than trial number display
+                }} />
+            )}
 
             {/* Pause Button */}
             <div style={{

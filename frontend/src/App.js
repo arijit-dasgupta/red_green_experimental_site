@@ -32,9 +32,17 @@ const App = () => {
   // Navigation context
   const { currentPage, navigate } = useNavigation();
 
-  // Constants
-  const FPS = 20;
+  // FPS override - set to null to use FPS from JSON files, or set a number to override
+  const OVERRIDE_FPS = null; // Set to null to use JSON FPS, or set to a number (e.g., 30) to override
   const CANVAS_PROPORTION = 0.7;
+  
+  // Get FPS from sceneData if available, otherwise use override or default
+  const getFPS = () => {
+    if (OVERRIDE_FPS !== null) {
+      return OVERRIDE_FPS;
+    }
+    return sceneData?.fps || 30; // Use FPS from JSON, default to 30
+  };
 
   // State
   const [sceneData, setSceneData] = useState(null);
@@ -55,8 +63,11 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
+  const [showKeyStateLine, setShowKeyStateLine] = useState(false); // Always hidden
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
   const [photodiodeColor, setPhotodiodeColor] = useState("white"); // "black" for first frame, "white" for last frame
+  const [enableAudio, setEnableAudio] = useState(true); // Default to enabling audio
+  const [enablePhotodiode, setEnablePhotodiode] = useState(true); // Default to enabling photodiode
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -267,7 +278,17 @@ const App = () => {
   const renderCurrentPage = () => {
     switch (currentPage) {
       case 'welcome':
-        return <WelcomePage setTrialInfo={setTrialInfo} />;
+        return (
+          <WelcomePage
+            setTrialInfo={setTrialInfo}
+            setShowKeyStateLine={setShowKeyStateLine}
+            showKeyStateLine={showKeyStateLine}
+            setEnableAudio={setEnableAudio}
+            enableAudio={enableAudio}
+            setEnablePhotodiode={setEnablePhotodiode}
+            enablePhotodiode={enablePhotodiode}
+          />
+        );
       case 'instructions':
         return <InstructionsPage keyStates={keyStates} canvasSize={canvasSize} trialInfo={trialInfo} />;
       case 'experiment':
@@ -293,6 +314,8 @@ const App = () => {
             canvasRef={canvasRef}
             isStrictMode={isStrictMode}
             onPause={handlePause}
+            showKeyStateLine={showKeyStateLine}
+            enablePhotodiode={enablePhotodiode}
           />
         );
       case 'timeout':
@@ -300,7 +323,17 @@ const App = () => {
       case 'finish':
         return <FinishPage averageScore={averageScore} />;
       default:
-        return <WelcomePage setTrialInfo={setTrialInfo} />;
+        return (
+          <WelcomePage
+            setTrialInfo={setTrialInfo}
+            setShowKeyStateLine={setShowKeyStateLine}
+            showKeyStateLine={showKeyStateLine}
+            setEnableAudio={setEnableAudio}
+            enableAudio={enableAudio}
+            setEnablePhotodiode={setEnablePhotodiode}
+            enablePhotodiode={enablePhotodiode}
+          />
+        );
     }
   };
 
@@ -392,7 +425,7 @@ const App = () => {
     if (!sceneData?.step_data) return;
 
     const totalFrames = Object.keys(sceneData.step_data).length;
-    const frameDuration = 1000 / FPS;
+    const frameDuration = 1000 / getFPS();
 
     if (!animate.lastTimestamp) animate.lastTimestamp = timestamp;
     const timeElapsed = timestamp - animate.lastTimestamp;
@@ -403,8 +436,12 @@ const App = () => {
       // Store first frame UTC time for reference and set photodiode to black
       if (!animate.firstFrameUtc) {
         animate.firstFrameUtc = currentUtcTime;
-        setPhotodiodeColor("black"); // Set to black on first frame
-        playTone("start"); // Play start tone immediately with photodiode change
+        if (enablePhotodiode) {
+          setPhotodiodeColor("black"); // Set to black on first frame
+        }
+        if (enableAudio) {
+          playTone("start"); // Play start tone immediately with photodiode change
+        }
       }
       
       recordedKeyStates.current.push({
@@ -419,8 +456,12 @@ const App = () => {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
-          setPhotodiodeColor("white"); // Set to white on last frame
-          playTone("end"); // Play end tone immediately with photodiode change
+          if (enablePhotodiode) {
+            setPhotodiodeColor("white"); // Set to white on last frame
+          }
+          if (enableAudio) {
+            playTone("end"); // Play end tone immediately with photodiode change
+          }
           animate.dataSaved = true;
 
           setTimeout(async () => {
