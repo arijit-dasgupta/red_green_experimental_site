@@ -1340,7 +1340,7 @@
   "timestep": 0.02,
   "timesteps_per_frame": 6,
   "num_frames": 164,
-  "fps": 20,
+  "fps": 30,
   "red_sensor": {
     "x": 11.5,
     "y": 1.5,

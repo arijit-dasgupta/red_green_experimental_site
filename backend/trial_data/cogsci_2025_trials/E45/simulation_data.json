@@ -1997,7 +1997,7 @@
   "timestep": 0.02,
   "timesteps_per_frame": 6,
   "num_frames": 243,
-  "fps": 20,
+  "fps": 30,
   "red_sensor": {
     "x": 0.5,
     "y": 0.30000000000000004,
