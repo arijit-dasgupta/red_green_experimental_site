@@ -38,7 +38,8 @@ const App = () => {
 
   const { currentPage, navigate } = useNavigation(); // Access currentPage and navigate from context
 
-  const FPS = 30; // This was kept fixed because of the standard refresh rate of the screen
+  // FPS override - set to null to use FPS from JSON files, or set a number to override
+  const OVERRIDE_FPS = null; // Set to null to use JSON FPS, or set to a number (e.g., 30) to override
   const CANVAS_PROPORTION = 0.7;
 
   const [sceneData, setSceneData] = useState(null);
@@ -78,6 +79,14 @@ const App = () => {
     width: 400,
     height: 400,
   });
+
+  // Get FPS from sceneData if available, otherwise use override or default
+  const getFPS = () => {
+    if (OVERRIDE_FPS !== null) {
+      return OVERRIDE_FPS;
+    }
+    return sceneData?.fps || 30; // Use FPS from JSON, default to 30
+  };
 
   const renderFrame = (frameIndex) => {
 
@@ -325,7 +334,7 @@ const animate = (timestamp) => {
 
 
   const totalFrames = Object.keys(sceneData.step_data).length;
-  const frameDuration = 1000 / FPS;
+  const frameDuration = 1000 / getFPS();
 
   if (!animate.lastTimestamp) animate.lastTimestamp = timestamp;
 

@@ -1305,7 +1305,7 @@
   "timestep": 0.02,
   "timesteps_per_frame": 6,
   "num_frames": 158,
-  "fps": 20,
+  "fps": 30,
   "green_sensor": {
     "x": 5.6000000000000005,
     "y": 17.3,
