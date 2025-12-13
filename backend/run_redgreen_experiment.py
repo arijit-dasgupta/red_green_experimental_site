@@ -84,6 +84,8 @@ from apscheduler.triggers.interval import IntervalTrigger
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
 DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
+EXP_TRIAL_PREFIXES = ['E']  # Prefixes for experimental trial folders
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
@@ -275,11 +277,17 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
-        # Separate familiarization (F) and experimental (E) trial folders
-        participants_f_assignments = [entry for entry in entries if entry.startswith('F')]
-        participants_f_assignments.sort()  # F1, F2, F3, etc. in order
+        # Separate familiarization (F) and experimental (E) trial folders, allowing multiple prefixes each
+        participants_f_assignments = [
+            entry for entry in entries 
+            if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
+        ]
+        participants_f_assignments.sort()  # F1, F2, F3 etc. in order if multiple prefixes
         
-        e_folders = [entry for entry in entries if entry.startswith('E')]
+        e_folders = [
+            entry for entry in entries 
+            if any(entry.startswith(prefix) for prefix in EXP_TRIAL_PREFIXES)
+        ]
 
         # Shuffle e_folders ONCE for all participants
         e_folders_shuffled = e_folders[:]
@@ -352,6 +360,11 @@ def load_experiment_config(experiment_name, randomized_profile_id):
         with open(file_path, 'r') as f:
             data = json.load(f)
         
+        # Extract world dimensions from scene_dims
+        scene_dims = data.get("scene_dims", [20, 20])
+        world_width = scene_dims[0] if len(scene_dims) > 0 else 20
+        world_height = scene_dims[1] if len(scene_dims) > 1 else 20
+        
         return {
             # Convert barrier/occluder data to list of dicts with rounded coordinates
             "barriers": [{key: round(value, 2) if isinstance(value, (int, float)) else value 
@@ -368,10 +381,14 @@ def load_experiment_config(experiment_name, randomized_profile_id):
             "green_sensor": data.get("green_sensor", {}),
             # Animation timing
             "timestep": round(data.get("timestep", 0), 2),
+            "fps": int(data.get("fps", 30)),  # FPS from simulation JSON
             # Target object radius (from size)
             "radius": data.get('target', {}).get('size', 0) / 2,
             # Ground truth outcome for scoring
             "rg_outcome": data.get("rg_outcome", ""),
+            # World dimensions
+            "worldWidth": world_width,
+            "worldHeight": world_height,
         }
 
     # Parse all trial data files for this participant
@@ -726,10 +743,14 @@ def load_next_scene():
 
     # Prepare scene data for frontend
     
+    # Extract world dimensions from the trial data (already parsed from JSON)
+    world_width = npz_data.get("worldWidth", 20)
+    world_height = npz_data.get("worldHeight", 20)
+    
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
-        "worldWidth": 20,
-        "worldHeight": 20,
+        "worldWidth": world_width,
+        "worldHeight": world_height,
         "counterbalance": False if (transition_to_exp_page or finish) else counterbalance,
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,
