@@ -83,14 +83,15 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'cogsci_2025_trials_reduced'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 EXP_TRIAL_PREFIXES = ['E']  # Prefixes for experimental trial folders
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
 NUM_PARTICIPANTS = 30  # Target number of participants to recruit
-PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
+# PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
+PROLIFIC_COMPLETION_URL = 'https://redgreenplayground.com/jtap/cogsci2025-tuned/trial-by-trial'  # URL for participants to complete study on Prolific
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
