@@ -1,8 +1,6 @@
 import React from 'react';
 
-// TODO: URL FOR PROLIFIC
-
-const FinishPage = ({ averageScore }) => (
+const FinishPage = ({ averageScore, prolificCompletionUrl }) => (
   <div
     style={{
       display: "flex",
@@ -89,24 +87,30 @@ const FinishPage = ({ averageScore }) => (
       <p style={{ fontSize: "1rem", color: "#4b5563", marginBottom: "20px" }}>
         Click the link below to complete your participation on Prolific.
       </p>
-      <a
-        href="https://app.prolific.com/submissions/complete?cc=CYBX6B9B"
-        style={{
-          display: "inline-block",
-          textDecoration: "none",
-          padding: "10px 20px",
-          fontSize: "1rem",
-          color: "white",
-          backgroundColor: "#007bff",
-          borderRadius: "5px",
-          boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
-          transition: "background-color 0.3s ease",
-        }}
-        onMouseOver={(e) => (e.target.style.backgroundColor = "#0056b3")}
-        onMouseOut={(e) => (e.target.style.backgroundColor = "#007bff")}
-      >
-        Complete the Study
-      </a>
+      {prolificCompletionUrl ? (
+        <a
+          href={prolificCompletionUrl}
+          style={{
+            display: "inline-block",
+            textDecoration: "none",
+            padding: "10px 20px",
+            fontSize: "1rem",
+            color: "white",
+            backgroundColor: "#007bff",
+            borderRadius: "5px",
+            boxShadow: "0 2px 5px rgba(0, 0, 0, 0.2)",
+            transition: "background-color 0.3s ease",
+          }}
+          onMouseOver={(e) => (e.target.style.backgroundColor = "#0056b3")}
+          onMouseOut={(e) => (e.target.style.backgroundColor = "#007bff")}
+        >
+          Complete the Study
+        </a>
+      ) : (
+        <p style={{ fontSize: "0.9rem", color: "#6b7280", fontStyle: "italic" }}>
+          Completion URL not available. Please contact the study administrator.
+        </p>
+      )}
     </div>
   </div>
 );

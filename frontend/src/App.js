@@ -60,6 +60,7 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
+  const [prolificCompletionUrl, setProlificCompletionUrl] = useState(null);
   // const [currentPage, setCurrentPage] = useState('welcome');
 
   const animationRef = useRef(null);
@@ -245,7 +246,7 @@ const renderCurrentPage = () => {
     case 'timeout': // Add timeout case
       return <TimeoutPage />;
     case 'finish':
-      return <FinishPage averageScore={averageScore} />;
+      return <FinishPage averageScore={averageScore} prolificCompletionUrl={prolificCompletionUrl} />;
     default:
       return <WelcomePage setTrialInfo={setTrialInfo} />;
   }
@@ -276,6 +277,7 @@ const renderCurrentPage = () => {
       if (data.finish) {
         setFinished(false);
         setAverageScore(data.average_score);
+        setProlificCompletionUrl(data.prolific_completion_url || null);
         navigate('finish');
         return;
       }

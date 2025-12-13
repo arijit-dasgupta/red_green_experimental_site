@@ -90,6 +90,7 @@ EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
 NUM_PARTICIPANTS = 30  # Target number of participants to recruit
+PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -761,6 +762,7 @@ def load_next_scene():
         "fam_to_exp_page": transition_to_exp_page,
         "finish": finish,
         "average_score": avg_score,
+        "prolific_completion_url": PROLIFIC_COMPLETION_URL if finish else None,
         "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id
     }
 
