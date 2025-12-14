@@ -202,7 +202,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
     }}>
         <h1>Instructions (4/5)</h1>
         <p style={{ fontSize: "1.2rem" }}>To make your decision on <span style={{ color: "red" }}><strong> red </strong></span> or <span style={{ color: "green" }}><strong> green </strong></span>:
-        Hold down on <span style={{ color: "red" }}><strong> "2" for Red</strong></span> or <span style={{ color: "green" }}><strong>"8" for Green</strong></span> as the object motion happens in real-time. <b>However</b>, if you are uncertain, you may avoid holding down on any key. <b>If you hold both keys at the same time, your input will be ignored.</b>
+        Hold down on <span style={{ color: "red" }}><strong> "F" for Red</strong></span> or <span style={{ color: "green" }}><strong>"J" for Green</strong></span> as the object motion happens in real-time. <b>However</b>, if you are uncertain, you may avoid holding down on any key. <b>If you hold both keys at the same time, your input will be ignored.</b>
         </p>
         <p style={{ fontSize: "1.2rem" }}>As your response is recorded for every frame of the video, you must hold down the keys as you watch the video unfold
             even if you feel certain of the outcome. <b>Do not just press the buttons once to record your decision</b>.
@@ -224,7 +224,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
             
         }}>
             <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                <p style={{ margin: 0, fontWeight: "bold" }}>2</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>F</p>
                 <div style={{
                     width: `${canvasSize.width * 0.03}px`,
                     height: `${canvasSize.width * 0.03}px`,
@@ -233,7 +233,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
                 }} />
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                <p style={{ margin: 0, fontWeight: "bold" }}>8</p>
+                <p style={{ margin: 0, fontWeight: "bold" }}>J</p>
                 <div style={{
                     width: `${canvasSize.width * 0.03}px`,
                     height: `${canvasSize.width * 0.03}px`,
@@ -265,7 +265,7 @@ const InstructionPage4 = ({ handleNext, handleBack, trialInfo, keyStates, canvas
             {renderKeyState("j", "green", keyStates, canvasSize)}
             {renderEmptyKeyState(keyStates, canvasSize)}
         <p style={{ fontSize: "1.2rem" }}>
-            <b>If you DO NOT see a <span style={{ color: "red" }}> red </span> or <span style={{ color: "green" }}> green </span> box</b>, then your '2' and '8' keys are not being registered. In this case (very unlikely), we kindly request for 
+            <b>If you DO NOT see a <span style={{ color: "red" }}> red </span> or <span style={{ color: "green" }}> green </span> box</b>, then your 'F' and 'J' keys are not being registered. In this case (very unlikely), we kindly request for 
             you to return the study as no data will be logged otherwise, and let us know via message immediately. Thank you.
         </p>
         <p style={{ fontSize: "1.2rem" }}>
@@ -304,7 +304,7 @@ const InstructionPage5 = ({ handleNext, handleBack, trialInfo }) => (
         even if you change your mind</strong>. 
         </p> */}
         <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
-            Remember to hold down <span style={{ color: "red" }}><strong> "2" for Red</strong></span> or <span style={{ color: "green" }}><strong>"8" for Green</strong></span> as the object motion happens in real-time.
+            Remember to hold down <span style={{ color: "red" }}><strong> "F" for Red</strong></span> or <span style={{ color: "green" }}><strong>"J" for Green</strong></span> as the object motion happens in real-time.
         </p>
         <p style={{ fontSize: "1.2rem", lineHeight: "1.6", marginBottom: "20px", textAlign: "justify" }}>
             Click the button below to begin the first familiarization trial.

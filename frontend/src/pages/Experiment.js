@@ -69,16 +69,10 @@ const ExperimentPage = ({
 
     useEffect(() => {
         const handleKeyDown = (e) => {
-            // Accept both spacebar and numpad 0 for gamepad compatibility
-            // Support both Spacebar and '0' key (keyCode 48 or 96, or Digit0/Numpad0 codes)
-            const isSpaceOrZero = e.code === 'Space' || 
-                                  e.code === 'Digit0' || 
-                                  e.code === 'Numpad0' ||
-                                  e.key === '0' || 
-                                  e.keyCode === 48 || 
-                                  e.keyCode === 96;
+            // Support Spacebar only
+            const isSpace = e.code === 'Space';
             
-            if (isSpaceOrZero) {
+            if (isSpace) {
                 e.preventDefault(); // Prevent default behavior
                 
                 const currentState = stateRef.current;
@@ -314,12 +308,12 @@ const ExperimentPage = ({
                     }}>
                         {waitingForScoreSpacebar ? (
                             trialInfo.trial_i === trialInfo.num_trials ? (
-                                <>Almost done! Press <span style={{ color: "red" }}>0</span> to finish the experiment.</>
+                                <>Almost done! Press <span style={{ color: "red" }}>Spacebar</span> to finish the experiment.</>
                             ) : (
-                                <>Press <span style={{ color: "orange" }}>0</span> to move to the next trial.</>
+                                <>Press <span style={{ color: "orange" }}>Spacebar</span> to move to the next trial.</>
                             )
                         ) : (
-                            <>Press <span style={{ color: "blue" }}>0</span> to begin the trial.</>
+                            <>Press <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
                         )}
                     </p>
                 </div>
@@ -335,7 +329,7 @@ const ExperimentPage = ({
                     backgroundColor: "#f9f9f9",
                 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>2</h2>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>F</h2>
                         <div style={{
                             width: "20px",
                             height: "20px",
@@ -344,7 +338,7 @@ const ExperimentPage = ({
                         }} />
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>8</h2>
+                        <h2 style={{ margin: 0, fontWeight: "bold", fontSize: "0.75rem" }}>J</h2>
                         <div style={{
                             width: "20px",
                             height: "20px",
