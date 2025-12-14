@@ -86,7 +86,7 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-DATASET_NAME = 'ecog_stimuli_v5'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'ecog_stimuli_v6'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']
 EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']
 COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
