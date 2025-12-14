@@ -89,6 +89,7 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 DATASET_NAME = 'ecog_stimuli_v2'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']
 EXP_TRIAL_PREFIXES = ['E']
+COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 EXPERIMENT_RUN_VERSION = 'ecog_v1'  # Version identifier for this experiment run
@@ -689,7 +690,10 @@ def load_next_scene():
     # Create trial record if this is an actual trial (not transition/finish screen)
     if (not transition_to_exp_page) and (not finish):
         # Randomly assign counterbalancing (swaps F/J key meanings)
-        counterbalance = random.choice([True, False])
+        if COUNTERBALANCE_OUTCOMES:
+            counterbalance = random.choice([True, False])
+        else:
+            counterbalance = False
         
         # Determine global trial name for tracking
         if is_trial:
