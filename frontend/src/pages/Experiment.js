@@ -312,6 +312,9 @@ const ExperimentPage = ({
                             ) : (
                                 <>Press <span style={{ color: "orange" }}>Spacebar</span> to move to the next trial.</>
                             )
+                        ) : countdown !== null || isPlaying ? (
+                            // Hide message during countdown and while playing
+                            <></>
                         ) : (
                             <>Press <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
                         )}

@@ -112,69 +112,39 @@ const App = () => {
     try {
       const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
 
-      if (frameIndex !== 0) {
-        // Draw barriers
-        ctx.fillStyle = "black";
-        barriers.forEach(({ x, y, width, height }) => {
-          ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        });
+      // Always draw scene elements (including frame 0 during countdown)
+      // Draw barriers
+      ctx.fillStyle = "black";
+      barriers.forEach(({ x, y, width, height }) => {
+        ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+      });
 
-        // Draw sensors
-        if (red_sensor) {
-          ctx.fillStyle = "red";
-          const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
-          ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        }
-        if (green_sensor) {
-          ctx.fillStyle = "green";
-          const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
-          ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        }
-
-        // Draw target
-        if (step_data[frameIndex]) {
-          ctx.fillStyle = "blue";
-          const { x, y } = step_data[frameIndex];
-          ctx.beginPath();
-          ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
-          ctx.fill();
-        }
-
-        // Draw occluders
-        ctx.fillStyle = "gray";
-        occluders.forEach(({ x, y, width, height }) => {
-          ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
-        });
+      // Draw sensors
+      if (red_sensor) {
+        ctx.fillStyle = "red";
+        const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
+        ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+      }
+      if (green_sensor) {
+        ctx.fillStyle = "green";
+        const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
+        ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
       }
 
-      if (frameIndex === 0 && countdown !== null) {
-        ctx.save();
-        ctx.scale(1, -1);
-        ctx.translate(0, -canvas.height);
-
-        const padding = 10;
-        const fontSize = 48;
-        ctx.font = `${fontSize}px Helvetica`;
-        const textWidth = ctx.measureText(countdown).width;
-        const textHeight = fontSize;
-        const textX = canvas.width / 2;
-        const textY = canvas.height / 2;
-
-        ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-        ctx.fillRect(
-          textX - textWidth / 2 - padding,
-          textY - padding,
-          textWidth + padding * 2,
-          textHeight + padding * 2
-        );
-
-        ctx.fillStyle = "black";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(countdown, textX, textY);
-
-        ctx.restore();
+      // Draw target (including frame 0)
+      if (step_data[frameIndex]) {
+        ctx.fillStyle = "blue";
+        const { x, y } = step_data[frameIndex];
+        ctx.beginPath();
+        ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
+        ctx.fill();
       }
+
+      // Draw occluders
+      ctx.fillStyle = "gray";
+      occluders.forEach(({ x, y, width, height }) => {
+        ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
+      });
     } catch (error) {
       console.error("Error rendering frame:", error);
     }
@@ -530,6 +500,11 @@ const App = () => {
     let countdownValue = 3;
     setCountdown(countdownValue);
     setdisableCountdownTrigger(true);
+    
+    // Render frame 0 immediately during countdown (no countdown text shown)
+    if (sceneData) {
+      renderFrame(0);
+    }
 
     const countdownInterval = setInterval(() => {
       countdownValue -= 1;
