@@ -23,10 +23,10 @@
   "fps": 30,
   "friction": 0,
   "green_sensor": {
-    "height": 10.600000000000001,
+    "height": 10.5,
     "width": 3.4000000000000004,
     "x": 16.6,
-    "y": 9.399999999999999
+    "y": 9.5
   },
   "interval": 0.025,
   "key_distractors": [],
