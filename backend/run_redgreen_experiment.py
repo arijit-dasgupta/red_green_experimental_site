@@ -13,7 +13,7 @@ The experiment consists of two phases:
 CORE FUNCTIONALITY:
 - Serves a React frontend from the build directory
 - Manages participant sessions with unique profile IDs and Prolific integration
-- Loads trial data from NPZ files containing scene information (barriers, occluders, sensor data)
+- Loads trial data from JSON files containing scene information (barriers, occluders, sensor data)
 - Tracks keypress data (F and J keys) frame-by-frame during trials
 - Calculates scores based on participant responses vs. ground truth outcomes
 - Handles session timeouts and data validation
@@ -86,13 +86,13 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
-DATASET_NAME = 'ecog_stimuli_v2'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'ecog_stimuli_v4'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']
 EXP_TRIAL_PREFIXES = ['E']
 COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-EXPERIMENT_RUN_VERSION = 'ecog_v1'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'ecog_dec14_v1'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
 NUM_PARTICIPANTS = 800  # Target number of participants to recruit
