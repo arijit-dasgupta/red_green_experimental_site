@@ -1125,4 +1125,6 @@ if __name__ == '__main__':
         print("Database initialized in __main__.")
         # Uncomment the line below to enable periodic CSV exports
         # schedule_csv_exports()
-    app.run(debug=True)
+    # Bind to 0.0.0.0 to allow access from other devices (e.g., via ngrok)
+    # For local-only access, use host='127.0.0.1' instead
+    app.run(host='0.0.0.0', port=5000, debug=True)
