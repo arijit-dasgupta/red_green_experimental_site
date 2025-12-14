@@ -87,6 +87,7 @@ DATASET_NAME = 'cogsci_2025_trials_reduced'  # Specific dataset folder name with
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 EXP_TRIAL_PREFIXES = ['E']  # Prefixes for experimental trial folders
 EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
 NUM_PARTICIPANTS = 30  # Target number of participants to recruit
@@ -683,7 +684,10 @@ def load_next_scene():
     # Create trial record if this is an actual trial (not transition/finish screen)
     if (not transition_to_exp_page) and (not finish):
         # Randomly assign counterbalancing (swaps F/J key meanings)
-        counterbalance = random.choice([True, False])
+        if COUNTERBALANCE_OUTCOMES:
+            counterbalance = random.choice([True, False])
+        else:
+            counterbalance = False
         
         # Determine global trial name for tracking
         if is_trial:
