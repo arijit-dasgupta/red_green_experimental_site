@@ -426,6 +426,7 @@ const App = () => {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
+          setFinished(true); // Mark trial as finished
           if (enablePhotodiode) {
             setPhotodiodeColor("white"); // Set to white on last frame
           }

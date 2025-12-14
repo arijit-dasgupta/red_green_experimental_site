@@ -256,38 +256,6 @@ const ExperimentPage = ({
                 </div>
             )}
 
-            
-            {/* Only after the first trial ends */}
-            {finished && (trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
-               <div style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                height: "100%",
-                backgroundColor: "rgba(255, 255, 255, 0.8)",
-                backdropFilter: "blur(5px)",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                alignItems: "center",
-                zIndex: 20,
-            }}>
-
-                <div>
-                    <p style={{
-                        fontSize: "1.2rem",
-                        fontWeight: "bold",
-                        color: "#555",
-                        marginTop: "10px",
-                        textAlign: "center"
-                    }}>
-                    Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
-                        </p>
-                    </div>
-                </div>
-            )}
-
             {/* Improved layout for ECoG patients: single vertical scan direction, maximized canvas */}
             <div style={{
                 display: "flex",
@@ -298,13 +266,14 @@ const ExperimentPage = ({
                 justifyContent: "space-between"
             }}>
                 {/* Instructions at top */}
-                <div style={{ marginBottom: "8px" }}>
+                <div style={{ marginBottom: "8px", minHeight: "1.5rem" }}>
                     <p style={{
                         fontSize: "1.1rem",
                         fontWeight: "bold",
                         color: "#555",
                         textAlign: "center",
-                        margin: 0
+                        margin: 0,
+                        visibility: (countdown !== null || isPlaying || finished) && !waitingForScoreSpacebar ? "hidden" : "visible"
                     }}>
                         {waitingForScoreSpacebar ? (
                             trialInfo.trial_i === trialInfo.num_trials ? (
@@ -312,9 +281,6 @@ const ExperimentPage = ({
                             ) : (
                                 <>Press <span style={{ color: "orange" }}>Spacebar</span> to move to the next trial.</>
                             )
-                        ) : countdown !== null || isPlaying ? (
-                            // Hide message during countdown and while playing
-                            <></>
                         ) : (
                             <>Press <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
                         )}
