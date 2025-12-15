@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 
 
@@ -15,12 +15,19 @@ const parseUrlParams = () => {
 const WelcomePage = ({ setTrialInfo }) => {
 
     const { navigate } = useNavigation(); // Use the navigation context
+    const [timeoutMinutes, setTimeoutMinutes] = useState(60); // default fallback
 
     useEffect(() => {
       const params = parseUrlParams();
       sessionStorage.setItem("prolific_pid", params.prolific_pid);
       sessionStorage.setItem("study_id", params.study_id);
       sessionStorage.setItem("prolific_session_id", params.prolific_session_id);
+      
+      // Get timeout from previous session if available
+      const storedTimeout = sessionStorage.getItem("timeoutPeriod");
+      if (storedTimeout) {
+        setTimeoutMinutes(Math.floor(storedTimeout / 60));
+      }
   }, []);
 
     const startExperiment = async () => {
@@ -110,7 +117,7 @@ const WelcomePage = ({ setTrialInfo }) => {
           <ul style={{ paddingLeft: "20px", marginBottom: "20px" }}>
             <li>Ensure that the <strong>Prolific PID</strong> displayed on the top left belongs to you. <span style={{ color: "#f00" }}>(If not, try refreshing this page.)</span></li>
             <li>You will be asked to <strong>press keys</strong> on the keyboard and <strong>click buttons</strong> on the screen.</li>
-            <li>This experiment will automatically  <u><strong>time-out after 45 minutes.</strong></u></li>
+            <li>This experiment will automatically <u><strong>time-out after {timeoutMinutes} minutes.</strong></u></li>
           </ul>
 
           <p><strong>Important:</strong></p>
