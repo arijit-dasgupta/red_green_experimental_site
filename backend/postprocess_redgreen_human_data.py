@@ -1,6 +1,7 @@
 # in this file, we have re-usable code and functions to fetch and visualize the results of the REDGREEN experiment. 
 # the code here is primarily used for the analysis of the HUMAN empirical data
 
+import os
 import pandas as pd
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine
@@ -12,81 +13,300 @@ from IPython.display import display, HTML
 import numpy as np
 from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Rectangle
-def extract_human_data(db_path, path_to_data): # the second is raw data path to videos
+def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial_prefixes=None, 
+                       allow_incomplete_sessions=False, session_ids=None): 
+    """
+    Extract human experiment data from database and match with trial data files.
+    
+    Args:
+        db_path: Path to the SQLite database file
+        path_to_data: Path to the directory containing trial data folders
+        exp_trial_prefixes: List of prefixes for experimental trials (e.g., ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative'])
+        fam_trial_prefixes: List of prefixes for familiarization trials (e.g., ['F'])
+        allow_incomplete_sessions: If True, include sessions that are not marked as completed
+        session_ids: List of specific session IDs to include (None means include all matching sessions)
+    
+    Returns:
+        tuple: (session_df, trial_df, keystate_df, rgplot_df, valid_trial_ids, global_trial_names)
+    """
+    # Default prefixes if not provided
+    if exp_trial_prefixes is None:
+        exp_trial_prefixes = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']
+    if fam_trial_prefixes is None:
+        fam_trial_prefixes = ['F']
 
     # Step 1: Connect to the database
     engine = create_engine(f"sqlite:///{db_path}")  # Assuming SQLite
 
 
-    # Step 2: Load session data and filter for complete sessions
-    session_query = """
-        SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken
-        FROM redgreen_session
-        WHERE completed = 1 AND (ignore_data = 0 OR ignore_data IS NULL)
-    """
+    # Step 2: Load session data with optional filtering
+    if allow_incomplete_sessions:
+        # Include incomplete sessions, but still exclude ignored data
+        session_query = """
+            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed
+            FROM redgreen_session
+            WHERE (ignore_data = 0 OR ignore_data IS NULL)
+        """
+    else:
+        # Only completed sessions
+        session_query = """
+            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed
+            FROM redgreen_session
+            WHERE completed = 1 AND (ignore_data = 0 OR ignore_data IS NULL)
+        """
+    
+    # Filter by specific session IDs if provided
+    if session_ids is not None:
+        session_ids_str = ','.join(map(str, session_ids))
+        session_query += f" AND id IN ({session_ids_str})"
 
     session_df = pd.read_sql(session_query, engine)
+    print(f"Found {len(session_df)} sessions (allow_incomplete={allow_incomplete_sessions}, session_ids={session_ids})")
 
     # # Step 4: Load trial data and map `global_trial_name`
-    trial_query = """
-        SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
-        FROM trial
-        WHERE trial_type != 'ftrial' AND completed = 1
-    """
+    # Only get trials from the selected sessions
+    if len(session_df) > 0:
+        session_ids_list = session_df['session_id'].tolist()
+        session_ids_str = ','.join(map(str, session_ids_list))
+        trial_query = f"""
+            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
+            FROM trial
+            WHERE trial_type != 'ftrial' AND completed = 1 AND session_id IN ({session_ids_str})
+        """
+    else:
+        # No sessions, so no trials
+        trial_query = """
+            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
+            FROM trial
+            WHERE 1=0
+        """
+    
     trial_df = pd.read_sql(trial_query, engine)
+    print(f"Found {len(trial_df)} completed experimental trials from selected sessions")
+    if len(trial_df) > 0:
+        print(f"Sample trial names from database: {trial_df['global_trial_name'].head(5).tolist()}")
 
     # Merge trials with session randomized order
     trial_df = pd.merge(trial_df, session_df, left_on="session_id", right_on="session_id")
 
+    # Check for duplicate global_trial_name within a session (repeated runs of same trial)
+    dup_trials = trial_df.duplicated(subset=['session_id', 'global_trial_name'], keep=False)
+    if dup_trials.any():
+        dup_rows = trial_df[dup_trials].sort_values(['session_id', 'global_trial_name'])
+        raise ValueError(
+            "Duplicate trials found with the same global_trial_name within a session. "
+            "This means the participant has multiple entries for the same trial name. "
+            "Decide which to keep (e.g., latest trial_id, highest score) before proceeding. "
+            "Details (first 20 rows):\n"
+            f"{dup_rows.head(20)}"
+        )
+
     # Step 5: Load keystate data and filter for valid trials
     valid_trial_ids = trial_df["trial_id"].dropna().tolist()
+    
+    # Handle case where there are no valid trial IDs
+    if not valid_trial_ids:
+        print("WARNING: No valid trial IDs found. Returning empty DataFrames.")
+        keystate_df = pd.DataFrame(columns=['frame', 'f_pressed', 'j_pressed', 'trial_id'])
+    else:
+        keystate_query = f"""
+            SELECT ks.frame, ks.f_pressed, ks.j_pressed, ks.trial_id
+            FROM keystate ks
+            WHERE ks.trial_id IN ({', '.join(map(str, valid_trial_ids))})
+        """
+        keystate_df = pd.read_sql(keystate_query, engine)
 
-    keystate_query = f"""
-        SELECT ks.frame, ks.f_pressed, ks.j_pressed, ks.trial_id
-        FROM keystate ks
-        WHERE ks.trial_id IN ({', '.join(map(str, valid_trial_ids))})
-    """
-    keystate_df = pd.read_sql(keystate_query, engine)
+        # Hard fail if the raw keystate table has duplicate frame within a trial_id
+        dup_keystate = keystate_df.duplicated(subset=['trial_id', 'frame'], keep=False)
+        if dup_keystate.any():
+            dup_rows = keystate_df[dup_keystate].sort_values(['trial_id', 'frame'])
+            raise ValueError(
+                "Raw keystate data contains duplicate rows for the same trial_id/frame. "
+                "This must be resolved (choose one row per frame) before exporting. "
+                "Details (first 20 rows):\n"
+                f"{dup_rows.head(20)}"
+            )
 
     # Merge keystate data with global_trial_name
-    keystate_df = pd.merge(keystate_df, trial_df[["trial_id", "global_trial_name"]], on="trial_id")
+    if not keystate_df.empty and not trial_df.empty:
+        keystate_df = pd.merge(keystate_df, trial_df[["trial_id", "global_trial_name"]], on="trial_id", how="left")
+    else:
+        if not keystate_df.empty:
+            keystate_df['global_trial_name'] = None
 
     # Step 6: Process the data
-    # Convert boolean to integer for aggregation
-    keystate_df["f_pressed"] = keystate_df["f_pressed"].astype(int)
-    keystate_df["j_pressed"] = keystate_df["j_pressed"].astype(int)
+    if keystate_df.empty:
+        rgplot_df = pd.DataFrame(columns=['global_trial_name', 'frame'])
+    else:
+        # Convert boolean to integer for aggregation
+        keystate_df["f_pressed"] = keystate_df["f_pressed"].astype(int)
+        keystate_df["j_pressed"] = keystate_df["j_pressed"].astype(int)
 
-    keystate_df["red"] = ((keystate_df["f_pressed"] == 1) & (keystate_df["j_pressed"] == 0)).astype(int)
-    keystate_df["green"] = ((keystate_df["j_pressed"] == 1) & (keystate_df["f_pressed"] == 0)).astype(int)
-    keystate_df["uncertain"] = ((keystate_df["j_pressed"] == 0) & (keystate_df["f_pressed"] == 0)
-                                | (keystate_df["j_pressed"] == 1) & (keystate_df["f_pressed"] == 1)).astype(int)
-    # Group by global_trial_name and frame, calculate mean
-    rgplot_df = (
-        keystate_df.groupby(["global_trial_name", "frame"])
-        .mean(numeric_only=True)
-        .reset_index()
-    )
-    rgplot_df.drop(columns=["trial_id"], inplace=True)
+        keystate_df["red"] = ((keystate_df["f_pressed"] == 1) & (keystate_df["j_pressed"] == 0)).astype(int)
+        keystate_df["green"] = ((keystate_df["j_pressed"] == 1) & (keystate_df["f_pressed"] == 0)).astype(int)
+        keystate_df["uncertain"] = ((keystate_df["j_pressed"] == 0) & (keystate_df["f_pressed"] == 0)
+                                    | (keystate_df["j_pressed"] == 1) & (keystate_df["f_pressed"] == 1)).astype(int)
+        # Group by global_trial_name and frame, calculate mean
+        rgplot_df = (
+            keystate_df.groupby(["global_trial_name", "frame"])
+            .mean(numeric_only=True)
+            .reset_index()
+        )
+    # Drop trial_id if it exists (it may not be present after groupby with numeric_only=True)
+    if "trial_id" in rgplot_df.columns:
+        rgplot_df.drop(columns=["trial_id"], inplace=True)
 
+    # Filter folders based on experimental trial prefixes
     entries = os.listdir(path_to_data)
-    e_folders = sorted([entry for entry in entries if entry.startswith('E')])
-    e_paths = [os.path.join(os.path.join(path_to_data, entry), 'data.npz') for entry in e_folders]
-    rg_outcomes = [np.load(e_paths[i], allow_pickle=True).get("rg_outcome", {}).item() for i in range(len(e_folders))]
+    e_folders = sorted([
+        entry for entry in entries 
+        if any(entry.startswith(prefix) for prefix in exp_trial_prefixes)
+    ])
+    print(f"Found {len(e_folders)} trial folders matching prefixes {exp_trial_prefixes}")
+    if len(e_folders) > 0:
+        print(f"Sample folder names: {e_folders[:5]}")
+    
+    e_paths = [os.path.join(os.path.join(path_to_data, entry), 'simulation_data.json') for entry in e_folders]
+    rg_outcomes = []
+    for e_path in e_paths:
+        with open(e_path, 'r') as f:
+            data = json.load(f)
+            rg_outcomes.append(data.get("rg_outcome", ""))
     rg_outcome_df = pd.DataFrame({
         "global_trial_name": e_folders,
         "rg_outcome": rg_outcomes,
         
     })
+    print(f"Created rg_outcome_df with {len(rg_outcome_df)} rows")
     rg_outcome_df['rg_outcome_idx'] = rg_outcome_df['rg_outcome'].map({'red': 1, 'green': 0})
+    
+    # Ensure global_trial_name is string type in all DataFrames before merging
+    # Convert to string, handling NaN values properly
+    trial_df['global_trial_name'] = trial_df['global_trial_name'].fillna('').astype(str)
+    keystate_df['global_trial_name'] = keystate_df['global_trial_name'].fillna('').astype(str)
+    rgplot_df['global_trial_name'] = rgplot_df['global_trial_name'].fillna('').astype(str)
+    rg_outcome_df['global_trial_name'] = rg_outcome_df['global_trial_name'].astype(str)
+    
+    # Filter out any rows with empty global_trial_name before merging
+    trial_df = trial_df[trial_df['global_trial_name'] != '']
+    keystate_df = keystate_df[keystate_df['global_trial_name'] != '']
+    rgplot_df = rgplot_df[rgplot_df['global_trial_name'] != '']
 
-    trial_df = pd.merge(trial_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name")
-    keystate_df = pd.merge(keystate_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name")
-    rgplot_df = pd.merge(rgplot_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name")
+    # Merge with rg_outcome_df, using left join to preserve all database records
+    if not trial_df.empty:
+        trial_df_before = len(trial_df)
+        trial_df = pd.merge(trial_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name", how="left")
+        print(f"After merging trial_df with rg_outcome_df: {len(trial_df)} rows (was {trial_df_before})")
+        # Check for unmatched trials
+        unmatched = trial_df[trial_df['rg_outcome'].isna()]
+        if len(unmatched) > 0:
+            print(f"WARNING: {len(unmatched)} trials in database don't match folder names")
+            print(f"Unmatched trial names: {unmatched['global_trial_name'].unique()[:10].tolist()}")
+    if not keystate_df.empty:
+        keystate_df = pd.merge(keystate_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name", how="left")
+        print(f"After merging keystate_df: {len(keystate_df)} rows")
+    if not rgplot_df.empty:
+        rgplot_df = pd.merge(rgplot_df, rg_outcome_df, left_on="global_trial_name", right_on="global_trial_name", how="left")
+        print(f"After merging rgplot_df: {len(rgplot_df)} rows")
 
-    global_trial_names = list(trial_df['global_trial_name'].unique())
+    global_trial_names = list(trial_df['global_trial_name'].unique()) if not trial_df.empty else []
+    print(f"Final result: {len(session_df)} sessions, {len(trial_df)} trials, {len(keystate_df)} keystates, {len(rgplot_df)} rgplot rows")
 
     return session_df, trial_df, keystate_df, rgplot_df, valid_trial_ids, global_trial_names
 
+
+def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
+    """
+    Save human keystate data as separate CSV files for each trial.
+    
+    Args:
+        trial_df: DataFrame containing trial information with trial_id and session_id
+        keystate_df: DataFrame containing keystate data with trial_id
+        path_to_data: Path to the directory containing trial folders
+    
+    Returns:
+        dict: Dictionary of dataframes, one for each global_trial_name
+    """
+    if trial_df.empty or keystate_df.empty:
+        print("No trial or keystate data to save.")
+        return {}
+
+    # Join keystate_df with trial_df to add session_id and global_trial_name
+    required_cols = ['trial_id', 'session_id', 'global_trial_name', 'rg_outcome']
+    missing_in_trial = [c for c in required_cols if c not in trial_df.columns]
+    if missing_in_trial:
+        raise ValueError(f"Missing columns in trial_df needed for export: {missing_in_trial}")
+
+    # Ensure trial_df has no empty global_trial_name before merge
+    empty_trial_names = trial_df['global_trial_name'].isna() | (trial_df['global_trial_name'] == '')
+    if empty_trial_names.any():
+        raise ValueError(
+            "Found trials with empty global_trial_name. "
+            f"Offending trial_ids: {trial_df.loc[empty_trial_names, 'trial_id'].tolist()}"
+        )
+
+    # Remove any pre-existing global_trial_name in keystate_df to avoid suffix conflicts;
+    # we treat trial_df as the single source of truth for names.
+    kstate_no_name = keystate_df.drop(columns=['global_trial_name'], errors='ignore')
+
+    merged = kstate_no_name.merge(
+        trial_df[required_cols],
+        on='trial_id',
+        how='inner',   # require match; do not allow unmatched keystate rows
+        validate='many_to_one',
+        suffixes=('', '_trial')
+    )
+
+    # Normalize column names in case suffixes were introduced unexpectedly
+    for col in ['global_trial_name', 'rg_outcome', 'session_id']:
+        if col not in merged.columns:
+            alt = [c for c in merged.columns if c.startswith(col)]
+            if alt:
+                merged[col] = merged[alt[0]]
+            else:
+                raise ValueError(
+                    f"Column '{col}' missing after merge. "
+                    f"Available columns: {merged.columns.tolist()}"
+                )
+
+    # Check for missing names after merge (should not happen with inner join)
+    missing_names = merged['global_trial_name'].isna() | (merged['global_trial_name'] == '')
+    if missing_names.any():
+        bad_ids = merged.loc[missing_names, 'trial_id'].unique().tolist()
+        raise ValueError(
+            "Merged keystate rows are missing global_trial_name. "
+            f"Trial_ids with missing names: {bad_ids}"
+        )
+
+    keystate_with_session = merged[['frame', 'red', 'green', 'uncertain', 'session_id', 'rg_outcome', 'trial_id', 'global_trial_name']]\
+        .sort_values(['global_trial_name', 'session_id'])
+
+    # If duplicates exist, surface them clearly (do NOT drop silently)
+    dup_mask = keystate_with_session.duplicated(subset=['frame', 'global_trial_name', 'session_id'], keep=False)
+    if dup_mask.any():
+        dup_rows = keystate_with_session[dup_mask].copy()
+        dup_rows = dup_rows.sort_values(['global_trial_name', 'session_id', 'frame'])
+        raise ValueError(
+            "Duplicate rows detected with same frame/global_trial_name/session_id. "
+            "This indicates duplicate trials or duplicated keystate logging for the same trial. "
+            "Details (first 20 rows):\n"
+            f"{dup_rows.head(20)}"
+        )
+
+    # Create a dictionary of dataframes, one for each global_trial_name
+    keystate_by_trial = {}
+    for trial_name in keystate_with_session['global_trial_name'].unique():
+        keystate_by_trial[trial_name] = keystate_with_session[keystate_with_session['global_trial_name'] == trial_name].copy()
+
+    # Save each trial as a separate CSV file in path_to_data
+    for trial_name, trial_data in keystate_by_trial.items():
+        csv_filename = "human_data.csv"
+        csv_filepath = os.path.join(path_to_data, trial_name, csv_filename)
+        trial_data.to_csv(csv_filepath, index=False)
+    
+    print(f"Saved human data as CSV files in {path_to_data}")
+    
+    return keystate_by_trial
 
 
 def find_duplicate_completed_trials(trial_df):
