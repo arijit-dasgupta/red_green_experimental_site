@@ -68,6 +68,7 @@ import copy
 import random
 import pandas as pd
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from sqlalchemy.sql import and_, or_
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.dialects.postgresql import JSON
@@ -247,9 +248,21 @@ def print_active_sessions():
     print("========================")
     print(app.config['SQLALCHEMY_DATABASE_URI'])
 
-# Initialize database tables and print session status
+# Initialize database tables, enable WAL, and print session status
 with app.app_context():
     db.create_all()
+
+    # Enable SQLite WAL mode for better concurrency
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL;"))
+            conn.execute(text("PRAGMA synchronous=NORMAL;"))
+            conn.commit()
+        print("SQLite PRAGMA journal_mode=WAL and synchronous=NORMAL applied.")
+    except Exception as e:
+        # Don't crash app startup if PRAGMA fails; just log it.
+        print(f"Warning: failed to set WAL mode: {e}")
+
     print("Database initialized.")
     print_active_sessions()
 
