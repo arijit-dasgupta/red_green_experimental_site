@@ -52,6 +52,8 @@ The data will be automatically saved in a SQLite database `.db` in a folder name
 
 ## Broadcasting to Internet for Prolific
 
+**REMINDER: Update prolific completion URL, dataset name, exp name and verify shuffling/counterbalance logic is correct**
+
 Tools used: gunicorn (to handle python side traffic handling -- builds on top of Flask) and ngrok (broadcasting to the internet using either a temorary one-time domain, or a fixed domain on the paid version). Refer to `DEPLOYMENT.md` for more instructions.
 
 ### Step 1: Gunicorn
