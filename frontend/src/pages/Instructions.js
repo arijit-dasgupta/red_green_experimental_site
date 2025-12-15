@@ -102,7 +102,16 @@ const InstructionPage1 = ({ handleNext }) => (
         <p style={{ fontSize: "1.25rem" }}>In this experiment, you will observe a <span style={{ color: "blue" }}><strong> blue </strong></span> circular object moving in a 2D Physical World.
         The blue object moves with correct <b>frictionless</b> and <b>elastic</b> physical motion & can bounce off walls and black rectangular barriers.
         </p>
-        <img src="/instruc1.gif" alt="Example 1" style={{ width: "100%", maxWidth: "400px", marginBottom: "20px" }} />
+        <video
+            src="/instruc1.webm"
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: "100%", maxWidth: "400px", marginBottom: "20px" }}
+        >
+            Sorry, your browser doesn’t support embedded videos.
+        </video>
         <InstrucNavigationButtons handleNext={handleNext} />
     </div>
 );
@@ -149,16 +158,21 @@ const InstructionPage2 = ({ handleNext, handleBack }) => (
                 </p>
             </div>
             <div style={{ textAlign: "center", flex: "1 1 calc(50% - 10px)" }}>
-                <img
-                    src="/instruc2.gif"
-                    alt="Motion Example"
+                <video
+                    src="/instruc2.webm"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
                     style={{
                         width: "100%",
                         height: "auto",
                         objectFit: "contain",
                         marginBottom: "10px",
                     }}
-                />
+                >
+                    Sorry, your browser doesn’t support embedded videos.
+                </video>
                 <p style={{ fontSize: "1rem", color: "#555" }}>
                     Occluders can <b>only</b> hide parts of the object’s movement.
                 </p>
@@ -183,7 +197,16 @@ const InstructionPage3 = ({ handleNext, handleBack }) => (
         <p style={{ fontSize: "1.2rem" }}>Your goal in this experiment is to watch a video like the one below, and <b>continuously predict as fast as possible</b> (in real time as you watch the video)
          whether the moving object will hit the <span style={{ color: "red" }}><strong> red </strong></span> region or the <span style={{ color: "green" }}><strong> green </strong></span> region first. 
          The trial will end once the ball will hit one of the 2 regions, <span style={{ color: "red" }}><strong> red </strong></span> or <span style={{ color: "green" }}><strong> green </strong></span>.</p>
-        <img src="/instruc3.gif" alt="Example 1" style={{ width: "100%", maxWidth: "400px", marginBottom: "0px" }} />
+        <video
+            src="/instruc3.webm"
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: "100%", maxWidth: "400px", marginBottom: "0px" }}
+        >
+            Sorry, your browser doesn’t support embedded videos.
+        </video>
         <p style={{ fontSize: "1.2rem"}}>In this example, the ball hit the red region.</p>
         <InstrucNavigationButtons handleNext={handleNext} handleBack={handleBack} />
     </div>
