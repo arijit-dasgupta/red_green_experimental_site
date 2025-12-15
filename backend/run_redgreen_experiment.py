@@ -93,7 +93,7 @@ TIMEOUT_PERIOD = timedelta(minutes=60)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
 NUM_PARTICIPANTS = 20  # Target number of participants to recruit
 # PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
-PROLIFIC_COMPLETION_URL = 'https://google.com'  # URL for participants to complete study on Prolific
+PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=C3RXSHXW'  # URL for participants to complete study on Prolific
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
