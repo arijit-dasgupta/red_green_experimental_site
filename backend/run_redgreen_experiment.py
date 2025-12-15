@@ -77,22 +77,22 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 # Example URL with Prolific parameters for testing:
-# http://localhost:3000/?PROLIFIC_PID=sfdgsdfgsdfg&STUDY_ID=rg1&SESSION_ID=77
+# http://localhost:5000/?PROLIFIC_PID=sfdgsdfgsdfg&STUDY_ID=rg1&SESSION_ID=77
 
 #=============================================================================
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'cogsci_2025_trials_reduced'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'ecog_stimuli_v6'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
-EXP_TRIAL_PREFIXES = ['E']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'ecog_v0'  # Version identifier for this experiment run
+EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
+EXPERIMENT_RUN_VERSION = 'pilot_dec15_2025'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
-TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
+TIMEOUT_PERIOD = timedelta(minutes=60)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
-NUM_PARTICIPANTS = 30  # Target number of participants to recruit
+NUM_PARTICIPANTS = 20  # Target number of participants to recruit
 # PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
-PROLIFIC_COMPLETION_URL = 'https://redgreenplayground.com/jtap/cogsci2025-tuned/trial-by-trial'  # URL for participants to complete study on Prolific
+PROLIFIC_COMPLETION_URL = 'https://google.com'  # URL for participants to complete study on Prolific
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -269,7 +269,12 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
     
     The function ensures proper randomization while maintaining experimental constraints:
     - All participants get the same familiarization trials in order
-    - Experimental trials are randomized ONCE (same order for all participants)
+    - Experimental trials are organized by prefix, shuffled within each prefix, then interleaved:
+      1. Group trials by prefix (CC_control, CC_surprise, UC_positive, UC_negative)
+      2. Shuffle each prefix's trials separately (using fixed seed)
+      3. Round-robin: pick one from each prefix, shuffle those 4, repeat until all trials are used
+      4. Same order for all participants (deterministic)
+      5. Skip first SKIP_FIRST_N_EXP_TRIALS trials after randomization
     """
     try:
         # Convert relative path to absolute path based on this Python file's location
@@ -280,21 +285,40 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
-        # Separate familiarization (F) and experimental (E) trial folders, allowing multiple prefixes each
+        # Separate familiarization (F) and experimental (E) trial folders
         participants_f_assignments = [
             entry for entry in entries 
             if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
         ]
         participants_f_assignments.sort()  # F1, F2, F3 etc. in order if multiple prefixes
         
-        e_folders = [
-            entry for entry in entries 
-            if any(entry.startswith(prefix) for prefix in EXP_TRIAL_PREFIXES)
-        ]
-
-        # Shuffle e_folders ONCE for all participants
-        e_folders_shuffled = e_folders[:]
-        random_.shuffle(e_folders_shuffled)
+        # Group experimental trials by prefix
+        prefix_stacks = {}
+        for prefix in EXP_TRIAL_PREFIXES:
+            prefix_trials = [
+                entry for entry in entries 
+                if entry.startswith(prefix)
+            ]
+            # Shuffle each prefix's trials separately (using same seed for reproducibility)
+            prefix_trials_shuffled = prefix_trials[:]
+            random_.shuffle(prefix_trials_shuffled)
+            prefix_stacks[prefix] = prefix_trials_shuffled
+        
+        # Round-robin interleaving: pick one from each stack, shuffle those 4, repeat
+        e_folders_shuffled = []
+        max_trials = max(len(stack) for stack in prefix_stacks.values()) if prefix_stacks else 0
+        
+        for round_idx in range(max_trials):
+            # Pick one trial from each prefix stack (if available)
+            round_trials = []
+            for prefix in EXP_TRIAL_PREFIXES:
+                if len(prefix_stacks[prefix]) > round_idx:
+                    round_trials.append(prefix_stacks[prefix][round_idx])
+            
+            # Shuffle the trials in this round
+            if round_trials:
+                random_.shuffle(round_trials)
+                e_folders_shuffled.extend(round_trials)
 
         # All participants get the same shuffled order
         f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
