@@ -50,6 +50,28 @@ python backend/run_redgreen_experiment.py
 ```
 The data will be automatically saved in a SQLite database `.db` in a folder named `instance` from the folder where the experiment python file is run (in the example above, it will be in the root folder).
 
+## Broadcasting to Internet for Prolific
+
+Tools used: gunicorn (to handle python side traffic handling -- builds on top of Flask) and ngrok (broadcasting to the internet using either a temorary one-time domain, or a fixed domain on the paid version). Refer to `DEPLOYMENT.md` for more instructions.
+
+### Step 1: Gunicorn
+
+After building via `npm`, run the following in one terminal:
+
+```bash
+gunicorn -c gunicorn_config.py run_redgreen_experiment:app
+```
+
+This uses the settings defined by `gunicorn_config.py`
+
+### Step 2: Ngrok
+
+Broadcast to internet (after authenticating ngrok on terminal) on a separate terminal:
+
+```bash
+ngrok http 8000
+```
+
 ## Notes on running experiment (from Arijit)
 
 The `backend/trial_data` stores all the datasets. The dataset present here is named `pilot_final` which was used for CogSci 2025's JTAP experiments. in the dataset folder has all the familiarization stimuli and experiment trial stimuli. Fam trials start with 'F' and an integer starting from 1 until the max number of trials (So F1, F2 etc.). The same is the case for the main experiment trials (E1, E2, E3 etc.) which start with an 'E'. The trial folder prefixes are configurable via `FAM_TRIAL_PREFIXES` and `EXP_TRIAL_PREFIXES` variables in `backend/run_redgreen_experiment.py` (defaulting to `['F']` and `['E']` respectively).
