@@ -87,12 +87,13 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DATASET_NAME = 'cogsci_2025_trials'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 DATASET_NAME = 'ecog_stimuli_v6'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+SKIP_FIRST_N_EXP_TRIALS = 35 # number of experimental trials to skip at the beginning of the dataset
 FAM_TRIAL_PREFIXES = ['F']
 EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']
 COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-EXPERIMENT_RUN_VERSION = 'ecog_dec14_v1'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'ecog_dec15_v1'  # Version identifier for this experiment run
 TIMEOUT_PERIOD = timedelta(minutes=100000)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5000)  # How often to check for timeouts
 NUM_PARTICIPANTS = 800  # Target number of participants to recruit
@@ -280,6 +281,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
       2. Shuffle each prefix's trials separately (using fixed seed)
       3. Round-robin: pick one from each prefix, shuffle those 4, repeat until all trials are used
       4. Same order for all participants (deterministic)
+      5. Skip first SKIP_FIRST_N_EXP_TRIALS trials after randomization
     """
     try:
         # Convert relative path to absolute path based on this Python file's location
@@ -324,6 +326,9 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
             if round_trials:
                 random_.shuffle(round_trials)
                 e_folders_shuffled.extend(round_trials)
+
+        # Skip first N experimental trials after randomization
+        e_folders_shuffled = e_folders_shuffled[SKIP_FIRST_N_EXP_TRIALS:]
 
         # All participants get the same shuffled order
         f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
