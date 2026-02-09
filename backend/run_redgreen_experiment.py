@@ -89,6 +89,27 @@ PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all 
 DATASET_NAME = 'chs_training_zoom'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['Q','F', 'T']
 EXP_TRIAL_PREFIXES = ['R','E']
+
+# V2: Explicit familiarization trial order (15 trials for P4-P18)
+# These must match the trial data folders in backend/trial_data/chs_training_zoom/
+V2_FAM_TRIAL_ORDER = [
+    'T_v2_ball_still',           # ftrial_i=1, P4: Ball intro
+    'T_v2_ball_move',            # ftrial_i=2, P5: Ball bounce
+    'T_v2_ball_sensor_red',      # ftrial_i=3, P6: Sensors intro
+    'T_v2_bg_no_occluder',       # ftrial_i=4, P7: Keys intro
+    None,                         # ftrial_i=5, P8: Before easy practice (image page, no trial data)
+    'T_v2_green_easy',           # ftrial_i=6, P9: Practice F key
+    'T_v2_red_easy',             # ftrial_i=7, P10: Practice J key
+    'T_v2_red_mid',              # ftrial_i=8, P11: Practice swapped
+    'T_v2_green_mid',            # ftrial_i=9, P12: Practice swapped
+    None,                         # ftrial_i=10, P13: Switch keys intro (image page, no trial data)
+    'T_v2_keyswitch_ball_stable', # ftrial_i=11, P14: Key switch stable
+    'T_v2_keyswitch_ball_moving', # ftrial_i=12, P15: Key switch moving
+    'T_v2_occluder_intro',       # ftrial_i=13, P16: Occluder intro
+    'T_v2_occluder_practice',    # ftrial_i=14, P17: Occluder practice
+    None,                         # ftrial_i=15, P18: Before test (image page, no trial data)
+]
+USE_V2_FAM_TRIALS = True  # Set to True to use V2 familiarization trial order
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 EXPERIMENT_RUN_VERSION = 'chs_zoom_pilot'  # Version identifier for this experiment run
@@ -286,16 +307,23 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
-        # Separate familiarization (F) and experimental (E) trial folders, allowing multiple prefixes each
-        participants_f_assignments = [
-            entry for entry in entries 
-            if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
-        ]
-        participants_f_assignments.sort()  # F1, F2, Q1 etc. in order if multiple prefixes
-        
-        # Limit familiarization trials to first 14 (ftrial_i 1-14, corresponding to P8-P22)
-        MAX_FAMILIARIZATION_TRIALS = 14
-        participants_f_assignments = participants_f_assignments[:MAX_FAMILIARIZATION_TRIALS]
+        # V2: Use explicit familiarization trial order if enabled
+        if USE_V2_FAM_TRIALS:
+            # Keep the full order including None entries (for image-only pages)
+            # The None entries represent image-only pages that don't need trial data
+            participants_f_assignments = V2_FAM_TRIAL_ORDER.copy()
+            print(f"V2 Mode: Using explicit familiarization trial order (including image pages): {participants_f_assignments}")
+        else:
+            # Legacy: Separate familiarization (F) and experimental (E) trial folders, allowing multiple prefixes each
+            participants_f_assignments = [
+                entry for entry in entries 
+                if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
+            ]
+            participants_f_assignments.sort()  # F1, F2, Q1 etc. in order if multiple prefixes
+            
+            # Limit familiarization trials to first 14 (ftrial_i 1-14, corresponding to P8-P22)
+            MAX_FAMILIARIZATION_TRIALS = 14
+            participants_f_assignments = participants_f_assignments[:MAX_FAMILIARIZATION_TRIALS]
         
         e_folders = [
             entry for entry in entries 
@@ -307,8 +335,11 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         random_.shuffle(e_folders_shuffled)
 
         # All participants get the same shuffled order
-        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
-                  for entry in participants_f_assignments]
+        # V2: Handle None entries (image-only pages) by keeping them as None in the paths list
+        f_paths = [
+            os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') if entry is not None else None
+            for entry in participants_f_assignments
+        ]
         e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
                   for entry in e_folders_shuffled]
         
@@ -412,9 +443,14 @@ def load_experiment_config(experiment_name, randomized_profile_id):
             "worldHeight": world_height,
         }
 
-    # Parse all trial data files for this participant (filter out None results from missing files)
-    config["ftrial_datas"] = [data for data in [parse_json(file_path) for file_path in ftrial_paths] if data is not None]
+    # Parse all trial data files for this participant
+    # V2: Keep None entries for image-only pages (they don't have trial data)
+    config["ftrial_datas"] = [
+        parse_json(file_path) if file_path is not None else None
+        for file_path in ftrial_paths
+    ]
     config["trial_datas"] = [data for data in [parse_json(file_path) for file_path in trial_paths] if data is not None]
+    # V2: num_ftrials is the total count including image-only pages
     config["num_ftrials"] = len(config["ftrial_datas"])
     config["num_trials"] = len(config["trial_datas"])
 
@@ -561,7 +597,8 @@ def start_experiment(experiment_name):
     print(f"=========================")
 
     # Build full timeline: training pages + familiarization trials + experimental trials
-    training_pages = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+    # V2: Only 3 training pages (P1-P3)
+    training_pages = ["P1", "P2", "P3"] if USE_V2_FAM_TRIALS else ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
     full_timeline = training_pages + (f_trial_order if f_trial_order else []) + (randomized_trial_order if randomized_trial_order else [])
     
     # Print full timeline to server console
@@ -665,20 +702,15 @@ def load_next_scene():
     
     # Ensure indices don't exceed available scores (handles edge cases)
     # Skip this logic ENTIRELY for resumed experiments - they manage their own indices
-    # IMPORTANT: Don't adjust ftrial_i for demonstration/practice pages (p8=ftrial_i=1, p9=ftrial_i=2, p10=ftrial_i=3, p11=ftrial_i=4, p12=ftrial_i=5, p14=ftrial_i=6, p15=ftrial_i=7, p16=ftrial_i=8, p17=ftrial_i=9, p18=ftrial_i=10, p19=ftrial_i=11, p20=ftrial_i=12, p21=ftrial_i=13, p22=ftrial_i=14) 
-    # which don't save scores. The score-checking logic should only apply to regular trials.
+    # IMPORTANT: V2 familiarization pages (ftrial_i 1-15) don't save scores, so NEVER adjust ftrial_i for them.
+    # Only adjust for regular experimental trials (trial_i).
     if (resume_from_trial is None and 
         not config.get('is_resume_mode', False) and 
         not config.get('was_resumed', False)):
-        # Only adjust ftrial_i if we're past the demonstration/practice pages (ftrial_i > 14)
-        # or if we have scores that indicate we've completed regular familiarization trials
-        if len(fscores) < ftrial_i and ftrial_i > 14:
-            # Only decrement if we're past p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21/p22 and there's a mismatch
-            print(f"⚠️ Adjusting ftrial_i: len(fscores)={len(fscores)}, ftrial_i={ftrial_i}")
-            ftrial_i -= 1
-        elif len(fscores) < ftrial_i and ftrial_i <= 14:
-            # For p8 (ftrial_i=1), p9 (ftrial_i=2), p10 (ftrial_i=3), p11 (ftrial_i=4), p12 (ftrial_i=5), p14 (ftrial_i=6), p15 (ftrial_i=7), p16 (ftrial_i=8), p17 (ftrial_i=9), p18 (ftrial_i=10), p19 (ftrial_i=11), p20 (ftrial_i=12), p21 (ftrial_i=13), and p22 (ftrial_i=14), don't adjust - they're demonstration/practice pages
-            print(f"ℹ️ Skipping ftrial_i adjustment for demonstration/practice page: ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
+        # V2: NEVER adjust ftrial_i - all 15 familiarization pages are demo/practice pages without scores
+        # Only log for debugging
+        if len(fscores) < ftrial_i:
+            print(f"ℹ️ V2: Skipping ftrial_i adjustment (all familiarization pages are demo/practice): ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
         if len(tscores) < trial_i:
             trial_i -= 1
 
@@ -688,6 +720,18 @@ def load_next_scene():
     db.session.commit()
 
     # Determine which trial/scene to show next based on current progress
+    # V2: ftrial_i values 5, 10, 15 are image-only pages (None in ftrial_datas)
+    is_image_page = False
+    
+    # DEBUG: Print all values before condition check
+    import sys
+    print(f"🔍 CONDITION CHECK: ftrial_i={ftrial_i}, num_ftrials={config['num_ftrials']}, is_ftrial={is_ftrial}")
+    print(f"🔍 CONDITION CHECK: trial_i={trial_i}, num_trials={config['num_trials']}, is_trial={is_trial}")
+    print(f"🔍 CONDITION 1: ftrial_i < num_ftrials = {ftrial_i < config['num_ftrials']}")
+    print(f"🔍 CONDITION 2: ftrial_i >= num_ftrials = {ftrial_i >= config['num_ftrials']}")
+    print(f"🔍 CONDITION 3: trial_i < num_trials = {trial_i < config['num_trials']}")
+    sys.stdout.flush()
+    
     if ftrial_i < config["num_ftrials"]:
         # Still in familiarization phase
         print(f"📋 FAMILIARIZATION: Loading ftrial_datas[{ftrial_i}] (will become ftrial_i={ftrial_i + 1} after increment)")
@@ -696,14 +740,31 @@ def load_next_scene():
         ftrial_i += 1
         is_ftrial = True
         finish = False
+        
+        # V2: Check if this is an image-only page (None trial data)
+        if npz_data is None:
+            is_image_page = True
+            print(f"📸 IMAGE PAGE: ftrial_i={ftrial_i} is an image-only page (no trial data)")
+            # Use dummy data for image pages
+            npz_data = {"barriers": [], "occluders": [], "step_data": {}, "red_sensor": {}, 
+                       "green_sensor": {}, "timestep": 0, "fps": 30, "radius": 0.5, 
+                       "rg_outcome": "", "worldWidth": 20, "worldHeight": 20}
+        
         print(f"✅ FAMILIARIZATION: Incremented ftrial_i from {old_ftrial_i} to {ftrial_i}")
-    elif ftrial_i == config["num_ftrials"] and is_ftrial:
-        # Just finished familiarization - show transition page
+    elif ftrial_i >= config["num_ftrials"] and is_ftrial:
+        # Just finished familiarization - transition to experimental phase
+        # The `is_ftrial` check ensures we only trigger transition ONCE
+        # After transition, is_ftrial=False so next request falls through to experimental phase
+        import sys
+        print(f"🔄 TRANSITION: ftrial_i={ftrial_i} >= num_ftrials={config['num_ftrials']} and is_ftrial={is_ftrial}")
+        print(f"🔄 TRANSITION: Setting transition_to_exp_page=True, is_ftrial=False")
+        sys.stdout.flush()
         transition_to_exp_page = True
         is_ftrial = False
         npz_data = config["trial_datas"][0]  # Dummy data for transition
         finish = False
     elif trial_i < config["num_trials"]:
+        print(f"🧪 EXPERIMENTAL: trial_i={trial_i} < num_trials={config['num_trials']}, starting experimental trial")
         # In experimental phase
         transition_to_exp_page = False
         npz_data = config["trial_datas"][trial_i]
@@ -727,8 +788,11 @@ def load_next_scene():
     trial_type = 'ftrial' if is_ftrial else 'trial'
     trial_index = ftrial_i - 1 if is_ftrial else trial_i - 1
     
-    # Create trial record if this is an actual trial (not transition/finish screen)
-    if (not transition_to_exp_page) and (not finish):
+    # Create trial record if this is an actual trial (not transition/finish screen/image page)
+    # V2: Skip trial creation for image-only pages (they don't have trial data or responses)
+    trial = None  # Initialize trial to None
+    counterbalance = False  # Default counterbalance
+    if (not transition_to_exp_page) and (not finish) and (not is_image_page):
         # Randomly assign counterbalancing (swaps F/J key meanings)
         counterbalance = random.choice([True, False])
         
@@ -757,6 +821,8 @@ def load_next_scene():
         else:
             print(f"Exp Trial Progress: {trial_i}/{config['num_trials']}")
         print(f"-------------------------------")
+    elif is_image_page:
+        print(f"📸 IMAGE PAGE: Skipping trial creation for image-only page (ftrial_i={ftrial_i})")
 
     # Update configuration with new progress state
     # Direct assignment to ensure SQLAlchemy detects the change
@@ -809,7 +875,7 @@ def load_next_scene():
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": world_width,
         "worldHeight": world_height,
-        "counterbalance": False if (transition_to_exp_page or finish) else counterbalance,
+        "counterbalance": False if (transition_to_exp_page or finish or is_image_page) else counterbalance,
         "is_ftrial": is_ftrial,
         "is_trial": is_trial,
         "ftrial_i": ftrial_i,
@@ -819,10 +885,11 @@ def load_next_scene():
         "fam_to_exp_page": transition_to_exp_page,
         "finish": finish,
         "average_score": avg_score,
-        "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id
+        "unique_trial_id": -1 if (transition_to_exp_page or finish or is_image_page) else trial.id,
+        "is_image_page": is_image_page  # V2: Flag for image-only pages
     }
 
-    print(f"📤 RETURNING SCENE DATA: ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
+    print(f"📤 RETURNING SCENE DATA: ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}, is_image_page={is_image_page}")
     return jsonify(scene_data)
 
 @app.route('/api/load_trial_data/<trial_folder>', methods=['GET'])

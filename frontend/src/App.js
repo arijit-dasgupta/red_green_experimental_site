@@ -14,7 +14,10 @@ import ChildAssent from './pages/ChildAssent';
 import FinalWordsToParents from './pages/FinalWordsToParents';
 import BackstoryPage from './pages/BackstoryPage';
 import Header from './components/Header';
+import StudyControls from './components/StudyControls';
+import BreakPage from './components/BreakPage';
 import { useNavigation } from './contexts/NavigationContext';
+import { PauseProvider } from './contexts/PauseContext';
 // HOOKS to maintain robustness of experiment
 import usePreventNavigation from './hooks/usePreventNavigation';
 import useResizeCanvas from './hooks/useResizeCanvas';
@@ -76,6 +79,11 @@ const App = () => {
   });
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
+  const [showBreakPage, setShowBreakPage] = useState(false);
+  const lastBreakTrialRef = useRef(0); // Track the trial number of the last break
+  const pendingSceneDataRef = useRef(null); // Store pending scene data during break
+  const pendingSetdisableCountdownTriggerRef = useRef(null); // Store the setter during break
+  const fetchInProgressRef = useRef(false); // Lock to prevent concurrent fetchNextScene calls
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
   
   // Audio context and tones for precise timing
@@ -265,15 +273,15 @@ const App = () => {
               // Counterbalance only swaps which sensor is shown in which position, not the key mapping
               // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed (J key = red sensor)
               if (currentKeyStates.j && !currentKeyStates.f && isCurrentlyPlaying) {
-                  ctx.save();
+              ctx.save();
                   const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                   const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                   const glowSize = 8 * pulseIntensity; // Pulsing glow size
                   
-                  // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                  // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
                   ctx.shadowBlur = 20 * pulseIntensity;
-                  ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
-                  ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                  ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
+                  ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
                   ctx.lineWidth = 4 * pulseIntensity;
                   ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                   ctx.restore();
@@ -315,7 +323,7 @@ const App = () => {
               // Counterbalance only swaps which sensor is shown in which position, not the key mapping
               // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
               if (currentKeyStates.f && !currentKeyStates.j && isCurrentlyPlaying) {
-                  ctx.save();
+              ctx.save();
                   const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                   const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                   const glowSize = 8 * pulseIntensity; // Pulsing glow size
@@ -791,6 +799,12 @@ const renderCurrentPage = () => {
 
 
   const fetchNextScene = async (setdisableCountdownTrigger) => {
+    // Prevent concurrent fetchNextScene calls (race condition fix)
+    if (fetchInProgressRef.current) {
+      console.log('⚠️ App: fetchNextScene already in progress, ignoring duplicate call');
+      return;
+    }
+    fetchInProgressRef.current = true;
     
     try {
       const sessionId = sessionStorage.getItem('sessionId');
@@ -819,8 +833,20 @@ const renderCurrentPage = () => {
         is_ftrial: data.is_ftrial,
         is_trial: data.is_trial,
         unique_trial_id: data.unique_trial_id,
-        num_ftrials: data.num_ftrials
+        num_ftrials: data.num_ftrials,
+        num_trials: data.num_trials,
+        fam_to_exp_page: data.fam_to_exp_page,
+        finish: data.finish,
+        is_image_page: data.is_image_page,
       });
+      
+      // Critical transition logging
+      if (data.fam_to_exp_page) {
+        console.log("🔄🔄🔄 TRANSITION: fam_to_exp_page is TRUE - will auto-fetch experimental trial");
+      }
+      if (data.is_trial && !data.is_ftrial) {
+        console.log("🧪🧪🧪 EXPERIMENTAL: First experimental trial received! trial_i=" + data.trial_i);
+      }
       
       // Debug: Check if this should be p8 or p9
       if (data.is_ftrial) {
@@ -860,17 +886,27 @@ const renderCurrentPage = () => {
       if (data.finish) {
         setFinished(false);
         setAverageScore(data.average_score);
+        fetchInProgressRef.current = false; // Release lock before navigation
         navigate('finish');
         return;
       }
   
       if (data.fam_to_exp_page) {
         // Skip transition page and automatically fetch next scene (first experimental trial)
+        console.log('🔄 App: Familiarization complete, auto-fetching first experimental trial...');
         setFinished(false); // to disable spacebar pressing
         setIsTransitionPage(false);
+        // Release lock before scheduling next call
+        fetchInProgressRef.current = false;
         // Automatically fetch the next scene (first experimental trial) without showing transition page
-        setTimeout(() => {
-          fetchNextScene(setdisableCountdownTrigger);
+        setTimeout(async () => {
+          console.log('🔄 App: Auto-fetch timer fired, calling fetchNextScene for experimental trial...');
+          try {
+            await fetchNextScene(setdisableCountdownTrigger);
+            console.log('✅ App: Auto-fetch completed successfully');
+          } catch (err) {
+            console.error('❌ App: Auto-fetch FAILED:', err);
+          }
         }, 100); // Small delay to ensure state is updated
         return;
       }
@@ -882,6 +918,23 @@ const renderCurrentPage = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
   
+      // Check if we need to show a break page (after every 10 testing trials)
+      // Break should occur when trial_i is 11, 21, 31, etc. (meaning trial 10, 20, 30 was just completed)
+      const BREAK_INTERVAL = 10;
+      if (data.is_trial && data.trial_i > 1 && (data.trial_i - 1) % BREAK_INTERVAL === 0) {
+        const completedTrial = data.trial_i - 1;
+        // Only show break if we haven't shown one for this trial number
+        if (completedTrial > lastBreakTrialRef.current) {
+          console.log(`🛑 App: Showing break page after trial ${completedTrial}`);
+          lastBreakTrialRef.current = completedTrial;
+          pendingSceneDataRef.current = data;
+          pendingSetdisableCountdownTriggerRef.current = setdisableCountdownTrigger;
+          fetchInProgressRef.current = false; // Release lock before showing break page
+          setShowBreakPage(true);
+          return; // Don't load the next scene yet
+        }
+      }
+  
       setdisableCountdownTrigger(false); // Enable countdown trigger
       setSceneData(data);
       console.log("🔄 Frontend updating trialInfo with:", {
@@ -889,7 +942,20 @@ const renderCurrentPage = () => {
         trial_i: data.trial_i,
         is_ftrial: data.is_ftrial,
         is_trial: data.is_trial,
+        is_image_page: data.is_image_page,
+        fam_to_exp_page: data.fam_to_exp_page,
+        finish: data.finish,
       });
+      
+      // Debug: Extra logging for experimental phase transition
+      if (data.is_trial && !data.is_ftrial) {
+        console.log("🧪 App: First experimental trial being loaded!", {
+          trial_i: data.trial_i,
+          num_trials: data.num_trials,
+          sceneData_barriers: data.barriers?.length,
+          sceneData_occluders: data.occluders?.length,
+        });
+      }
       
       setTrialInfo({
         ftrial_i: data.ftrial_i,
@@ -917,9 +983,14 @@ const renderCurrentPage = () => {
       if (isPlaying) {
         renderFrame(0);
       }
+      
+      // Release the fetch lock
+      fetchInProgressRef.current = false;
     } catch (error) {
       console.error("Error loading next scene:", error);
       alert("Frontend Failed to load the next scene.");
+      // Release the fetch lock on error
+      fetchInProgressRef.current = false;
     }
   };
 
@@ -1050,11 +1121,90 @@ const animate = (timestamp) => {
 
   const sessionId = sessionStorage.getItem('sessionId');
 
+  // Handler for when break page is completed
+  const handleBreakContinue = useCallback(() => {
+    console.log('▶️ App: Break completed, continuing with next trial');
+    setShowBreakPage(false);
+    
+    // Load the pending scene data
+    if (pendingSceneDataRef.current && pendingSetdisableCountdownTriggerRef.current) {
+      const data = pendingSceneDataRef.current;
+      const setdisableCountdownTrigger = pendingSetdisableCountdownTriggerRef.current;
+      
+      setdisableCountdownTrigger(false); // Enable countdown trigger
+      setSceneData(data);
+      console.log("🔄 Frontend updating trialInfo after break with:", {
+        ftrial_i: data.ftrial_i,
+        trial_i: data.trial_i,
+        is_ftrial: data.is_ftrial,
+        is_trial: data.is_trial,
+      });
+      
+      setTrialInfo({
+        ftrial_i: data.ftrial_i,
+        trial_i: data.trial_i,
+        unique_trial_id: data.unique_trial_id,
+        is_ftrial: data.is_ftrial,
+        is_trial: data.is_trial,
+        num_trials: data.num_trials,
+        num_ftrials: data.num_ftrials,
+      });
+      
+      // Clear pending data
+      pendingSceneDataRef.current = null;
+      pendingSetdisableCountdownTriggerRef.current = null;
+    }
+  }, []);
+
+  // Handler for stopping the study (from StudyControls)
+  const handleStopStudy = useCallback((event) => {
+    console.log('🛑 App: Study stopped by user', event);
+    // Log the stop event to the backend if needed
+    try {
+      fetch('/api/log_stop_event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          event: event,
+          currentPage: currentPage,
+        }),
+      }).catch(e => console.warn('Could not log stop event:', e));
+    } catch (e) {
+      console.warn('Could not log stop event:', e);
+    }
+    // Navigate to thank you page
+    navigate('thankyou');
+  }, [navigate, sessionId, currentPage]);
+
+  // Pages where study controls should be shown (during actual experiment flow)
+  const showStudyControls = [
+    'backstory',
+    'experiment',
+    'familiarization',
+    'child-assent',
+    'child-assent-intro',
+    'final-words-to-parents',
+    'parent-instructions',
+  ].includes(currentPage) || showBreakPage;
+
   return (
-    <div className="app" style={{ position: "relative" }}>
-      {currentPage !== 'welcome' && currentPage !== 'thankyou' && <Header sessionId={sessionId} />}
-      {renderCurrentPage()}
-    </div>
+    <PauseProvider>
+      <div className="app" style={{ position: "relative" }}>
+        {currentPage !== 'welcome' && currentPage !== 'thankyou' && <Header sessionId={sessionId} />}
+        {showStudyControls && (
+          <StudyControls
+            onStop={handleStopStudy}
+            showControls={true}
+          />
+        )}
+        {showBreakPage ? (
+          <BreakPage onContinue={handleBreakContinue} />
+        ) : (
+          renderCurrentPage()
+        )}
+      </div>
+    </PauseProvider>
   );
 };
 

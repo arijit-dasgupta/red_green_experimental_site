@@ -16,6 +16,8 @@ import P19CanvasPage from '../components/P19CanvasPage';
 import P20CanvasPage from '../components/P20CanvasPage';
 import P21CanvasPage from '../components/P21CanvasPage';
 import P22CanvasPage from '../components/P22CanvasPage';
+import P8DemoPage from '../components/P8DemoPage';
+import P13DemoPage from '../components/P13DemoPage';
 
 const ExperimentPage = ({
     sceneData,
@@ -109,23 +111,9 @@ const ExperimentPage = ({
         };
     }, [fetchNextScene, finished, isTransitionPage]);
 
-    // Add keyboard shortcut for testing: Press 'Shift+S' to skip to next page
-    useEffect(() => {
-        const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in ExperimentPage, skipping to next page");
-                e.preventDefault();
-                e.stopPropagation();
-                fetchNextScene(setdisableCountdownTrigger);
-                return false;
-            }
-        };
-        
-        document.addEventListener('keydown', handleKeyPress, true);
-        return () => {
-            document.removeEventListener('keydown', handleKeyPress, true);
-        };
-    }, [fetchNextScene, setdisableCountdownTrigger]);
+    // Skip key handler REMOVED from ExperimentPage to prevent race condition
+    // Each child component (P8CanvasPage, P9CanvasPage, etc.) has its own skip handler
+    // Having a handler here too causes duplicate fetchNextScene calls
 
     if (isTransitionPage) {
         return (
@@ -137,44 +125,57 @@ const ExperimentPage = ({
         );
     }
 
-    // Check if this is p8, p9, p10, or p11 (special canvas pages)
-    // After BackstoryPage (p1-p7), the first familiarization trial is ftrial_i=1, which should be p8
-    // The second familiarization trial is ftrial_i=2, which should be p9
-    // The third familiarization trial is ftrial_i=3, which should be p10
-    // The fourth familiarization trial is ftrial_i=4, which should be p11
+    // V2: Check for familiarization pages (P4-P18)
+    // After BackstoryPage (p1-p3), familiarization trials start at P4
+    // ftrial_i mapping for V2:
+    // 1=P4 (Ball intro), 2=P5 (Ball bounce), 3=P6 (Sensors intro), 4=P7 (Keys intro)
+    // 5=P8 (Before easy practice), 6=P9 (Practice F), 7=P10 (Practice J)
+    // 8=P11 (Practice swapped), 9=P12 (Practice swapped), 10=P13 (Switch keys intro)
+    // 11=P14 (Key switch stable), 12=P15 (Key switch moving), 13=P16 (Occluder intro)
+    // 14=P17 (Occluder practice), 15=P18 (Before test)
     const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
-    // p8 is the first familiarization trial (ftrial_i === 1) after backstory
-    // p9 is the second familiarization trial (ftrial_i === 2) after backstory
-    // p10 is the third familiarization trial (ftrial_i === 3) after backstory
-    // p11 is the fourth familiarization trial (ftrial_i === 4) after backstory
-    // p12 is the fifth familiarization trial (ftrial_i === 5) after backstory
-    // p14 is the sixth familiarization trial (ftrial_i === 6) after backstory (interactive practice)
-    // p15 is the seventh familiarization trial (ftrial_i === 7) after backstory (interactive practice)
-    // p16 is the eighth familiarization trial (ftrial_i === 8) after backstory (interactive practice)
-    // p17 is the ninth familiarization trial (ftrial_i === 9) after backstory (interactive practice)
-    // p18 is the tenth familiarization trial (ftrial_i === 10) after backstory (demonstration)
-    // Note: getFamiliarizationPageType(1) returns 'p1', but we want p8 to be rendered for ftrial_i === 1
-    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
-    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;
-    const isP10 = trialInfo.is_ftrial && trialInfo.ftrial_i === 3;
-    const isP11 = trialInfo.is_ftrial && trialInfo.ftrial_i === 4;
-    const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 5;
-    const isP14 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;
-    const isP15 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;
-    const isP16 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;
-    const isP17 = trialInfo.is_ftrial && trialInfo.ftrial_i === 9;
-    const isP18 = trialInfo.is_ftrial && trialInfo.ftrial_i === 10;
-    const isP19 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11;
-    const isP20 = trialInfo.is_ftrial && trialInfo.ftrial_i === 12;
-    const isP21 = trialInfo.is_ftrial && trialInfo.ftrial_i === 13;
-    const isP22 = trialInfo.is_ftrial && trialInfo.ftrial_i === 14;
     
-    // Debug: Explicitly log isP18 calculation - ALWAYS log when ftrial_i is 10
+    // V2 page mappings - using existing component files but for new page numbers
+    // ftrial_i 1 = P4 (Ball intro) - uses P8CanvasPage component
+    // ftrial_i 2 = P5 (Ball bounce) - uses P9CanvasPage component
+    // ftrial_i 3 = P6 (Sensors intro) - uses P11CanvasPage component (repurposed)
+    // ftrial_i 4 = P7 (Keys intro) - uses P12CanvasPage component (repurposed)
+    // ftrial_i 5 = P8 (Before practice) - image page, handled specially
+    // ftrial_i 6 = P9 (Practice F) - uses P14CanvasPage component
+    // ftrial_i 7 = P10 (Practice J) - uses P15CanvasPage component
+    // ftrial_i 8 = P11 (Practice swapped) - uses P16CanvasPage component
+    // ftrial_i 9 = P12 (Practice swapped) - uses P17CanvasPage component
+    // ftrial_i 10 = P13 (Switch keys intro) - uses P18CanvasPage component
+    // ftrial_i 11 = P14 (Key switch stable) - uses P19CanvasPage component
+    // ftrial_i 12 = P15 (Key switch moving) - uses P20CanvasPage component
+    // ftrial_i 13 = P16 (Occluder intro) - uses P21CanvasPage component
+    // ftrial_i 14 = P17 (Occluder practice) - uses P10CanvasPage component (repurposed)
+    // ftrial_i 15 = P18 (Before test) - uses P22CanvasPage component
+    
+    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;  // P4: Ball intro
+    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;  // P5: Ball bounce
+    const isP10 = trialInfo.is_ftrial && trialInfo.ftrial_i === 14; // P17: Occluder practice (reused for new page)
+    const isP11 = trialInfo.is_ftrial && trialInfo.ftrial_i === 3;  // P6: Sensors intro
+    const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 4;  // P7: Keys intro
+    const isP14 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;  // P9: Practice F key
+    const isP15 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;  // P10: Practice J key
+    const isP16 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;  // P11: Practice swapped
+    const isP17 = trialInfo.is_ftrial && trialInfo.ftrial_i === 9;  // P12: Practice swapped
+    const isP13Demo = trialInfo.is_ftrial && trialInfo.ftrial_i === 10; // P13: Switch keys intro (image + audio)
+    const isP19 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11; // P14: Key switch stable
+    const isP20 = trialInfo.is_ftrial && trialInfo.ftrial_i === 12; // P15: Key switch moving
+    const isP21 = trialInfo.is_ftrial && trialInfo.ftrial_i === 13; // P16: Occluder intro
+    const isP22 = trialInfo.is_ftrial && trialInfo.ftrial_i === 15; // P18: Before test
+    
+    // New pages in v2
+    const isP8Demo = trialInfo.is_ftrial && trialInfo.ftrial_i === 5; // P8: Before easy practice (image + audio)
+    
+    // Debug: Explicitly log isP13Demo calculation - ALWAYS log when ftrial_i is 10
     if (trialInfo.ftrial_i === 10) {
         console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 10!", {
             is_ftrial: trialInfo.is_ftrial,
             ftrial_i: trialInfo.ftrial_i,
-            isP18: isP18,
+            isP13Demo: isP13Demo,
             'trialInfo.is_ftrial': trialInfo.is_ftrial,
             'trialInfo.ftrial_i': trialInfo.ftrial_i,
             'trialInfo.ftrial_i === 10': trialInfo.ftrial_i === 10,
@@ -234,9 +235,22 @@ const ExperimentPage = ({
         });
     }
     
+    // Debug: Log when we're in experimental phase (not familiarization)
+    if (!trialInfo.is_ftrial && trialInfo.is_trial) {
+        console.log("🧪 ExperimentPage: EXPERIMENTAL PHASE DETECTED!", {
+            is_ftrial: trialInfo.is_ftrial,
+            is_trial: trialInfo.is_trial,
+            trial_i: trialInfo.trial_i,
+            num_trials: trialInfo.num_trials,
+            ftrial_i: trialInfo.ftrial_i,
+        });
+    }
+    
     console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21/p22", {
             is_ftrial: trialInfo.is_ftrial,
+            is_trial: trialInfo.is_trial,
             ftrial_i: trialInfo.ftrial_i,
+            trial_i: trialInfo.trial_i,
             familiarizationPageType,
             isP8,
             isP9,
@@ -247,7 +261,7 @@ const ExperimentPage = ({
             isP15,
             isP16,
             isP17,
-            isP18,
+            isP13Demo,
             isP19,
             isP20,
             isP21,
@@ -282,10 +296,10 @@ const ExperimentPage = ({
         console.log("🎬 ExperimentPage: P16 should load T_greenmid trial data (interactive practice)");
     } else if (isP17) {
         console.log("✅ ExperimentPage: DETECTED P17 - Rendering P17CanvasPage");
-        console.log("🎬 ExperimentPage: P17 should load T_redmid trial data (interactive practice)");
-    } else if (isP18) {
-        console.log("✅ ExperimentPage: DETECTED P18 - Rendering P18CanvasPage");
-        console.log("🎬 ExperimentPage: P18 should load T_blank trial data (demonstration)");
+        console.log("🎬 ExperimentPage: P17 should load T_v2_green_mid trial data (interactive practice)");
+    } else if (isP13Demo) {
+        console.log("✅ ExperimentPage: DETECTED P13Demo - Rendering P13DemoPage");
+        console.log("🎬 ExperimentPage: P13Demo should show whole_scene_no_occluder.png with v2_switch_keys.mp3");
     } else if (isP19) {
         console.log("✅ ExperimentPage: DETECTED P19 - Rendering P19CanvasPage");
         console.log("🎬 ExperimentPage: P19 should load T_switch_keys_easy trial data (interactive practice)");
@@ -343,6 +357,17 @@ const ExperimentPage = ({
         );
     }
     
+    // V2: P8 "Before Easy Practice" - image + audio page
+    if (isP8Demo) {
+        console.log("ExperimentPage: Rendering P8 Demo (Before Easy Practice)");
+        return (
+            <P8DemoPage
+                fetchNextScene={fetchNextScene}
+                setdisableCountdownTrigger={setdisableCountdownTrigger}
+            />
+        );
+    }
+    
     if (isP14) {
         console.log("ExperimentPage: Rendering P14CanvasPage");
         return (
@@ -386,24 +411,11 @@ const ExperimentPage = ({
         );
     }
     
-    if (isP18) {
-        console.log("✅ ExperimentPage: RENDERING P18CanvasPage - isP18 is TRUE");
-        console.log("🔍 ExperimentPage: P18 details", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            unique_trial_id: trialInfo.unique_trial_id,
-            'P18CanvasPage component': typeof P18CanvasPage
-        });
-        
-        // Double-check that component is available
-        if (!P18CanvasPage) {
-            console.error("❌ ExperimentPage: P18CanvasPage component is not imported!");
-            return <div>Error: P18CanvasPage not found</div>;
-        }
-        
+    // V2: P13 "Switch Keys Introduction" - image + audio page
+    if (isP13Demo) {
+        console.log("✅ ExperimentPage: RENDERING P13DemoPage - isP13Demo is TRUE");
         return (
-            <P18CanvasPage
-                key={`p18-${trialInfo.unique_trial_id}`}
+            <P13DemoPage
                 fetchNextScene={fetchNextScene}
                 setdisableCountdownTrigger={setdisableCountdownTrigger}
             />
@@ -510,7 +522,7 @@ const ExperimentPage = ({
     if (trialInfo.is_ftrial) {
         console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p22 matched!", {
             ftrial_i: trialInfo.ftrial_i,
-            isP8, isP9, isP10, isP11, isP12, isP14, isP15, isP16, isP17, isP18, isP19, isP20, isP21, isP22,
+            isP8, isP9, isP10, isP11, isP12, isP8Demo, isP14, isP15, isP16, isP17, isP13Demo, isP19, isP20, isP21, isP22,
             familiarizationPageType
         });
     }
@@ -856,7 +868,7 @@ const ExperimentPage = ({
                                 alignItems: "center",
                                 width: "100%",
                             }}>
-                                {/* Show kermit.png when F key is pressed (for green sensor) */}
+                                {/* Show grass icon when F key is pressed (for green grassland) */}
                                 {keyStates.f && !keyStates.j && (
                                     <div style={{
                                         display: "flex",
@@ -879,8 +891,8 @@ const ExperimentPage = ({
                                             }}
                                         >
                                             <img
-                                                src="/images/kermit.png"
-                                                alt="Kermit"
+                                                src="/images/icon_green.png"
+                                                alt="Green Grassland"
                                                 style={{
                                                     width: "100%",
                                                     height: "100%",
@@ -892,7 +904,7 @@ const ExperimentPage = ({
                                     </div>
                                 )}
                                 
-                                {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                                {/* Show flower icon when J key is pressed (for yellow flower garden) */}
                                 {keyStates.j && !keyStates.f && (
                                     <div style={{
                                         display: "flex",
@@ -915,8 +927,8 @@ const ExperimentPage = ({
                                             }}
                                         >
                                             <img
-                                                src="/images/cookiemonster.png"
-                                                alt="Cookie Monster"
+                                                src="/images/icon_yellow.png"
+                                                alt="Yellow Flower Garden"
                                                 style={{
                                                     width: "100%",
                                                     height: "100%",
