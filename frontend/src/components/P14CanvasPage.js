@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p14: Interactive canvas page (practice trial)
- * - Canvas: T_greeneasy trial data
+ * - Canvas: T_v2_green_easy trial data (V2)
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for red, J for green)
  * - Records key states during playback
@@ -15,6 +16,7 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  */
 const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P14CanvasPage: Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -162,12 +164,12 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load T_greeneasy trial data
+    // Load T_v2_green_easy trial data (V2)
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P14CanvasPage: Loading T_greeneasy trial data from /api/load_trial_data/T_greeneasy...');
-                const response = await fetch('/api/load_trial_data/T_greeneasy', {
+                console.log('📥 P14CanvasPage: Loading T_v2_green_easy trial data from /api/load_trial_data/T_v2_green_easy...');
+                const response = await fetch('/api/load_trial_data/T_v2_green_easy', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -192,7 +194,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P14CanvasPage: Failed to load T_greeneasy data:', response.status, errorText);
+                    console.error('❌ P14CanvasPage: Failed to load T_v2_green_easy data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P14CanvasPage: Error loading trial data:', error);
@@ -276,10 +278,10 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
-                ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
+                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -593,6 +595,112 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P14CanvasPage: Study paused - stopping animation and timers');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Clear countdown timer
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            
+            // Clear congratulations timer
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P14CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setVideoFinished(false);
+            setShowCongratulations(false);
+            hasAutoAdvancedRef.current = false;
+            firstFramePlayedRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
+            recordedKeyStates.current = [];
+            
+            // Clear any existing timers
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+            
+            // Force re-trigger the countdown by clearing lastSceneDataRef
+            // so the scene data effect will run again
+            lastSceneDataRef.current = null;
+            
+            // Re-render first frame
+            if (renderFrameRef.current && sceneData) {
+                renderFrameRef.current(0);
+                
+                // Start countdown (3-2-1) after a brief delay
+                setTimeout(() => {
+                    let countdownValue = 3;
+                    setCountdown(countdownValue);
+                    setdisableCountdownTrigger(true);
+                    
+                    countdownIntervalRef.current = setInterval(() => {
+                        countdownValue -= 1;
+                        setCountdown(countdownValue);
+                        
+                        if (countdownValue === 0) {
+                            if (countdownIntervalRef.current) {
+                                clearInterval(countdownIntervalRef.current);
+                                countdownIntervalRef.current = null;
+                            }
+                            setCountdown(null);
+                            
+                            // Record initial key state
+                            recordedKeyStates.current.push({
+                                frame: 0,
+                                keys: { ...keyStatesRef.current },
+                                utc_timestamp: new Date().toISOString(),
+                            });
+                            
+                            // Start video animation after countdown
+                            startTimeRef.current = performance.now();
+                            console.log('🎬 P14CanvasPage: Restarting video animation after resume');
+                            setIsPlaying(true);
+                            
+                            // Play start sound
+                            if (startAudioRef.current) {
+                                startAudioRef.current.currentTime = 0;
+                                startAudioRef.current.play().catch(error => {
+                                    console.warn('P14CanvasPage: Failed to play start audio:', error);
+                                });
+                            }
+                        }
+                    }, 750);
+                }, 100); // Brief delay to let pause overlay disappear
+            }
+        }
+    }, [resumeCounter, sceneData, setdisableCountdownTrigger]);
+
     // Auto-start countdown when scene data is loaded (only once per sceneData)
     useEffect(() => {
         // Check if this is a new sceneData (by checking if step_data keys are different)
@@ -872,7 +980,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Key State Indicators - Below Canvas, Image-based */}
+            {/* Key State Indicators - Below Canvas, Image-based (conditionally shown based on config) */}
+            {config.showKeyIndicators && (
             <div style={{
                 display: "flex",
                 flexDirection: "column",
@@ -898,7 +1007,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                             alignItems: "center",
                             width: "100%",
                         }}>
-                            {/* Show kermit.png when F key is pressed (for green sensor) */}
+                            {/* Show grass icon when F key is pressed (for green grassland) */}
                             {keyStates.f && !keyStates.j && (
                                 <div style={{
                                     display: "flex",
@@ -921,8 +1030,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/kermit.png"
-                                            alt="Kermit"
+                                            src="/images/icon_green.png"
+                                            alt="Green Grassland"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -934,7 +1043,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 </div>
                             )}
                             
-                            {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                            {/* Show flower icon when J key is pressed (for yellow flower garden) */}
                             {keyStates.j && !keyStates.f && (
                                 <div style={{
                                     display: "flex",
@@ -957,8 +1066,8 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/cookiemonster.png"
-                                            alt="Cookie Monster"
+                                            src="/images/icon_yellow.png"
+                                            alt="Yellow Flower Garden"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -995,6 +1104,7 @@ const P14CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
+            )}
 
             {/* Congratulations page - shown after video finishes */}
             {showCongratulations && (

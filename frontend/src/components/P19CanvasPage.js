@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p19: Interactive canvas page (practice trial)
- * - Canvas: T_switch_keys_easy trial data
+ * - Canvas: T_v2_keyswitch_ball_stable trial data (V2)
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for green, J for red)
  * - Records key states during playback
@@ -15,12 +16,14 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  */
 const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P19CanvasPage: Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
     const currentFrameRef = useRef(0); // Use ref to track current frame for animation loop
     const [isPlaying, setIsPlaying] = useState(false);
     const [videoFinished, setVideoFinished] = useState(false);
+    const [narrationAudioFinished, setNarrationAudioFinished] = useState(false); // V2: Track narration audio completion
     const [keyStates, setKeyStates] = useState({ f: false, j: false });
     const [countdown, setCountdown] = useState(null);
     const [showCongratulations, setShowCongratulations] = useState(false);
@@ -36,6 +39,7 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const congratulationsTimerRef = useRef(null); // Store congratulations auto-advance timer
     const startAudioRef = useRef(null); // Audio element for start sound file
     const endAudioRef = useRef(null); // Audio element for end sound file
+    const narrationAudioRef = useRef(null); // V2: Narration audio for key switch instructions
     const firstFramePlayedRef = useRef(false); // Track if start sound has been played
     
     // Texture refs (matching App.js)
@@ -49,36 +53,31 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Fixed canvas size (matching testing trials)
     const canvasSize = { width: 600, height: 600 };
 
-    // Load start audio file
+    // Start and end audio disabled for P14 (V2 design)
+    // The startAudioRef and endAudioRef remain null - no start/end sounds
     useEffect(() => {
-        if (config.startingAudioPath && config.startingAudioPath.trim() !== '') {
-            const audio = new Audio(config.startingAudioPath);
-            audio.preload = 'auto';
-            audio.onloadeddata = () => {
-                startAudioRef.current = audio;
-                console.log('P19CanvasPage: Starting audio file loaded:', config.startingAudioPath);
-            };
-            audio.onerror = () => {
-                console.warn('P19CanvasPage: Failed to load starting audio file from:', config.startingAudioPath);
-                startAudioRef.current = null;
-            };
-        }
+        console.log('P19CanvasPage: Start and end sounds disabled for V2');
     }, []);
 
-    // Load end audio file
+    // V2: Load narration audio file (v2_keyswitch_ball_stable.mp3)
     useEffect(() => {
-        if (config.endingAudioPath && config.endingAudioPath.trim() !== '') {
-            const audio = new Audio(config.endingAudioPath);
-            audio.preload = 'auto';
-            audio.onloadeddata = () => {
-                endAudioRef.current = audio;
-                console.log('P19CanvasPage: Ending audio file loaded:', config.endingAudioPath);
-            };
-            audio.onerror = () => {
-                console.warn('P19CanvasPage: Failed to load ending audio file from:', config.endingAudioPath);
-                endAudioRef.current = null;
-            };
-        }
+        const audio = new Audio('/audios/v2_keyswitch_ball_stable.mp3');
+        audio.preload = 'auto';
+        audio.onloadeddata = () => {
+            narrationAudioRef.current = audio;
+            console.log('P19CanvasPage: Narration audio file loaded: v2_keyswitch_ball_stable.mp3');
+        };
+        audio.onerror = () => {
+            console.warn('P19CanvasPage: Failed to load narration audio file');
+            narrationAudioRef.current = null;
+            // If audio fails to load, mark as finished so it doesn't block progression
+            setNarrationAudioFinished(true);
+        };
+        // Listen for audio end to track completion
+        audio.onended = () => {
+            console.log('🏁 P19CanvasPage: Narration audio ended');
+            setNarrationAudioFinished(true);
+        };
     }, []);
 
     // Load all textures (matching App.js)
@@ -162,12 +161,12 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load T_switch_keys_easy trial data
+    // Load T_v2_keyswitch_ball_stable trial data (V2)
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P19CanvasPage: Loading T_switch_keys_easy trial data from /api/load_trial_data/T_switch_keys_easy...');
-                const response = await fetch('/api/load_trial_data/T_switch_keys_easy', {
+                console.log('📥 P19CanvasPage: Loading T_v2_keyswitch_ball_stable trial data from /api/load_trial_data/T_v2_keyswitch_ball_stable...');
+                const response = await fetch('/api/load_trial_data/T_v2_keyswitch_ball_stable', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -192,7 +191,7 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P19CanvasPage: Failed to load T_switch_keys_easy data:', response.status, errorText);
+                    console.error('❌ P19CanvasPage: Failed to load T_v2_keyswitch_ball_stable data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P19CanvasPage: Error loading trial data:', error);
@@ -276,10 +275,10 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
-                ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
+                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -598,6 +597,132 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P19CanvasPage: Study paused - stopping animation and timers');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Clear countdown timer
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            
+            // Clear congratulations timer
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+            
+            // Stop narration audio
+            if (narrationAudioRef.current) {
+                narrationAudioRef.current.pause();
+                narrationAudioRef.current.currentTime = 0;
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P19CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setVideoFinished(false);
+            setShowCongratulations(false);
+            setNarrationAudioFinished(false);
+            hasAutoAdvancedRef.current = false;
+            firstFramePlayedRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
+            recordedKeyStates.current = [];
+            
+            // Clear any existing timers
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+            
+            // Reset narration audio
+            if (narrationAudioRef.current) {
+                narrationAudioRef.current.pause();
+                narrationAudioRef.current.currentTime = 0;
+            }
+            
+            // Force re-trigger the countdown by clearing lastSceneDataRef
+            lastSceneDataRef.current = null;
+            
+            // Re-render first frame
+            if (renderFrameRef.current && sceneData) {
+                renderFrameRef.current(0);
+                
+                // Start countdown (3-2-1) after a brief delay
+                setTimeout(() => {
+                    let countdownValue = 3;
+                    setCountdown(countdownValue);
+                    setdisableCountdownTrigger(true);
+                    
+                    countdownIntervalRef.current = setInterval(() => {
+                        countdownValue -= 1;
+                        setCountdown(countdownValue);
+                        
+                        if (countdownValue === 0) {
+                            if (countdownIntervalRef.current) {
+                                clearInterval(countdownIntervalRef.current);
+                                countdownIntervalRef.current = null;
+                            }
+                            setCountdown(null);
+                            
+                            // Record initial key state
+                            recordedKeyStates.current.push({
+                                frame: 0,
+                                keys: { ...keyStatesRef.current },
+                                utc_timestamp: new Date().toISOString(),
+                            });
+                            
+                            // Start video animation after countdown
+                            startTimeRef.current = performance.now();
+                            console.log('🎬 P19CanvasPage: Restarting video animation after resume');
+                            setIsPlaying(true);
+                            
+                            // Play start sound
+                            if (startAudioRef.current) {
+                                startAudioRef.current.currentTime = 0;
+                                startAudioRef.current.play().catch(error => {
+                                    console.warn('P19CanvasPage: Failed to play start audio:', error);
+                                });
+                            }
+                            
+                            // Play narration audio
+                            if (narrationAudioRef.current) {
+                                narrationAudioRef.current.currentTime = 0;
+                                narrationAudioRef.current.play().catch(error => {
+                                    console.warn('P19CanvasPage: Failed to play narration audio:', error);
+                                });
+                            }
+                        }
+                    }, 750);
+                }, 100);
+            }
+        }
+    }, [resumeCounter, sceneData, setdisableCountdownTrigger]);
+
     // Auto-start countdown when scene data is loaded (only once per sceneData)
     useEffect(() => {
         // Check if this is a new sceneData (by checking if step_data keys are different)
@@ -673,6 +798,15 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                         });
                         console.log('🔊 P19CanvasPage: Start sound played');
                     }
+                    
+                    // V2: Play narration audio (v2_keyswitch_ball_stable.mp3)
+                    if (narrationAudioRef.current) {
+                        narrationAudioRef.current.currentTime = 0;
+                        narrationAudioRef.current.play().catch(error => {
+                            console.warn('P19CanvasPage: Failed to play narration audio:', error);
+                        });
+                        console.log('🔊 P19CanvasPage: Narration audio (v2_keyswitch_ball_stable.mp3) started');
+                    }
                 }
             }, 750); // 750ms between countdown numbers
             
@@ -685,18 +819,18 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }
     }, [sceneData, setdisableCountdownTrigger]);
 
-    // Show congratulations page when video finishes
+    // Show congratulations page when BOTH video AND narration audio finish
     useEffect(() => {
-        console.log("🔍 P19CanvasPage: Checking videoFinished state:", { videoFinished, showCongratulations });
-        if (videoFinished && !showCongratulations) {
-            console.log("🎉 P19CanvasPage: Video finished, showing congratulations page...");
+        console.log("🔍 P19CanvasPage: Checking finished states:", { videoFinished, narrationAudioFinished, showCongratulations });
+        if (videoFinished && narrationAudioFinished && !showCongratulations) {
+            console.log("🎉 P19CanvasPage: Both video and narration audio finished, showing congratulations page...");
             setShowCongratulations(true);
-        } else if (videoFinished && showCongratulations) {
-            console.log("✅ P19CanvasPage: Video finished and congratulations already showing");
-        } else if (!videoFinished) {
+        } else if (videoFinished && narrationAudioFinished && showCongratulations) {
+            console.log("✅ P19CanvasPage: Both finished and congratulations already showing");
+        } else if (!videoFinished || !narrationAudioFinished) {
             console.log("⏳ P19CanvasPage: Video not finished yet");
         }
-    }, [videoFinished, showCongratulations]);
+    }, [videoFinished, narrationAudioFinished, showCongratulations]);
 
     // Auto-advance 2s after congratulations page is shown
     useEffect(() => {
@@ -890,7 +1024,8 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Key State Indicators - Below Canvas, Image-based */}
+            {/* Key State Indicators - Below Canvas, Image-based (conditionally shown based on config) */}
+            {config.showKeyIndicators && (
             <div style={{
                 display: "flex",
                 flexDirection: "column",
@@ -916,7 +1051,7 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                             alignItems: "center",
                             width: "100%",
                         }}>
-                            {/* Show kermit.png when F key is pressed (for green sensor) */}
+                            {/* Show grass icon when F key is pressed (for green grassland) */}
                             {keyStates.f && !keyStates.j && (
                                 <div style={{
                                     display: "flex",
@@ -939,8 +1074,8 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/kermit.png"
-                                            alt="Kermit"
+                                            src="/images/icon_green.png"
+                                            alt="Green Grassland"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -952,7 +1087,7 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 </div>
                             )}
                             
-                            {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                            {/* Show flower icon when J key is pressed (for yellow flower garden) */}
                             {keyStates.j && !keyStates.f && (
                                 <div style={{
                                     display: "flex",
@@ -975,8 +1110,8 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/cookiemonster.png"
-                                            alt="Cookie Monster"
+                                            src="/images/icon_yellow.png"
+                                            alt="Yellow Flower Garden"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -1013,6 +1148,7 @@ const P19CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
+            )}
 
             {/* Congratulations page - shown after video finishes */}
             {showCongratulations && (() => {

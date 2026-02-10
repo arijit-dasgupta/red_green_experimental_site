@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p15: Interactive canvas page (practice trial)
- * - Canvas: T_redeasy trial data
+ * - Canvas: T_v2_red_easy trial data (V2)
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for red, J for green)
  * - Records key states during playback
@@ -14,6 +15,7 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
 const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -175,7 +177,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load T_redeasy trial data (only once on mount)
+    // Load T_v2_red_easy trial data (V2) (only once on mount)
     useEffect(() => {
         // Only load if we don't already have scene data
         if (sceneData) {
@@ -191,8 +193,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         hasLoadedDataRef.current = true;
         const loadTrialData = async () => {
             try {
-                console.log('📥 P15CanvasPage: Loading T_redeasy trial data from /api/load_trial_data/T_redeasy...');
-                const response = await fetch('/api/load_trial_data/T_redeasy', {
+                console.log('📥 P15CanvasPage: Loading T_v2_red_easy trial data from /api/load_trial_data/T_v2_red_easy...');
+                const response = await fetch('/api/load_trial_data/T_v2_red_easy', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -217,7 +219,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P15CanvasPage: Failed to load T_redeasy data:', response.status, errorText);
+                    console.error('❌ P15CanvasPage: Failed to load T_v2_red_easy data:', response.status, errorText);
                     hasLoadedDataRef.current = false; // Reset on error so we can retry
                 }
             } catch (error) {
@@ -303,10 +305,10 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
-                ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
+                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -344,17 +346,17 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             // Use keyStatesRef to avoid dependency on keyStates state
             const currentKeyStates = keyStatesRef.current;
             
-            // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed
-            if (currentKeyStates.j && !currentKeyStates.f && isPlaying) {
+            // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
+            if (currentKeyStates.f && !currentKeyStates.j && isPlaying) {
                 ctx.save();
                 const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with #009900 green color
+                // Draw glowing border beneath sensor with dark green color (RGB: 0, 102, 0 - dark green)
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 153, 0, 0.8)"; // #009900 with alpha
-                ctx.strokeStyle = `rgba(0, 153, 0, ${0.6 + 0.4 * pulseIntensity})`; // #009900 with varying alpha
+                ctx.shadowColor = "rgba(0, 102, 0, 0.8)"; // Dark green with alpha
+                ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`; // Dark green with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -371,18 +373,12 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
                     // Fallback to green fill if texture draw failed
-                    ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
+                    ctx.fillStyle = "green";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
-                } else if (currentKeyStates.j && !currentKeyStates.f) {
-                    // Add brightness overlay when key is pressed
-                    ctx.globalAlpha = 0.3;
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.5)";
-                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
-                    ctx.globalAlpha = 1.0;
                 }
             } else {
                 // Use original green fill if no texture path or texture not loaded
-                ctx.fillStyle = currentKeyStates.j && !currentKeyStates.f ? "rgba(0, 255, 0, 0.9)" : "green";
+                ctx.fillStyle = "green";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -631,6 +627,111 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             lastTimestampRef.current = null;
         };
     }, [isPlaying, sceneData, renderFrame]);
+
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P15CanvasPage: Study paused - stopping animation and timers');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Clear countdown timer
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            
+            // Clear congratulations timer
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P15CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setVideoFinished(false);
+            setShowCongratulations(false);
+            hasAutoAdvancedRef.current = false;
+            firstFramePlayedRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
+            recordedKeyStates.current = [];
+            
+            // Clear any existing timers
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+            
+            // Force re-trigger the countdown by clearing lastSceneDataRef
+            lastSceneDataRef.current = null;
+            
+            // Re-render first frame
+            if (renderFrameRef.current && sceneData) {
+                renderFrameRef.current(0);
+                
+                // Start countdown (3-2-1) after a brief delay
+                setTimeout(() => {
+                    let countdownValue = 3;
+                    setCountdown(countdownValue);
+                    setdisableCountdownTrigger(true);
+                    
+                    countdownIntervalRef.current = setInterval(() => {
+                        countdownValue -= 1;
+                        setCountdown(countdownValue);
+                        
+                        if (countdownValue === 0) {
+                            if (countdownIntervalRef.current) {
+                                clearInterval(countdownIntervalRef.current);
+                                countdownIntervalRef.current = null;
+                            }
+                            setCountdown(null);
+                            
+                            // Record initial key state
+                            recordedKeyStates.current.push({
+                                frame: 0,
+                                keys: { ...keyStatesRef.current },
+                                utc_timestamp: new Date().toISOString(),
+                            });
+                            
+                            // Start video animation after countdown
+                            startTimeRef.current = performance.now();
+                            console.log('🎬 P15CanvasPage: Restarting video animation after resume');
+                            setIsPlaying(true);
+                            
+                            // Play start sound
+                            if (startAudioRef.current) {
+                                startAudioRef.current.currentTime = 0;
+                                startAudioRef.current.play().catch(error => {
+                                    console.warn('P15CanvasPage: Failed to play start audio:', error);
+                                });
+                            }
+                        }
+                    }, 750);
+                }, 100);
+            }
+        }
+    }, [resumeCounter, sceneData, setdisableCountdownTrigger]);
 
     // Auto-start countdown when scene data is loaded (only once per sceneData)
     useEffect(() => {
@@ -944,7 +1045,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Key State Indicators - Below Canvas, Image-based */}
+            {/* Key State Indicators - Below Canvas, Image-based (conditionally shown based on config) */}
+            {config.showKeyIndicators && (
             <div style={{
                 display: "flex",
                 flexDirection: "column",
@@ -970,7 +1072,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                             alignItems: "center",
                             width: "100%",
                         }}>
-                            {/* Show kermit.png when F key is pressed (for green sensor) */}
+                            {/* Show grass icon when F key is pressed (for green grassland) */}
                             {keyStates.f && !keyStates.j && (
                                 <div style={{
                                     display: "flex",
@@ -993,8 +1095,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/kermit.png"
-                                            alt="Kermit"
+                                            src="/images/icon_green.png"
+                                            alt="Green Grassland"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -1006,7 +1108,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 </div>
                             )}
                             
-                            {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                            {/* Show flower icon when J key is pressed (for yellow flower garden) */}
                             {keyStates.j && !keyStates.f && (
                                 <div style={{
                                     display: "flex",
@@ -1029,8 +1131,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/cookiemonster.png"
-                                            alt="Cookie Monster"
+                                            src="/images/icon_yellow.png"
+                                            alt="Yellow Flower Garden"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -1067,6 +1169,7 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
+            )}
 
             {/* Congratulations page - shown after video finishes */}
             {showCongratulations && (() => {

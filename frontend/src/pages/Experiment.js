@@ -843,7 +843,8 @@ const ExperimentPage = ({
                     </div>
                 </div>
 
-                {/* Key State Indicators - Below Canvas, Texture-based */}
+                {/* Key State Indicators - Below Canvas, Texture-based (conditionally shown based on config) */}
+                {config.showKeyIndicators && (
                 <div style={{
                     display: "flex",
                     flexDirection: "column",
@@ -965,6 +966,7 @@ const ExperimentPage = ({
                         );
                     })()}
                 </div>
+                )}
             </div>
         </div>
     );

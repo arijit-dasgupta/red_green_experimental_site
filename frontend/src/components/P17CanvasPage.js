@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
 import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p17: Interactive canvas page (practice trial)
- * - Canvas: T_redmid trial data
+ * - Canvas: T_v2_green_mid trial data (V2)
  * - Auto-starts without spacebar
  * - Shows key press indicators (F for green, J for red)
  * - Records key states during playback
@@ -15,6 +16,7 @@ import useUpdateKeyStates from '../hooks/useUpdateKeyStates';
  */
 const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P17CanvasPage: Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -162,12 +164,12 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load T_greeneasy trial data
+    // Load T_v2_green_mid trial data (V2)
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P17CanvasPage: Loading T_redmid trial data from /api/load_trial_data/T_redmid...');
-                const response = await fetch('/api/load_trial_data/T_redmid', {
+                console.log('📥 P17CanvasPage: Loading T_v2_green_mid trial data from /api/load_trial_data/T_v2_green_mid...');
+                const response = await fetch('/api/load_trial_data/T_v2_green_mid', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -192,7 +194,7 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P17CanvasPage: Failed to load T_redmid data:', response.status, errorText);
+                    console.error('❌ P17CanvasPage: Failed to load T_v2_green_mid data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P17CanvasPage: Error loading trial data:', error);
@@ -276,10 +278,10 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with lake blue color (RGB: 0, 120, 180 - lake blue)
+                // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 120, 180, 0.8)"; // Lake blue with alpha
-                ctx.strokeStyle = `rgba(0, 120, 180, ${0.6 + 0.4 * pulseIntensity})`; // Lake blue with varying alpha
+                ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
+                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -598,6 +600,56 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P17CanvasPage: Study paused - stopping animation and countdown');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Stop countdown
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            
+            // Stop congratulations timer
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P17CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setVideoFinished(false);
+            setShowCongratulations(false);
+            setCountdown(null);
+            hasAutoAdvancedRef.current = false;
+            lastTimestampRef.current = null;
+            startTimeRef.current = null;
+            recordedKeyStates.current = [];
+            lastSceneDataRef.current = null; // Allow countdown to restart
+            
+            // The sceneData effect will restart the countdown
+        }
+    }, [resumeCounter]);
+
     // Auto-start countdown when scene data is loaded (only once per sceneData)
     useEffect(() => {
         // Check if this is a new sceneData (by checking if step_data keys are different)
@@ -890,7 +942,8 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 </div>
             </div>
 
-            {/* Key State Indicators - Below Canvas, Image-based */}
+            {/* Key State Indicators - Below Canvas, Image-based (conditionally shown based on config) */}
+            {config.showKeyIndicators && (
             <div style={{
                 display: "flex",
                 flexDirection: "column",
@@ -916,7 +969,7 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                             alignItems: "center",
                             width: "100%",
                         }}>
-                            {/* Show kermit.png when F key is pressed (for green sensor) */}
+                            {/* Show grass icon when F key is pressed (for green grassland) */}
                             {keyStates.f && !keyStates.j && (
                                 <div style={{
                                     display: "flex",
@@ -939,8 +992,8 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/kermit.png"
-                                            alt="Kermit"
+                                            src="/images/icon_green.png"
+                                            alt="Green Grassland"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -952,7 +1005,7 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 </div>
                             )}
                             
-                            {/* Show cookiemonster.png when J key is pressed (for red sensor) */}
+                            {/* Show flower icon when J key is pressed (for yellow flower garden) */}
                             {keyStates.j && !keyStates.f && (
                                 <div style={{
                                     display: "flex",
@@ -975,8 +1028,8 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                         }}
                                     >
                                         <img
-                                            src="/images/cookiemonster.png"
-                                            alt="Cookie Monster"
+                                            src="/images/icon_yellow.png"
+                                            alt="Yellow Flower Garden"
                                             style={{
                                                 width: "100%",
                                                 height: "100%",
@@ -1013,6 +1066,7 @@ const P17CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     );
                 })()}
             </div>
+            )}
 
             {/* Congratulations page - shown after video finishes */}
             {showCongratulations && (() => {

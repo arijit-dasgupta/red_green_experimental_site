@@ -2,6 +2,11 @@
 // Paths are relative to the public folder
 
 export const config = {
+  // Show key press indicators below the canvas during interactive trials
+  // Set to true to show the icon indicators when F or J keys are pressed
+  // Set to false to hide them (default: false)
+  showKeyIndicators: false,
+  
   // Ball texture path relative to public folder (e.g., '/ball.png' or '/ball_uniform.png')
   // Set to null or empty string to disable texture and use default blue fill
   ballTexturePath: '/ball.png',
@@ -10,9 +15,9 @@ export const config = {
   // Barrier texture path relative to public folder
   // Set to null or empty string to disable texture and use default black fill
   barrierTexturePath: '/barrier.png',
-  // Red sensor texture path relative to public folder
+  // Red sensor texture path relative to public folder (v2: yellow flower garden)
   // Set to null or empty string to disable texture and use default red fill
-  redSensorTexturePath: '/blueS.png',
+  redSensorTexturePath: '/yellow.png',
   // Green sensor texture path relative to public folder
   // Set to null or empty string to disable texture and use default green fill
   greenSensorTexturePath: '/green.png',
