@@ -90,7 +90,7 @@ const App = () => {
   const animationStartTimerRef = useRef(null); // Timer for starting animation after occluder reveal
   const showOccluderRef = useRef(true); // Ref for occluder visibility in renderFrame
   
-  const OCCLUDER_REVEAL_DELAY = 1500; // Show components without occluder for 1.5 seconds
+  const OCCLUDER_REVEAL_DELAY = 1000; // Freeze scene for 1 second before ball starts (occluder appears at this point too)
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -238,8 +238,11 @@ const App = () => {
 
     try {
         const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
+        // For E trials: swapSensorsForETrials forces green left/red right; otherwise use randomSwapRedGreenSensor
+        const forceSwapForE = config.swapSensorsForETrials && sceneData?.is_trial;
+        const effectiveCounterbalance = forceSwapForE || (config.randomSwapRedGreenSensor ? (counterbalance ?? false) : false);
 
-        if (frameIndex !==0) { 
+        if (frameIndex !== 0 || countdown === null) { 
           // Draw barriers with texture
           barriers.forEach(({ x, y, width, height }) => {
               const scaledX = x * scale;
@@ -266,7 +269,7 @@ const App = () => {
 
           // Draw sensors with texture and highlight when keys are pressed
           if (red_sensor) {
-              const { x, y, width, height } = counterbalance ? green_sensor : red_sensor;
+              const { x, y, width, height } = effectiveCounterbalance ? green_sensor : red_sensor;
               const scaledX = x * scale;
               const scaledY = y * scale;
               const scaledWidth = width * scale;
@@ -317,7 +320,7 @@ const App = () => {
           }
 
           if (green_sensor) {
-              const { x, y, width, height } = counterbalance ? red_sensor : green_sensor;
+              const { x, y, width, height } = effectiveCounterbalance ? red_sensor : green_sensor;
               const scaledX = x * scale;
               const scaledY = y * scale;
               const scaledWidth = width * scale;
@@ -484,8 +487,7 @@ const App = () => {
           }
         }
 
-        if (frameIndex ===0) { 
-          if (countdown !== null) {
+        if (frameIndex === 0 && countdown !== null) { 
             ctx.save();
             ctx.scale(1, -1); // Flip for proper text rendering
             ctx.translate(0, -canvas.height);
@@ -499,23 +501,17 @@ const App = () => {
             const textX = canvas.width / 2;
             const textY = canvas.height / 2;
         
-            // Draw background rectangle
-            ctx.fillStyle = "rgba(255, 255, 255, 0.8)"; // Semi-transparent white background
-            ctx.fillRect(
-              textX - textWidth / 2 - padding, // X position
-              textY - padding, // Y position
-              textWidth + padding * 2, // Width
-              textHeight + padding * 2 // Height
-            );
+            // Draw background rectangle - covers the whole canvas for a clean white background
+            ctx.fillStyle = "rgba(255, 255, 255, 1)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw text
-            ctx.fillStyle = "black"; // Text color
-            ctx.textAlign = "center"; // Center horizontally
-            ctx.textBaseline = "middle"; // Align to the top vertically
+            // Draw countdown number
+            ctx.fillStyle = "black";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
             ctx.fillText(countdown, textX, textY); 
         
             ctx.restore();
-        }
       }
 
     } catch (error) {
@@ -755,11 +751,12 @@ const App = () => {
     };
   }, [initializeAudio]);
 
+  // Re-render canvas whenever countdown changes (for countdown display AND frozen scene after countdown)
   useEffect(() => {
-    if (countdown !== null) {
-      renderFrame(currentFrame);
+    if (sceneData && !isPlaying) {
+      renderFrame(currentFrameRef.current);
     }
-  }, [countdown, currentFrame]);
+  }, [countdown, sceneData, isPlaying]);
   
 
  // Render current page based on state instead of routes
@@ -955,7 +952,6 @@ const renderCurrentPage = () => {
         }
       }
   
-      setdisableCountdownTrigger(false); // Enable countdown trigger
       setSceneData(data);
       console.log("🔄 Frontend updating trialInfo with:", {
         ftrial_i: data.ftrial_i,
@@ -967,20 +963,14 @@ const renderCurrentPage = () => {
         finish: data.finish,
       });
       
-      // Debug: Extra logging for experimental phase transition
-      if (data.is_trial && !data.is_ftrial) {
-        console.log("🧪 App: First experimental trial being loaded!", {
-          trial_i: data.trial_i,
-          num_trials: data.num_trials,
-          sceneData_barriers: data.barriers?.length,
-          sceneData_occluders: data.occluders?.length,
-        });
-      }
-      
-      // Start occluder reveal sequence for test trials with occluders
+      // Auto-start sequence for ALL test trials:
+      // Phase 1: Countdown 3-2-1 on white background (auto-triggered, no spacebar needed)
+      // Phase 2: Frozen scene for 1s (occluder hidden for occluder trials)
+      // Phase 3: Occluder appears (if applicable) + ball starts moving
+      // For non-occluder test trials: same timing (1s freeze) for consistency
       const hasOccluders = data.occluders && data.occluders.length > 0;
-      if (data.is_trial && !data.is_ftrial && hasOccluders) {
-        console.log('🎬 App: Test trial with occluders - starting automatic reveal sequence');
+      if (data.is_trial && !data.is_ftrial) {
+        console.log('🎬 App: Test trial - auto countdown → freeze → play', { hasOccluders, trial_i: data.trial_i });
         
         // Clear any existing timers
         if (occluderRevealTimerRef.current) {
@@ -990,22 +980,53 @@ const renderCurrentPage = () => {
           clearTimeout(animationStartTimerRef.current);
         }
         
-        // Phase 1: Hide occluder initially
-        setShowOccluder(false);
-        showOccluderRef.current = false;
-        setdisableCountdownTrigger(true); // Disable spacebar until occluder is revealed
+        // Disable spacebar - trial auto-starts with countdown
+        setdisableCountdownTrigger(true);
         
-        // Phase 2: After 1.5 seconds, reveal occluder and enable countdown trigger
-        occluderRevealTimerRef.current = setTimeout(() => {
-          console.log('🎬 App: Phase 2 - Revealing occluder, enabling spacebar');
+        // Set occluder visibility for the frozen scene phase
+        if (hasOccluders) {
+          setShowOccluder(false);
+          showOccluderRef.current = false;
+        } else {
           setShowOccluder(true);
           showOccluderRef.current = true;
-          setdisableCountdownTrigger(false); // Now user can press spacebar to start
-        }, OCCLUDER_REVEAL_DELAY);
+        }
+        
+        // Phase 1: Auto countdown (3→2→1) on white background
+        let countdownValue = 3;
+        setCountdown(countdownValue);
+        
+        const countdownInterval = setInterval(() => {
+          countdownValue -= 1;
+          setCountdown(countdownValue);
+          
+          if (countdownValue === 0) {
+            clearInterval(countdownInterval);
+            // Setting countdown to null triggers useEffect → renderFrame(0) which now draws the frozen scene
+            setCountdown(null);
+            console.log('🎬 App: Countdown done - frozen scene visible for 1s');
+            
+            // Phase 2→3: After 1s freeze, reveal occluder (if any) and start ball
+            animationStartTimerRef.current = setTimeout(() => {
+              console.log('🎬 App: Freeze over - starting ball animation', { hasOccluders });
+              if (hasOccluders) {
+                setShowOccluder(true);
+                showOccluderRef.current = true;
+              }
+              // Reset animation state and start ball
+              animate.lastTimestamp = null;
+              animate.dataSaved = false;
+              isPlayingRef.current = true;
+              setIsPlaying(true);
+              animationRef.current = requestAnimationFrame(animate);
+            }, OCCLUDER_REVEAL_DELAY);
+          }
+        }, 750);
       } else {
-        // For non-occluder trials, ensure occluder is shown (reset state)
+        // For familiarization/non-test trials: enable spacebar, reset occluder
         setShowOccluder(true);
         showOccluderRef.current = true;
+        setdisableCountdownTrigger(false);
       }
       
       setTrialInfo({
@@ -1108,7 +1129,7 @@ const animate = (timestamp) => {
                   is_ftrial: sceneData.is_ftrial,
                   is_trial: sceneData.is_trial,
                   recordedKeyStates: recordedKeyStates.current,
-                  counterbalance: sceneData.counterbalance,
+                  counterbalance: (config.swapSensorsForETrials && sceneData?.is_trial) || (config.randomSwapRedGreenSensor ? (sceneData.counterbalance ?? false) : false),
                   first_frame_utc: animate.firstFrameUtc,
                   last_frame_utc: lastFrameUtc,
                 }),
@@ -1201,30 +1222,70 @@ const animate = (timestamp) => {
         num_ftrials: data.num_ftrials,
       });
       
-      // Start occluder reveal sequence for test trials with occluders (after break)
+      // Reset frame state for new trial after break
+      setCurrentFrame(0);
+      currentFrameRef.current = 0;
+      recordedKeyStates.current = [];
+      setFinished(false);
+      setIsTransitionPage(false);
+      setWaitingForScoreSpacebar(false);
+      animate.firstFrameUtc = null;
+      
+      // Auto-start sequence for ALL test trials after break (same as fetchNextScene)
       const hasOccluders = data.occluders && data.occluders.length > 0;
-      if (data.is_trial && !data.is_ftrial && hasOccluders) {
-        console.log('🎬 App: Test trial with occluders after break - starting reveal sequence');
+      if (data.is_trial && !data.is_ftrial) {
+        console.log('🎬 App: Test trial after break - auto countdown → freeze → play', { hasOccluders });
         
         // Clear any existing timers
         if (occluderRevealTimerRef.current) {
           clearTimeout(occluderRevealTimerRef.current);
         }
+        if (animationStartTimerRef.current) {
+          clearTimeout(animationStartTimerRef.current);
+        }
         
-        // Phase 1: Hide occluder initially
-        setShowOccluder(false);
-        showOccluderRef.current = false;
-        setdisableCountdownTrigger(true); // Disable spacebar until occluder is revealed
+        // Disable spacebar - trial auto-starts
+        setdisableCountdownTrigger(true);
         
-        // Phase 2: After 1.5 seconds, reveal occluder and enable countdown trigger
-        occluderRevealTimerRef.current = setTimeout(() => {
-          console.log('🎬 App: Revealing occluder after break, enabling spacebar');
+        // Set occluder visibility
+        if (hasOccluders) {
+          setShowOccluder(false);
+          showOccluderRef.current = false;
+        } else {
           setShowOccluder(true);
           showOccluderRef.current = true;
-          setdisableCountdownTrigger(false); // Now user can press spacebar to start
-        }, OCCLUDER_REVEAL_DELAY);
+        }
+        
+        // Phase 1: Auto countdown (3→2→1) on white background
+        let countdownValue = 3;
+        setCountdown(countdownValue);
+        
+        const countdownInterval = setInterval(() => {
+          countdownValue -= 1;
+          setCountdown(countdownValue);
+          
+          if (countdownValue === 0) {
+            clearInterval(countdownInterval);
+            setCountdown(null);
+            console.log('🎬 App: Countdown done after break - frozen scene visible for 1s');
+            
+            // Phase 2→3: After 1s freeze, reveal occluder (if any) and start ball
+            animationStartTimerRef.current = setTimeout(() => {
+              console.log('🎬 App: Freeze over after break - starting ball animation');
+              if (hasOccluders) {
+                setShowOccluder(true);
+                showOccluderRef.current = true;
+              }
+              animate.lastTimestamp = null;
+              animate.dataSaved = false;
+              isPlayingRef.current = true;
+              setIsPlaying(true);
+              animationRef.current = requestAnimationFrame(animate);
+            }, OCCLUDER_REVEAL_DELAY);
+          }
+        }, 750);
       } else {
-        // For non-occluder trials, enable countdown trigger immediately
+        // For non-test trials after break: enable spacebar, reset occluder
         setShowOccluder(true);
         showOccluderRef.current = true;
         setdisableCountdownTrigger(false);
