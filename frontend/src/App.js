@@ -80,11 +80,17 @@ const App = () => {
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
   const [showBreakPage, setShowBreakPage] = useState(false);
+  const [showOccluder, setShowOccluder] = useState(true); // For occluder reveal sequence in test trials
   const lastBreakTrialRef = useRef(0); // Track the trial number of the last break
   const pendingSceneDataRef = useRef(null); // Store pending scene data during break
   const pendingSetdisableCountdownTriggerRef = useRef(null); // Store the setter during break
   const fetchInProgressRef = useRef(false); // Lock to prevent concurrent fetchNextScene calls
   const [waitingForScoreSpacebar, setWaitingForScoreSpacebar] = useState(false);
+  const occluderRevealTimerRef = useRef(null); // Timer for occluder reveal sequence
+  const animationStartTimerRef = useRef(null); // Timer for starting animation after occluder reveal
+  const showOccluderRef = useRef(true); // Ref for occluder visibility in renderFrame
+  
+  const OCCLUDER_REVEAL_DELAY = 1500; // Show components without occluder for 1.5 seconds
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -272,7 +278,8 @@ const App = () => {
               // Key mapping: J key = red sensor (regardless of counterbalance)
               // Counterbalance only swaps which sensor is shown in which position, not the key mapping
               // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed (J key = red sensor)
-              if (currentKeyStates.j && !currentKeyStates.f && isCurrentlyPlaying) {
+              // Removed isCurrentlyPlaying condition so pulsing works even on frozen frames
+              if (currentKeyStates.j && !currentKeyStates.f) {
               ctx.save();
                   const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                   const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
@@ -322,7 +329,8 @@ const App = () => {
               // Key mapping: F key = green sensor (regardless of counterbalance)
               // Counterbalance only swaps which sensor is shown in which position, not the key mapping
               // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
-              if (currentKeyStates.f && !currentKeyStates.j && isCurrentlyPlaying) {
+              // Removed isCurrentlyPlaying condition so pulsing works even on frozen frames
+              if (currentKeyStates.f && !currentKeyStates.j) {
               ctx.save();
                   const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                   const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
@@ -449,29 +457,31 @@ const App = () => {
               }
           }
 
-          // Draw occluders with texture
-          occluders.forEach(({ x, y, width, height }) => {
-              const scaledX = x * scale;
-              const scaledY = y * scale;
-              const scaledWidth = width * scale;
-              const scaledHeight = height * scale;
-              
-              ctx.save();
-              // Check if texture path is provided and texture is loaded
-              if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
-                  occluderTextureRef.current && occluderTextureRef.current.complete) {
-                  if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                      // Fallback to gray fill if texture draw failed
+          // Draw occluders with texture (only if showOccluderRef is true)
+          if (showOccluderRef.current) {
+              occluders.forEach(({ x, y, width, height }) => {
+                  const scaledX = x * scale;
+                  const scaledY = y * scale;
+                  const scaledWidth = width * scale;
+                  const scaledHeight = height * scale;
+                  
+                  ctx.save();
+                  // Check if texture path is provided and texture is loaded
+                  if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
+                      occluderTextureRef.current && occluderTextureRef.current.complete) {
+                      if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                          // Fallback to gray fill if texture draw failed
+                          ctx.fillStyle = "gray";
+                          ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                      }
+                  } else {
+                      // Use original gray fill if no texture path or texture not loaded
                       ctx.fillStyle = "gray";
                       ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                   }
-              } else {
-                  // Use original gray fill if no texture path or texture not loaded
-                  ctx.fillStyle = "gray";
-                  ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
-              }
-              ctx.restore();
-          });
+                  ctx.restore();
+              });
+          }
         }
 
         if (frameIndex ===0) { 
@@ -521,6 +531,16 @@ const App = () => {
   useUpdateKeyStates(keyStates, setKeyStates);
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
+  
+  // Sync showOccluder state to ref for use in renderFrame
+  useEffect(() => {
+    showOccluderRef.current = showOccluder;
+    // Re-render the current frame when showOccluder changes to update canvas
+    if (sceneData && !isPlaying) {
+      renderFrame(currentFrameRef.current);
+    }
+  }, [showOccluder, sceneData, isPlaying]);
+  
   // useResizeCanvas(sceneData, setCanvasSize, renderFrame, currentFrameRef, CANVAS_PROPORTION, isPlaying, MAX_CANVAS_SIZE); // Use the new hook
   
   // Initialize audio context and pre-generate tones for precise timing
@@ -957,6 +977,37 @@ const renderCurrentPage = () => {
         });
       }
       
+      // Start occluder reveal sequence for test trials with occluders
+      const hasOccluders = data.occluders && data.occluders.length > 0;
+      if (data.is_trial && !data.is_ftrial && hasOccluders) {
+        console.log('🎬 App: Test trial with occluders - starting automatic reveal sequence');
+        
+        // Clear any existing timers
+        if (occluderRevealTimerRef.current) {
+          clearTimeout(occluderRevealTimerRef.current);
+        }
+        if (animationStartTimerRef.current) {
+          clearTimeout(animationStartTimerRef.current);
+        }
+        
+        // Phase 1: Hide occluder initially
+        setShowOccluder(false);
+        showOccluderRef.current = false;
+        setdisableCountdownTrigger(true); // Disable spacebar until occluder is revealed
+        
+        // Phase 2: After 1.5 seconds, reveal occluder and enable countdown trigger
+        occluderRevealTimerRef.current = setTimeout(() => {
+          console.log('🎬 App: Phase 2 - Revealing occluder, enabling spacebar');
+          setShowOccluder(true);
+          showOccluderRef.current = true;
+          setdisableCountdownTrigger(false); // Now user can press spacebar to start
+        }, OCCLUDER_REVEAL_DELAY);
+      } else {
+        // For non-occluder trials, ensure occluder is shown (reset state)
+        setShowOccluder(true);
+        showOccluderRef.current = true;
+      }
+      
       setTrialInfo({
         ftrial_i: data.ftrial_i,
         trial_i: data.trial_i,
@@ -1099,6 +1150,7 @@ const animate = (timestamp) => {
   const handlePlayPause = (setdisableCountdownTrigger) => {
     if (isPlayingRef.current) return;
 
+    // Standard countdown - occluder reveal now happens automatically when trial loads
     let countdownValue = 3;
     setCountdown(countdownValue);
     setdisableCountdownTrigger(true);
@@ -1131,7 +1183,6 @@ const animate = (timestamp) => {
       const data = pendingSceneDataRef.current;
       const setdisableCountdownTrigger = pendingSetdisableCountdownTriggerRef.current;
       
-      setdisableCountdownTrigger(false); // Enable countdown trigger
       setSceneData(data);
       console.log("🔄 Frontend updating trialInfo after break with:", {
         ftrial_i: data.ftrial_i,
@@ -1149,6 +1200,35 @@ const animate = (timestamp) => {
         num_trials: data.num_trials,
         num_ftrials: data.num_ftrials,
       });
+      
+      // Start occluder reveal sequence for test trials with occluders (after break)
+      const hasOccluders = data.occluders && data.occluders.length > 0;
+      if (data.is_trial && !data.is_ftrial && hasOccluders) {
+        console.log('🎬 App: Test trial with occluders after break - starting reveal sequence');
+        
+        // Clear any existing timers
+        if (occluderRevealTimerRef.current) {
+          clearTimeout(occluderRevealTimerRef.current);
+        }
+        
+        // Phase 1: Hide occluder initially
+        setShowOccluder(false);
+        showOccluderRef.current = false;
+        setdisableCountdownTrigger(true); // Disable spacebar until occluder is revealed
+        
+        // Phase 2: After 1.5 seconds, reveal occluder and enable countdown trigger
+        occluderRevealTimerRef.current = setTimeout(() => {
+          console.log('🎬 App: Revealing occluder after break, enabling spacebar');
+          setShowOccluder(true);
+          showOccluderRef.current = true;
+          setdisableCountdownTrigger(false); // Now user can press spacebar to start
+        }, OCCLUDER_REVEAL_DELAY);
+      } else {
+        // For non-occluder trials, enable countdown trigger immediately
+        setShowOccluder(true);
+        showOccluderRef.current = true;
+        setdisableCountdownTrigger(false);
+      }
       
       // Clear pending data
       pendingSceneDataRef.current = null;
@@ -1190,7 +1270,7 @@ const animate = (timestamp) => {
 
   return (
     <PauseProvider>
-      <div className="app" style={{ position: "relative" }}>
+      <div className="app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', position: 'relative' }}>
         {currentPage !== 'welcome' && currentPage !== 'thankyou' && <Header sessionId={sessionId} />}
         {showStudyControls && (
           <StudyControls
@@ -1198,11 +1278,13 @@ const animate = (timestamp) => {
             showControls={true}
           />
         )}
-        {showBreakPage ? (
-          <BreakPage onContinue={handleBreakContinue} />
-        ) : (
-          renderCurrentPage()
-        )}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {showBreakPage ? (
+            <BreakPage onContinue={handleBreakContinue} />
+          ) : (
+            renderCurrentPage()
+          )}
+        </div>
       </div>
     </PauseProvider>
   );
