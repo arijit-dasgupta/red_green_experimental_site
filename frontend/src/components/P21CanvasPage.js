@@ -1,16 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p21: Canvas with audio (demonstration)
  * - Audio: 18_occluder_trimmed.mp3
- * - Canvas: T_occluder_intro trial data
+ * - Canvas: T_v2_occluder_intro trial data (V2)
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
 const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P21CanvasPage: Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const audioRef = useRef(null); // Audio: 18_occluder_trimmed.mp3
     const [sceneData, setSceneData] = useState(null);
@@ -22,6 +24,7 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
     const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
+    const renderFrameRef = useRef(null); // Store renderFrame function reference
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -107,13 +110,13 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return true;
     };
 
-    // Load T_occluder_intro trial data
+    // Load T_v2_occluder_intro trial data (V2)
     useEffect(() => {
         console.log('🚨 P21CanvasPage: useEffect for loadTrialData is RUNNING!');
         const loadTrialData = async () => {
             try {
-                const trialFolderName = 'T_occluder_intro';
-                console.log('📥 P21CanvasPage: Loading T_occluder_intro trial data from /api/load_trial_data/T_occluder_intro...');
+                const trialFolderName = 'T_v2_occluder_intro';
+                console.log('📥 P21CanvasPage: Loading T_v2_occluder_intro trial data from /api/load_trial_data/T_v2_occluder_intro...');
                 console.log('🔍 P21CanvasPage: VERIFY - trialFolderName =', trialFolderName);
                 console.log('🚨 P21CanvasPage: ABOUT TO FETCH with trialFolderName:', trialFolderName);
                 // Add cache-busting timestamp to ensure fresh data
@@ -132,7 +135,7 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     const data = await response.json();
                     const frameCount = Object.keys(data.step_data || {}).length;
                     console.log('✅ P21CanvasPage: Successfully loaded trial data');
-                    console.log('🔍 P21CanvasPage: BACKEND should have loaded from: backend/trial_data/chs_training_zoom/T_occluder_intro/simulation_data.json');
+                    console.log('🔍 P21CanvasPage: BACKEND should have loaded from: backend/trial_data/chs_training_zoom/T_v2_occluder_intro/simulation_data.json');
                     console.log('📊 P21CanvasPage: Data summary:', {
                         numFrames: frameCount,
                         fps: data.fps,
@@ -147,7 +150,7 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P21CanvasPage: Failed to load T_occluder_intro data:', response.status, errorText);
+                    console.error('❌ P21CanvasPage: Failed to load T_v2_occluder_intro data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P21CanvasPage: Error loading trial data:', error);
@@ -457,6 +460,62 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Store renderFrame in ref so it can be used in resume effect
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
+
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P21CanvasPage: Study paused - stopping animation and audio');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Pause audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P21CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setAudioFinished(false);
+            setVideoFinished(false);
+            hasAutoAdvancedRef.current = false;
+            lastTimestampRef.current = null;
+            
+            // Reset and restart audio
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+            }
+            
+            // Restart animation after a brief delay
+            setTimeout(() => {
+                if (renderFrameRef.current && sceneData) {
+                    renderFrameRef.current(0);
+                    setIsPlaying(true);
+                }
+            }, 100);
+        }
+    }, [resumeCounter, sceneData]);
+
     // Track start time for duration calculation
     const startTimeRef = useRef(null);
 
@@ -587,7 +646,7 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }}>
             <audio
                 ref={audioRef}
-                src="/audios/18_occluder_trimmed.mp3"
+                src="/audios/v2_occluder.mp3"
                 preload="auto"
                 onLoadedData={() => console.log('🔊 P21CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
                 onPlay={() => console.log('▶️ P21CanvasPage: Audio started playing')}
@@ -671,9 +730,7 @@ const P21CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 alignItems: "center",
                 justifyContent: "center",
             }}>
-                {!audioFinished && !videoFinished ? "Playing audio and video..." : 
-                 !audioFinished ? "Playing audio..." : 
-                 !videoFinished ? "Playing video..." : ""}
+                {/* V2: Removed distracting "Playing..." text */}
             </div>
         </div>
     );

@@ -1,18 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { usePause } from '../contexts/PauseContext';
-import { config } from '../config';
 
 /**
- * Build complete timeline with all media/content information for each page
- * V2: Updated for new page structure with 3 training pages and 15 familiarization pages
- * V3: 2 training pages and 11 familiarization pages
+ * Build complete timeline with all media/content information for each page.
+ * 2 training pages (P1–P2) and 11 familiarization pages (P3–P13).
  */
 const buildCompleteTimeline = (backendData, backstoryPages) => {
     const timeline = [];
-    
-    // Training Pages - V3: P1-P2, V2: P1-P3
-    const numTrainingPages = config.useV3Mode ? 2 : 3;
+    const numTrainingPages = 2;
+
     for (let i = 1; i <= numTrainingPages; i++) {
         const pageSpec = backstoryPages[i];
         if (!pageSpec) {
@@ -32,57 +29,48 @@ const buildCompleteTimeline = (backendData, backstoryPages) => {
         };
         timeline.push(pageInfo);
     }
-    
-    // Familiarization Trials (P4-P18) - v2 mapping
-    // ftrial_i 1-15 maps to P4-P18
+
+    // Familiarization: ftrial_i 1–11 → P3–P13; trialData matches what each V3 page fetches
     const ftrialToPage = {
-        1: { page: "P4", audio: "/audios/v2_ball_intro.mp3", trialData: "T_v2_ball_still", images: [{ src: "/images/elmo.png", position: "left_middle_canvas", size: "10%" }], type: "canvas_demonstration" },
-        2: { page: "P5", audio: "/audios/v2_ball_bounce.mp3", trialData: "T_v2_ball_move", images: null, type: "canvas_demonstration" },
-        3: { page: "P6", audio: "/audios/v2_sensors.mp3", trialData: "T_v2_ball_sensor_red", images: null, type: "canvas_demonstration" },
-        4: { page: "P7", audio: "/audios/v2_keys.mp3", trialData: "T_v2_bg_no_occluder", images: null, type: "canvas_keyboard_overlay" },
-        5: { page: "P8", audio: "/audios/v2_before_easy_practice.mp3", trialData: null, images: [{ src: "/images/whole_scene_no_occluder.png", position: "center", size: "90%" }], type: "image_audio" },
-        6: { page: "P9", audio: null, trialData: "T_v2_green_easy", images: null, type: "interactive_practice", keysSwapped: false },
-        7: { page: "P10", audio: null, trialData: "T_v2_red_easy", images: null, type: "interactive_practice", keysSwapped: false },
-        8: { page: "P11", audio: null, trialData: "T_v2_red_mid", images: null, type: "interactive_practice", keysSwapped: true },
-        9: { page: "P12", audio: null, trialData: "T_v2_green_mid", images: null, type: "interactive_practice", keysSwapped: true },
-        10: { page: "P13", audio: "/audios/v2_switch_keys.mp3", trialData: null, images: [{ src: "/images/whole_scene_no_occluder.png", position: "center", size: "90%" }], type: "image_audio" },
-        11: { page: "P14", audio: "/audios/v2_keyswitch_ball_stable.mp3", trialData: "T_v2_keyswitch_ball_stable", images: null, type: "interactive_practice" },
-        12: { page: "P15", audio: "/audios/v2_keyswitch_ball_moving.mp3", trialData: "T_v2_keyswitch_ball_moving", images: null, type: "interactive_practice" },
-        13: { page: "P16", audio: "/audios/v2_occluder.mp3", trialData: "T_v2_occluder_intro", images: null, type: "canvas_demonstration" },
-        14: { page: "P17", audio: null, trialData: "T_v2_occluder_practice", images: null, type: "interactive_practice" },
-        15: { page: "P18", audio: "/audios/v2_before_test.mp3", trialData: null, images: [{ src: "/images/whole_scene_with_occluder.png", position: "center", size: "90%" }], type: "image_keyboard_overlay" },
+        1: { page: "P3", trialData: "T_v3_ball_sensor_red", type: "canvas_demonstration" },
+        2: { page: "P4", trialData: "T_v3_keys", type: "canvas_demonstration" },
+        3: { page: "P5", trialData: "T_v3_area_no_ball", type: "canvas_demonstration" },
+        4: { page: "P6", trialData: "T_v3_green_mid", type: "interactive_practice" },
+        5: { page: "P7", trialData: "T_v3_red_mid", type: "interactive_practice" },
+        6: { page: "P8", trialData: "T_v3_keyswitch_ball_stable", type: "canvas_demonstration" },
+        7: { page: "P9", trialData: "T_v3_keyswitch_practice_1", type: "interactive_practice" },
+        8: { page: "P10", trialData: "T_v3_keyswitch_practice_2", type: "interactive_practice" },
+        9: { page: "P11", trialData: "T_v3_occluder_intro", type: "canvas_demonstration" },
+        10: { page: "P12", trialData: "T_v3_occluder_practice", type: "interactive_practice" },
+        11: { page: "P13", trialData: "T_v3_before_test", type: "canvas_demonstration" },
     };
-    
-    // Add familiarization trials in order from backend
+
     if (backendData.f_trial_order && backendData.f_trial_order.length > 0) {
-        const maxFamiliarizationTrials = 15; // v2 has 15 familiarization pages (P4-P18)
+        const maxFamiliarizationTrials = 11;
         const familiarizationTrialsToProcess = backendData.f_trial_order.slice(0, maxFamiliarizationTrials);
-        
+
         familiarizationTrialsToProcess.forEach((trialFolderName, idx) => {
             const ftrial_i = idx + 1;
             const pageMapping = ftrialToPage[ftrial_i];
-            
+
             if (pageMapping) {
-                const isImageOnlyPage = pageMapping.type === "image_audio" || pageMapping.type === "image_keyboard_overlay";
-                
                 timeline.push({
                     page: pageMapping.page,
                     ftrial_i: ftrial_i,
                     phase: "familiarization",
                     type: pageMapping.type,
-                    audio: pageMapping.audio || null,
-                    images: pageMapping.images || null,
-                    videos: pageMapping.videos || null,
-                    trialData: isImageOnlyPage ? null : (pageMapping.trialData !== null && pageMapping.trialData !== undefined ? pageMapping.trialData : trialFolderName),
-                    trialFolderName: isImageOnlyPage ? null : trialFolderName,
+                    audio: null,
+                    images: null,
+                    videos: null,
+                    trialData: pageMapping.trialData !== null && pageMapping.trialData !== undefined ? pageMapping.trialData : trialFolderName,
+                    trialFolderName: trialFolderName,
                     isInteractive: pageMapping.type === "interactive_practice",
                     keysSwapped: pageMapping.keysSwapped || false,
                 });
             }
         });
     }
-    
-    // Experimental Trials
+
     if (backendData.randomized_trial_order && backendData.randomized_trial_order.length > 0) {
         backendData.randomized_trial_order.forEach((trialFolderName, idx) => {
             timeline.push({
@@ -100,11 +88,11 @@ const buildCompleteTimeline = (backendData, backstoryPages) => {
             });
         });
     }
-    
+
     return {
         summary: {
             total_items: timeline.length,
-            training_pages: 3, // v2 has 3 training pages
+            training_pages: numTrainingPages,
             familiarization_trials: backendData.num_ftrials || 0,
             experimental_trials: backendData.num_trials || 0,
         },
@@ -122,8 +110,8 @@ const BackstoryPage = () => {
     const { isPaused, resumeCounter } = usePause();
     const audioRef = useRef(null);
     const videoRef = useRef(null);
-    const [currentPage, setCurrentPage] = useState(1); // V2: 1-3 training pages, V3: 1-2 training pages
-    const maxTrainingPages = config.useV3Mode ? 2 : 3;
+    const [currentPage, setCurrentPage] = useState(1);
+    const maxTrainingPages = 2;
     const [audioPlayed, setAudioPlayed] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [audioElapsedTime, setAudioElapsedTime] = useState(0); // Track audio elapsed time for timed images
@@ -131,28 +119,8 @@ const BackstoryPage = () => {
     const [timelineData, setTimelineData] = useState(null);
     const [experimentStarted, setExperimentStarted] = useState(false);
 
-    // V2/V3 Backstory page specifications
-    const backstoryPagesV2 = {
+    const backstoryPages = {
         1: {
-            images: [{ src: '/images/elmo.png', position: 'center', size: '30%' }],
-            audio: '/audios/v2_elmo.mp3',
-            video: null,
-        },
-        2: {
-            images: [{ src: '/images/elmo_ball.png', position: 'center', size: '30%' }],
-            audio: '/audios/v2_elmo_ball.mp3',
-            video: null,
-        },
-        3: {
-            images: null,
-            audio: null, // Video has embedded audio
-            video: '/videos/neighborhood.m4v',
-        },
-    };
-    
-    const backstoryPagesV3 = {
-        1: {
-            // P1: Elmo + ball intro - v3_elmo.png (0-1s), v3_elmo_ball.png (1s-end)
             images: [
                 { src: '/images/v3_elmo.png', position: 'center', size: '30%', showUntil: 1 },
                 { src: '/images/v3_elmo_ball.png', position: 'center', size: '30%', showAfter: 1 }
@@ -161,15 +129,11 @@ const BackstoryPage = () => {
             video: null,
         },
         2: {
-            // P2: Area video
             images: null,
-            audio: null, // Video has embedded audio
+            audio: null,
             video: '/videos/v3_area.mp4',
         },
     };
-    
-    // Select based on config
-    const backstoryPages = config.useV3Mode ? backstoryPagesV3 : backstoryPagesV2;
 
     // Start experiment session when component mounts (before showing timeline)
     useEffect(() => {

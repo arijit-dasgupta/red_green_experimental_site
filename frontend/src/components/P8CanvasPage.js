@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p8: Canvas with audio and image overlay
  * - Audio: 8_ball_intro.mp3
- * - Canvas: T_ball_still trial data
+ * - Canvas: T_v2_ball_still trial data (V2)
  * - Image: elmo.png on left middle of canvas, 10% size
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
  * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
 const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
+    console.log("🎬 P8CanvasPage (V2 P4): Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const audioRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
@@ -22,6 +25,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
     const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
+    const renderFrameRef = useRef(null); // Store renderFrame function reference
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -128,11 +132,11 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return true;
     };
 
-    // Load T_ball_still trial data
+    // Load T_v2_ball_still trial data (V2)
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                const response = await fetch('/api/load_trial_data/T_ball_still', {
+                const response = await fetch('/api/load_trial_data/T_v2_ball_still', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -145,7 +149,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('Failed to load T_ball_still data:', response.status, errorText);
+                    console.error('Failed to load T_v2_ball_still data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('Error loading trial data:', error);
@@ -430,6 +434,62 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Store renderFrame in ref so it can be used in resume effect
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
+
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P8CanvasPage: Study paused - stopping animation and audio');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Pause audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P8CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setAudioFinished(false);
+            setVideoFinished(false);
+            hasAutoAdvancedRef.current = false;
+            lastTimestampRef.current = null;
+            
+            // Reset and restart audio
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+            }
+            
+            // Restart animation after a brief delay
+            setTimeout(() => {
+                if (renderFrameRef.current && sceneData) {
+                    renderFrameRef.current(0);
+                    setIsPlaying(true);
+                }
+            }, 100);
+        }
+    }, [resumeCounter, sceneData]);
+
     // Auto-start when scene data is loaded and reset states
     useEffect(() => {
         if (sceneData) {
@@ -526,7 +586,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }}>
             <audio
                 ref={audioRef}
-                src="/audios/8_ball_intro.mp3"
+                src="/audios/v2_ball_intro.mp3"
                 preload="auto"
             />
 
@@ -622,9 +682,7 @@ const P8CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 alignItems: "center",
                 justifyContent: "center",
             }}>
-                {!audioFinished && !videoFinished ? "Playing audio and video..." : 
-                 !audioFinished ? "Playing audio..." : 
-                 !videoFinished ? "Playing video..." : ""}
+                {/* V2: Removed distracting "Playing..." text */}
             </div>
         </div>
     );

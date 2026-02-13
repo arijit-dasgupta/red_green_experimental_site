@@ -41,7 +41,7 @@ const ChildAssent = () => {
         }}>
             <audio
                 ref={audioRef}
-                src="/child_assent.mp3"
+                src="/audios/v3_child_assent.mp3"
                 preload="auto"
             />
 
@@ -70,10 +70,10 @@ const ChildAssent = () => {
                     Hi there! Welcome to our game!
                 </p>
                 <p style={{ marginBottom: "15px" }}>
-                    Today, we’re going to hear some fun stories about friends from the Sesame Street and play some computer games together. You’ll watch short videos of Elmo’s ball going around, and your job is to press some keys on the computer keyboard to make your best guesses about where the ball is going.
+                    Today we're going to play a fun game with Elmo and his red bouncy ball.
                 </p>
                 <p style={{ marginBottom: "15px" }}>
-                    If at any time you want to take a break or stop early, that’s totally okay—just let your parent know, and they can help you.
+                    If you ever want to take a break or stop playing, that's totally okay—just let your grown-up know and they can help you.
                 </p>
                 <p style={{ 
                     marginBottom: "15px",
@@ -82,7 +82,7 @@ const ChildAssent = () => {
                     color: "#2C6EB5",
                     textAlign: "center"
                 }}>
-                    Does this sound good to you? Would you like to play this game and help Elmo?
+                    Are you ready to play?
                 </p>
             </div>
 
@@ -134,4 +134,3 @@ const ChildAssent = () => {
 };
 
 export default ChildAssent;
-

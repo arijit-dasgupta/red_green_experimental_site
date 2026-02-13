@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
  * Dedicated component for p18: Canvas with audio
@@ -11,6 +12,7 @@ import { config } from '../config';
  */
 const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     console.log("🎬 P18CanvasPage: Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const audioRef = useRef(null); // Audio: 14_switchkeys_onekey.mp3
     const [sceneData, setSceneData] = useState(null);
@@ -22,6 +24,7 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
     const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
+    const renderFrameRef = useRef(null); // Store renderFrame function reference
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -457,6 +460,62 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
+    // Store renderFrame in ref so it can be used in resume effect
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
+
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P18CanvasPage: Study paused - stopping animation and audio');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Pause audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P18CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setAudioFinished(false);
+            setVideoFinished(false);
+            hasAutoAdvancedRef.current = false;
+            lastTimestampRef.current = null;
+            
+            // Reset and restart audio
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+            }
+            
+            // Restart animation after a brief delay
+            setTimeout(() => {
+                if (renderFrameRef.current && sceneData) {
+                    renderFrameRef.current(0);
+                    setIsPlaying(true);
+                }
+            }, 100);
+        }
+    }, [resumeCounter, sceneData]);
+
     // Track start time for duration calculation
     const startTimeRef = useRef(null);
 
@@ -587,7 +646,7 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }}>
             <audio
                 ref={audioRef}
-                src="/audios/14_switchkeys_onekey.mp3"
+                src="/audios/v2_switch_keys.mp3"
                 preload="auto"
                 onLoadedData={() => console.log('🔊 P18CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
                 onPlay={() => console.log('▶️ P18CanvasPage: Audio started playing')}
@@ -671,9 +730,7 @@ const P18CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 alignItems: "center",
                 justifyContent: "center",
             }}>
-                {!audioFinished && !videoFinished ? "Playing audio and video..." : 
-                 !audioFinished ? "Playing audio..." : 
-                 !videoFinished ? "Playing video..." : ""}
+                {/* V2: Removed distracting "Playing..." text */}
             </div>
         </div>
     );

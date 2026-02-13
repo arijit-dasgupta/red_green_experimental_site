@@ -299,7 +299,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const currentKeyStates = keyStatesRef.current;
             
             // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed (J key = red sensor)
-            if (currentKeyStates.j && !currentKeyStates.f && isPlaying) {
+            // Removed isPlaying condition so pulsing works even on frozen frames
+            if (currentKeyStates.j && !currentKeyStates.f) {
                 ctx.save();
                 const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
@@ -347,7 +348,8 @@ const P15CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const currentKeyStates = keyStatesRef.current;
             
             // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
-            if (currentKeyStates.f && !currentKeyStates.j && isPlaying) {
+            // Removed isPlaying condition so pulsing works even on frozen frames
+            if (currentKeyStates.f && !currentKeyStates.j) {
                 ctx.save();
                 const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0

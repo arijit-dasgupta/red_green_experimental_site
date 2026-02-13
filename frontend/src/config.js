@@ -6,6 +6,14 @@ export const config = {
   // Set to true to show the icon indicators when F or J keys are pressed
   // Set to false to hide them (default: false)
   showKeyIndicators: false,
+
+  // Whether to randomly swap red and green sensor positions in test phase (counterbalancing)
+  // Set to true to enable random swap per trial, false to keep sensors in original positions (default: false)
+  randomSwapRedGreenSensor: false,
+
+  // For E trials (test phase): swap sensor positions so green is on left, red is on right
+  // Set to true to swap (green left, red right), false to keep original (red left, green right) (default: true)
+  swapSensorsForETrials: true,
   
   // Ball texture path relative to public folder (e.g., '/ball.png' or '/ball_uniform.png')
   // Set to null or empty string to disable texture and use default blue fill

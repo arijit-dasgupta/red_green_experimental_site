@@ -1,270 +1,490 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
- * Dedicated component for p22: Video with audio and video overlays
- * - Audio: 19_final_reminder_corrected.mp3 (starts immediately)
- * - Main video: final_reminder.mp4 (appears immediately, starts playing at 22 seconds into audio)
- * - Videos (visual only, muted, centered overlay, 70% size):
- *   - Fkey_short.mp4 plays 47 seconds into 19_final_reminder_corrected.mp3
- *   - Jkey_short.mp4 plays 52 seconds into 19_final_reminder_corrected.mp3
- * - Auto-advance when 19_final_reminder_corrected.mp3 finishes
+ * P22CanvasPage (V2) - P18: Before Test
+ * 
+ * Content: Frozen canvas (first frame of T_v2_occluder_intro) with audio and keyboard overlays
+ * - Canvas: T_v2_occluder_intro (first frame only, frozen, all components visible)
+ * - Audio: v2_before_test.mp3
+ * - Keyboard overlays at timed intervals
+ * - Auto-advances after audio finishes
  */
 const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
-    console.log("🎬 P22CanvasPage: Component mounted/rendered");
-    const audioRef = useRef(null); // Audio: 19_final_reminder_corrected.mp3
-    const mainVideoRef = useRef(null); // Main video: final_reminder.mp4
-    const fkeyVideoRef = useRef(null); // Fkey_short.mp4 video
-    const jkeyVideoRef = useRef(null); // Jkey_short.mp4 video
+    console.log("🎬 P22CanvasPage (V2 P18): Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
+    const canvasRef = useRef(null);
+    const audioRef = useRef(null);
+    const [sceneData, setSceneData] = useState(null);
     const [audioFinished, setAudioFinished] = useState(false);
-    const [fkeyVideoPlaying, setFkeyVideoPlaying] = useState(false);
-    const [jkeyVideoPlaying, setJkeyVideoPlaying] = useState(false);
-    const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
-    const mainVideoTimerRef = useRef(null); // Timer for starting main video at 22s
-    const fkeyVideoTimerRef = useRef(null); // Timer for starting Fkey video at 47s
-    const jkeyVideoTimerRef = useRef(null); // Timer for starting Jkey video at 56s
+    const [currentOverlay, setCurrentOverlay] = useState(null);
+    const hasAutoAdvancedRef = useRef(false);
+    const hasRenderedRef = useRef(false);
+    const renderFrameRef = useRef(null);
+    const overlayTimerRef = useRef(null);
+    const hasStartedRef = useRef(false);
+    
+    // Texture refs (matching App.js)
+    const ballTextureRef = useRef(null);
+    const ballOffscreenCanvasRef = useRef(null);
+    const barrierTextureRef = useRef(null);
+    const redSensorTextureRef = useRef(null);
+    const greenSensorTextureRef = useRef(null);
+    const occluderTextureRef = useRef(null);
 
-    // Listen for audio play and set up video timers
+    // Fixed canvas size (matching testing trials)
+    const canvasSize = { width: 600, height: 600 };
+
+    // Overlay schedule for P18 (v2_before_test.mp3)
+    const overlaySchedule = [
+        { start: 0, end: 16, overlay: null },
+        { start: 16, end: 19, overlay: '/images/keyboard_F.png' },
+        { start: 19, end: 21, overlay: null },
+        { start: 21, end: 24, overlay: '/images/keyboard_J.png' },
+        { start: 24, end: 27, overlay: null },
+        { start: 27, end: 29, overlay: '/images/keyboard_both.png' },
+        { start: 29, end: 9999, overlay: null },
+    ];
+
+    // Load all textures (matching App.js)
     useEffect(() => {
-        const audio = audioRef.current;
-        if (!audio) return;
+        // Ball texture
+        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
+            const img = new Image();
+            img.src = config.ballTexturePath;
+            img.onload = () => { ballTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load ball texture:", config.ballTexturePath); };
+        }
 
-        const handleAudioPlay = () => {
-            console.log('▶️ P22CanvasPage: Audio started playing');
-            console.log('🔍 P22CanvasPage: Checking video refs...');
-            console.log('🔍 P22CanvasPage: mainVideoRef.current:', mainVideoRef.current);
-            console.log('🔍 P22CanvasPage: fkeyVideoRef.current:', fkeyVideoRef.current);
-            console.log('🔍 P22CanvasPage: jkeyVideoRef.current:', jkeyVideoRef.current);
-            
-            // Set timer to start main video at 22 seconds
-            if (mainVideoTimerRef.current) {
-                clearTimeout(mainVideoTimerRef.current);
-            }
-            console.log("⏰ P22CanvasPage: Setting timer to start main video at 22 seconds...");
-            mainVideoTimerRef.current = setTimeout(() => {
-                console.log("⏰ P22CanvasPage: Timer fired at 22s! Starting main video...");
-                console.log("🔍 P22CanvasPage: mainVideoRef.current at timer fire:", mainVideoRef.current);
-                if (mainVideoRef.current) {
-                    console.log("🎬 P22CanvasPage: Starting final_reminder.mp4 video (22 seconds into audio)");
-                    console.log("🔍 P22CanvasPage: Video readyState:", mainVideoRef.current.readyState);
-                    mainVideoRef.current.currentTime = 0;
-                    const videoPlayPromise = mainVideoRef.current.play();
-                    if (videoPlayPromise !== undefined) {
-                        videoPlayPromise
-                            .then(() => {
-                                console.log('✅ P22CanvasPage: Main video started successfully');
-                            })
-                            .catch(error => {
-                                console.error("❌ P22CanvasPage: Main video autoplay prevented:", error);
-                            });
-                    }
-                } else {
-                    console.error("❌ P22CanvasPage: mainVideoRef.current is null!");
-                }
-            }, 22000); // 22 seconds
+        // Barrier texture
+        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
+            const img = new Image();
+            img.src = config.barrierTexturePath;
+            img.onload = () => { barrierTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load barrier texture:", config.barrierTexturePath); };
+        }
 
-            // Set timer to start Fkey video at 47 seconds
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-            }
-            console.log("⏰ P22CanvasPage: Setting timer to start Fkey video at 47 seconds...");
-            fkeyVideoTimerRef.current = setTimeout(() => {
-                console.log("⏰ P22CanvasPage: Timer fired at 47s! Starting Fkey video...");
-                console.log("🔍 P22CanvasPage: fkeyVideoRef.current at timer fire:", fkeyVideoRef.current);
-                if (fkeyVideoRef.current) {
-                    console.log("🎬 P22CanvasPage: Starting Fkey_short.mp4 video (47 seconds into audio)");
-                    console.log("🔍 P22CanvasPage: Video readyState:", fkeyVideoRef.current.readyState);
-                    fkeyVideoRef.current.currentTime = 0;
-                    // Ensure video is visible
-                    setFkeyVideoPlaying(true);
-                    const videoPlayPromise = fkeyVideoRef.current.play();
-                    if (videoPlayPromise !== undefined) {
-                        videoPlayPromise
-                            .then(() => {
-                                console.log('✅ P22CanvasPage: Fkey video started successfully');
-                            })
-                            .catch(error => {
-                                console.error("❌ P22CanvasPage: Fkey video autoplay prevented:", error);
-                                setFkeyVideoPlaying(false);
-                            });
-                    }
-                } else {
-                    console.error("❌ P22CanvasPage: fkeyVideoRef.current is null!");
-                }
-            }, 47000); // 47 seconds
+        // Red sensor texture
+        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
+            const img = new Image();
+            img.src = config.redSensorTexturePath;
+            img.onload = () => { redSensorTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load red sensor texture:", config.redSensorTexturePath); };
+        }
 
-            // Set timer to start Jkey video at 52 seconds
-            if (jkeyVideoTimerRef.current) {
-                clearTimeout(jkeyVideoTimerRef.current);
-            }
-            console.log("⏰ P22CanvasPage: Setting timer to start Jkey video at 52 seconds...");
-            jkeyVideoTimerRef.current = setTimeout(() => {
-                console.log("⏰ P22CanvasPage: Timer fired at 52s! Starting Jkey video...");
-                console.log("🔍 P22CanvasPage: jkeyVideoRef.current at timer fire:", jkeyVideoRef.current);
-                if (jkeyVideoRef.current) {
-                    console.log("🎬 P22CanvasPage: Starting Jkey_short.mp4 video (52 seconds into audio)");
-                    console.log("🔍 P22CanvasPage: Video readyState:", jkeyVideoRef.current.readyState);
-                    jkeyVideoRef.current.currentTime = 0;
-                    // Ensure video is visible
-                    setJkeyVideoPlaying(true);
-                    const videoPlayPromise = jkeyVideoRef.current.play();
-                    if (videoPlayPromise !== undefined) {
-                        videoPlayPromise
-                            .then(() => {
-                                console.log('✅ P22CanvasPage: Jkey video started successfully');
-                            })
-                            .catch(error => {
-                                console.error("❌ P22CanvasPage: Jkey video autoplay prevented:", error);
-                                setJkeyVideoPlaying(false);
-                            });
-                    }
-                } else {
-                    console.error("❌ P22CanvasPage: jkeyVideoRef.current is null!");
-                }
-            }, 52000); // 52 seconds
-        };
+        // Green sensor texture
+        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
+            const img = new Image();
+            img.src = config.greenSensorTexturePath;
+            img.onload = () => { greenSensorTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load green sensor texture:", config.greenSensorTexturePath); };
+        }
 
-        const handleAudioEnd = () => {
-            console.log('🏁 P22CanvasPage: Audio (19_final_reminder_corrected.mp3) ended at', new Date().toISOString());
-            if (audioRef.current) {
-                console.log(`⏱️ P22CanvasPage: Audio actual duration: ${audioRef.current.duration.toFixed(2)}s`);
-            }
-            setAudioFinished(true);
-        };
-
-        audio.addEventListener('play', handleAudioPlay);
-        audio.addEventListener('ended', handleAudioEnd);
-        return () => {
-            audio.removeEventListener('play', handleAudioPlay);
-            audio.removeEventListener('ended', handleAudioEnd);
-            // Clean up timers
-            if (mainVideoTimerRef.current) {
-                clearTimeout(mainVideoTimerRef.current);
-            }
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-            }
-            if (jkeyVideoTimerRef.current) {
-                clearTimeout(jkeyVideoTimerRef.current);
-            }
-        };
-    }, []);
-
-    // Listen for video ends (for logging only)
-    useEffect(() => {
-        const fkeyVideo = fkeyVideoRef.current;
-        if (fkeyVideo) {
-            const handleFkeyVideoEnd = () => {
-                console.log('🏁 P22CanvasPage: Fkey video ended');
-                setFkeyVideoPlaying(false);
-            };
-            fkeyVideo.addEventListener('ended', handleFkeyVideoEnd);
-            return () => {
-                fkeyVideo.removeEventListener('ended', handleFkeyVideoEnd);
-            };
+        // Occluder texture
+        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
+            const img = new Image();
+            img.src = config.occluderTexturePath;
+            img.onload = () => { occluderTextureRef.current = img; };
+            img.onerror = () => { console.error("Failed to load occluder texture:", config.occluderTexturePath); };
         }
     }, []);
 
-    useEffect(() => {
-        const jkeyVideo = jkeyVideoRef.current;
-        if (jkeyVideo) {
-            const handleJkeyVideoEnd = () => {
-                console.log('🏁 P22CanvasPage: Jkey video ended');
-                setJkeyVideoPlaying(false);
-            };
-            jkeyVideo.addEventListener('ended', handleJkeyVideoEnd);
-            return () => {
-                jkeyVideo.removeEventListener('ended', handleJkeyVideoEnd);
-            };
+    // Helper to draw tiled textures (copied from App.js)
+    const drawTiledTexture = (ctx, texture, x, y, width, height) => {
+        if (!texture || !texture.complete) return false;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x, y, width, height);
+        ctx.clip();
+        const imgRatio = texture.width / texture.height;
+        const containerRatio = width / height;
+        let newW, newH, newX, newY;
+        if (imgRatio > containerRatio) {
+            newH = height;
+            newW = height * imgRatio;
+            newX = x - (newW - width) / 2;
+            newY = y;
+        } else {
+            newW = width;
+            newH = width / imgRatio;
+            newX = x;
+            newY = y - (newH - height) / 2;
         }
+        ctx.save();
+        ctx.translate(newX, newY + newH);
+        ctx.scale(1, -1);
+        ctx.drawImage(texture, 0, 0, newW, newH);
+        ctx.restore();
+        ctx.restore();
+        return true;
+    };
+
+    // Load T_v2_occluder_intro trial data
+    useEffect(() => {
+        const loadTrialData = async () => {
+            try {
+                console.log('📥 P22CanvasPage: Loading T_v2_occluder_intro trial data...');
+                const response = await fetch('/api/load_trial_data/T_v2_occluder_intro', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const frameCount = Object.keys(data.step_data || {}).length;
+                    console.log('✅ P22CanvasPage: Successfully loaded trial data');
+                    console.log('📊 P22CanvasPage: Data summary:', {
+                        numFrames: frameCount,
+                        fps: data.fps,
+                        worldWidth: data.worldWidth,
+                        worldHeight: data.worldHeight,
+                        hasBarriers: (data.barriers || []).length > 0,
+                        hasOccluders: (data.occluders || []).length > 0,
+                        hasRedSensor: !!data.red_sensor,
+                        hasGreenSensor: !!data.green_sensor,
+                        radius: data.radius
+                    });
+                    setSceneData(data);
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ P22CanvasPage: Failed to load T_v2_occluder_intro data:', response.status, errorText);
+                }
+            } catch (error) {
+                console.error('❌ P22CanvasPage: Error loading trial data:', error);
+            }
+        };
+
+        loadTrialData();
     }, []);
 
-    // Auto-start audio when component mounts
-    useEffect(() => {
-        // Reset states
-            setAudioFinished(false);
-            setFkeyVideoPlaying(false);
-            setJkeyVideoPlaying(false);
-        hasAutoAdvancedRef.current = false;
-            
-            // Clean up any running timers
-        if (mainVideoTimerRef.current) {
-            clearTimeout(mainVideoTimerRef.current);
-            mainVideoTimerRef.current = null;
+    // Render frame function (matching App.js rendering logic)
+    const renderFrame = React.useCallback((frameIndex) => {
+        const canvas = canvasRef.current;
+        if (!canvas || !sceneData) {
+            return;
         }
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-                fkeyVideoTimerRef.current = null;
-            }
-        if (jkeyVideoTimerRef.current) {
-            clearTimeout(jkeyVideoTimerRef.current);
-            jkeyVideoTimerRef.current = null;
-        }
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const { barriers, occluders, step_data, red_sensor, green_sensor, radius, worldWidth, worldHeight } = sceneData;
+
+        // Enable high-quality rendering
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Calculate scale
+        const scale = Math.min(canvas.width / worldWidth, canvas.height / worldHeight);
+
+        // Transform coordinate system (flip Y to match website's coordinate system)
+        ctx.save();
+        ctx.scale(1, -1);
+        ctx.translate(0, -canvas.height);
+
+        // Draw barriers with texture (always show from frame 0)
+        barriers.forEach(({ x, y, width, height }) => {
+            const scaledX = x * scale;
+            const scaledY = y * scale;
+            const scaledWidth = width * scale;
+            const scaledHeight = height * scale;
             
-            // Start audio playback
-            if (audioRef.current) {
-                console.log('🔊 P22CanvasPage: Starting audio playback');
-                console.log('🔊 P22CanvasPage: Audio src:', audioRef.current.src);
-                console.log('🔊 P22CanvasPage: Audio readyState:', audioRef.current.readyState);
-                audioRef.current.currentTime = 0; // Reset audio to start
-                const playPromise = audioRef.current.play();
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            // Check if audio element still exists before logging success
-                            if (audioRef.current) {
-                                console.log('✅ P22CanvasPage: Audio playback started successfully');
-                                console.log('🔊 P22CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
-                                console.log(`📊 P22CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
-                            }
-                        })
-                        .catch(error => {
-                            // Only log error if it's not the expected "interrupted" error
-                            // This can happen in React Strict Mode or during component re-renders
-                            if (error.name !== 'AbortError' || !error.message.includes('interrupted')) {
-                                console.error("❌ P22CanvasPage: Audio autoplay prevented:", error);
-                            } else {
-                                // This is expected in some cases (React Strict Mode, re-renders)
-                                // Audio will play on the next attempt
-                                console.log('ℹ️ P22CanvasPage: Audio play() interrupted (likely due to React re-render), will retry');
-                            }
-                        });
+            ctx.save();
+            if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '' && 
+                barrierTextureRef.current && barrierTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                    ctx.fillStyle = "black";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
             } else {
-                console.error('❌ P22CanvasPage: Audio ref is null - cannot play audio');
+                ctx.fillStyle = "black";
+                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
+            ctx.restore();
+        });
+
+        // Draw sensors with texture
+        if (red_sensor) {
+            const { x, y, width, height } = red_sensor;
+            const scaledX = x * scale;
+            const scaledY = y * scale;
+            const scaledWidth = width * scale;
+            const scaledHeight = height * scale;
+            
+            ctx.save();
+            if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
+                redSensorTextureRef.current && redSensorTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                    ctx.fillStyle = "red";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                }
+            } else {
+                ctx.fillStyle = "red";
+                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+            }
+            ctx.restore();
+        }
+
+        if (green_sensor) {
+            const { x, y, width, height } = green_sensor;
+            const scaledX = x * scale;
+            const scaledY = y * scale;
+            const scaledWidth = width * scale;
+            const scaledHeight = height * scale;
+            
+            ctx.save();
+            if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
+                greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                    ctx.fillStyle = "green";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                }
+            } else {
+                ctx.fillStyle = "green";
+                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+            }
+            ctx.restore();
+        }
+
+        // Draw ball with texture (no rotation for static frame)
+        if (step_data && step_data[frameIndex]) {
+            const { x, y } = step_data[frameIndex];
+            const centerX = (x + radius) * scale;
+            const centerY = (y + radius) * scale;
+            const ballRadius = scale * radius;
+            
+            if (config.ballTexturePath && config.ballTexturePath.trim() !== '' && 
+                ballTextureRef.current && ballTextureRef.current.complete) {
+                const supersampleFactor = 2;
+                const offscreenSize = Math.ceil(ballRadius * 2 * supersampleFactor);
+                
+                if (!ballOffscreenCanvasRef.current || 
+                    ballOffscreenCanvasRef.current.width !== offscreenSize) {
+                    ballOffscreenCanvasRef.current = document.createElement('canvas');
+                    ballOffscreenCanvasRef.current.width = offscreenSize;
+                    ballOffscreenCanvasRef.current.height = offscreenSize;
+                }
+                
+                const offscreenCanvas = ballOffscreenCanvasRef.current;
+                const offscreenCtx = offscreenCanvas.getContext('2d');
+                
+                offscreenCtx.imageSmoothingEnabled = true;
+                offscreenCtx.imageSmoothingQuality = 'high';
+                offscreenCtx.clearRect(0, 0, offscreenSize, offscreenSize);
+                
+                const offscreenCenter = offscreenSize / 2;
+                const offscreenRadius = ballRadius * supersampleFactor;
+                
+                offscreenCtx.save();
+                offscreenCtx.beginPath();
+                offscreenCtx.arc(offscreenCenter, offscreenCenter, offscreenRadius, 0, 2 * Math.PI);
+                offscreenCtx.clip();
+                
+                // No rotation for static frame
+                const textureSize = offscreenRadius * 2;
+                offscreenCtx.drawImage(
+                    ballTextureRef.current,
+                    offscreenCenter - offscreenRadius,
+                    offscreenCenter - offscreenRadius,
+                    textureSize,
+                    textureSize
+                );
+                offscreenCtx.restore();
+                
+                ctx.save();
+                ctx.drawImage(
+                    offscreenCanvas,
+                    centerX - ballRadius,
+                    centerY - ballRadius,
+                    ballRadius * 2,
+                    ballRadius * 2
+                );
+                ctx.restore();
+            } else {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
+                ctx.fillStyle = "blue";
+                ctx.fill();
+            }
+        }
+
+        // Draw occluders with texture (on top of everything)
+        occluders.forEach(({ x, y, width, height }) => {
+            const scaledX = x * scale;
+            const scaledY = y * scale;
+            const scaledWidth = width * scale;
+            const scaledHeight = height * scale;
+            
+            ctx.save();
+            if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
+                occluderTextureRef.current && occluderTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
+                    ctx.fillStyle = "gray";
+                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                }
+            } else {
+                ctx.fillStyle = "gray";
+                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+            }
+            ctx.restore();
+        });
+
+        ctx.restore();
+    }, [sceneData]);
+
+    // Store renderFrame in ref
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
+
+    // Render first frame when scene data is loaded
+    useEffect(() => {
+        if (sceneData && !hasRenderedRef.current) {
+            // Wait a bit for textures to load
+            const timer = setTimeout(() => {
+                console.log('🎨 P22CanvasPage: Rendering frozen first frame');
+                if (renderFrameRef.current) {
+                    renderFrameRef.current(0);
+                }
+                hasRenderedRef.current = true;
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [sceneData]);
+
+    // Re-render when textures might have loaded
+    useEffect(() => {
+        if (sceneData && hasRenderedRef.current) {
+            const timer = setTimeout(() => {
+                if (renderFrameRef.current) {
+                    renderFrameRef.current(0);
+                }
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [sceneData]);
+
+    // Auto-play audio when page loads
+    useEffect(() => {
+        if (audioRef.current && sceneData && !hasStartedRef.current) {
+            hasStartedRef.current = true;
+            console.log("P22CanvasPage: Attempting to play audio");
+            audioRef.current.play().catch(error => {
+                console.log("Audio autoplay prevented:", error);
+                setAudioFinished(true);
+            });
+        }
+    }, [sceneData]);
+
+    // Update overlay based on audio time
+    useEffect(() => {
+        if (!audioRef.current) return;
+
+        const updateOverlay = () => {
+            const currentTime = audioRef.current?.currentTime || 0;
+            for (const { start, end, overlay } of overlaySchedule) {
+                if (currentTime >= start && currentTime < end) {
+                    setCurrentOverlay(overlay);
+                    break;
+                }
+            }
+        };
+
+        overlayTimerRef.current = setInterval(updateOverlay, 100);
+
+        return () => {
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+            }
+        };
     }, []);
+
+    // Handle audio end
+    const handleAudioEnd = () => {
+        console.log("P22CanvasPage: Audio finished");
+        setAudioFinished(true);
+        // Keep overlay visible until page transitions
+    };
+
+    // Handle global pause state
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P22CanvasPage: Study paused - pausing audio');
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+                overlayTimerRef.current = null;
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P22CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state
+            setAudioFinished(false);
+            setCurrentOverlay(null);
+            hasAutoAdvancedRef.current = false;
+            hasStartedRef.current = false;
+            
+            // Re-render the canvas
+            if (renderFrameRef.current) {
+                renderFrameRef.current(0);
+            }
+            
+            // Reset and restart audio
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+                hasStartedRef.current = true;
+            }
+
+            // Restart overlay timer
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+            }
+            const updateOverlay = () => {
+                const currentTime = audioRef.current?.currentTime || 0;
+                for (const { start, end, overlay } of overlaySchedule) {
+                    if (currentTime >= start && currentTime < end) {
+                        setCurrentOverlay(overlay);
+                        break;
+                    }
+                }
+            };
+            overlayTimerRef.current = setInterval(updateOverlay, 100);
+        }
+    }, [resumeCounter]);
 
     // Auto-advance when audio finishes
     useEffect(() => {
         if (audioFinished && !hasAutoAdvancedRef.current) {
-            // Audio finished, auto-advance after a short delay (only once)
-            console.log("🎬 P22CanvasPage: Audio (19_final_reminder_corrected.mp3) finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
-            
-            // Clean up any running timers
-            if (mainVideoTimerRef.current) {
-                clearTimeout(mainVideoTimerRef.current);
-            }
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-            }
-            if (jkeyVideoTimerRef.current) {
-                clearTimeout(jkeyVideoTimerRef.current);
-            }
-            
-            const timer = setTimeout(() => {
-                console.log("🎬 P22CanvasPage: Calling fetchNextScene to load next page...");
+            setTimeout(() => {
+                console.log("P22CanvasPage: Auto-advancing to next page");
                 fetchNextScene(setdisableCountdownTrigger);
-            }, 500); // 500ms delay for smooth transition
-            return () => clearTimeout(timer);
+            }, 500);
         }
     }, [audioFinished, fetchNextScene, setdisableCountdownTrigger]);
 
-    // Add keyboard shortcut: Press 'Shift+S' to skip to next page
+    // Add keyboard shortcut for testing: Press 'Shift+S' to skip
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P22CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Skip key detected in P22CanvasPage");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -289,152 +509,75 @@ const P22CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             padding: "20px",
             position: "relative",
         }}>
-            {/* Audio: 19_final_reminder_corrected.mp3 */}
+            {/* Audio element */}
             <audio
                 ref={audioRef}
-                src="/audios/19_final_reminder_corrected.mp3"
+                src="/audios/v2_before_test.mp3"
                 preload="auto"
-                onLoadedData={() => console.log('🔊 P22CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
-                onPlay={() => console.log('▶️ P22CanvasPage: Audio started playing')}
-                onPause={() => console.log('⏸️ P22CanvasPage: Audio paused')}
-                onEnded={() => console.log('🏁 P22CanvasPage: Audio ended')}
-                onError={(e) => console.error('❌ P22CanvasPage: Audio error:', e)}
+                onEnded={handleAudioEnd}
             />
 
-            {/* Main video: final_reminder.mp4 - always visible, starts playing at 22s */}
+            {/* Page indicator */}
+            <div style={{
+                position: "absolute",
+                top: "20px",
+                left: "20px",
+                fontSize: "18px",
+                fontWeight: "bold",
+                color: "#333",
+                zIndex: 10,
+            }}>
+                Before Test
+            </div>
+
+            {/* Canvas container with border */}
             <div style={{
                 position: "relative",
-                display: "inline-block",
-                maxWidth: "80vw",
-                maxHeight: "80vh",
-            }}>
-                <video
-                    ref={mainVideoRef}
-                    src="/videos/final_reminder.mp4"
-                    muted
-                    playsInline
-                    preload="auto"
-                    style={{
-                        maxWidth: "100%",
-                        maxHeight: "100%",
-                        display: "block",
-                    }}
-                    onLoadStart={() => console.log('📹 P22CanvasPage: Main video load started')}
-                    onLoadedData={() => {
-                        console.log('📹 P22CanvasPage: Main video loaded, readyState:', mainVideoRef.current?.readyState);
-                    }}
-                    onCanPlay={() => console.log('📹 P22CanvasPage: Main video can play')}
-                    onPlay={() => console.log('▶️ P22CanvasPage: Main video playing')}
-                    onEnded={() => console.log('🏁 P22CanvasPage: Main video ended')}
-                    onError={(e) => {
-                        console.error('❌ P22CanvasPage: Main video error:', e);
-                        console.error('❌ P22CanvasPage: Video error details:', e.target?.error);
-                    }}
-                />
-            </div>
-
-            {/* Video overlays - always rendered but hidden when not playing, positioned fixed in center of viewport */}
-            {/* Fkey video - always in DOM so ref is available, use opacity instead of display for better browser compatibility */}
-            <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 9999, // Very high z-index to be on top of everything
-                pointerEvents: "none", // Don't block interactions
-                backgroundColor: "transparent",
-                opacity: fkeyVideoPlaying ? 1 : 0,
-                visibility: fkeyVideoPlaying ? "visible" : "hidden",
-                display: "block", // Always display so video can play
-            }}>
-                <video
-                    ref={fkeyVideoRef}
-                    src="/videos/Fkey_short.mp4"
-                    muted
-                    playsInline
-                    preload="auto"
-                    style={{
-                        width: "70vw",
-                        height: "auto",
-                        maxHeight: "70vh",
-                        display: "block",
-                    }}
-                    onLoadStart={() => console.log('📹 P22CanvasPage: Fkey video load started')}
-                    onLoadedData={() => {
-                        console.log('📹 P22CanvasPage: Fkey video loaded, readyState:', fkeyVideoRef.current?.readyState);
-                    }}
-                    onCanPlay={() => console.log('📹 P22CanvasPage: Fkey video can play')}
-                    onPlay={() => {
-                        console.log('▶️ P22CanvasPage: Fkey video playing');
-                        setFkeyVideoPlaying(true);
-                    }}
-                    onEnded={() => {
-                        console.log('🏁 P22CanvasPage: Fkey video ended');
-                        setFkeyVideoPlaying(false);
-                    }}
-                    onError={(e) => {
-                        console.error('❌ P22CanvasPage: Fkey video error:', e);
-                        console.error('❌ P22CanvasPage: Video error details:', e.target?.error);
-                    }}
-                />
-            </div>
-            {/* Jkey video - always in DOM so ref is available, use opacity instead of display for better browser compatibility */}
-            <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 9999, // Very high z-index to be on top of everything
-                pointerEvents: "none", // Don't block interactions
-                backgroundColor: "transparent",
-                opacity: jkeyVideoPlaying ? 1 : 0,
-                visibility: jkeyVideoPlaying ? "visible" : "hidden",
-                display: "block", // Always display so video can play
-            }}>
-                <video
-                    ref={jkeyVideoRef}
-                    src="/videos/Jkey_short.mp4"
-                    muted
-                    playsInline
-                    preload="auto"
-                    style={{
-                        width: "70vw",
-                        height: "auto",
-                        maxHeight: "70vh",
-                        display: "block",
-                    }}
-                    onLoadStart={() => console.log('📹 P22CanvasPage: Jkey video load started')}
-                    onLoadedData={() => {
-                        console.log('📹 P22CanvasPage: Jkey video loaded, readyState:', jkeyVideoRef.current?.readyState);
-                    }}
-                    onCanPlay={() => console.log('📹 P22CanvasPage: Jkey video can play')}
-                    onPlay={() => {
-                        console.log('▶️ P22CanvasPage: Jkey video playing');
-                        setJkeyVideoPlaying(true);
-                    }}
-                    onEnded={() => {
-                        console.log('🏁 P22CanvasPage: Jkey video ended');
-                        setJkeyVideoPlaying(false);
-                    }}
-                    onError={(e) => {
-                        console.error('❌ P22CanvasPage: Jkey video error:', e);
-                        console.error('❌ P22CanvasPage: Video error details:', e.target?.error);
-                    }}
-                />
-            </div>
-
-            {/* Audio/video playing indicator - always rendered to prevent layout shift */}
-            <div style={{
-                marginTop: "20px",
-                fontSize: "1.2rem",
-                color: "#666",
-                fontStyle: "italic",
-                minHeight: "30px", // Fixed height to prevent layout shift
                 display: "flex",
-                alignItems: "center",
                 justifyContent: "center",
+                alignItems: "center",
             }}>
-                {!audioFinished ? "Playing audio and video..." : ""}
+                <div style={{
+                    position: "relative",
+                    border: "20px solid",
+                    borderImage: `url(${config.barrierTexturePath}) 30 round`,
+                    backgroundColor: "#333",
+                }}>
+                    <canvas
+                        ref={canvasRef}
+                        width={canvasSize.width}
+                        height={canvasSize.height}
+                        style={{ display: "block" }}
+                    />
+
+                    {/* Keyboard overlay image - positioned on top of canvas */}
+                    {currentOverlay && (
+                        <img
+                            src={currentOverlay}
+                            alt=""
+                            style={{
+                                position: "absolute",
+                                bottom: "10px",
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                width: `${canvasSize.width}px`,
+                                height: "auto",
+                                zIndex: 10,
+                            }}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Progress indicator */}
+            <div style={{
+                position: "absolute",
+                bottom: "20px",
+                right: "20px",
+                fontSize: "14px",
+                color: "#999",
+            }}>
+                Familiarization 15/15
             </div>
         </div>
     );

@@ -109,7 +109,24 @@ V2_FAM_TRIAL_ORDER = [
     'T_v2_occluder_practice',    # ftrial_i=14, P17: Occluder practice
     None,                         # ftrial_i=15, P18: Before test (image page, no trial data)
 ]
-USE_V2_FAM_TRIALS = True  # Set to True to use V2 familiarization trial order
+USE_V2_FAM_TRIALS = False  # Set to True to use V2 familiarization trial order
+
+# V3: Explicit familiarization trial order (11 trials for P3-P13)
+# These must match the trial data folders in backend/trial_data/chs_training_zoom/
+V3_FAM_TRIAL_ORDER = [
+    'T_v3_ball_sensor_red',       # ftrial_i=1, P3: Sensor intro
+    'T_v3_keys',                  # ftrial_i=2, P4: Keys intro
+    'T_v3_area_no_ball',          # ftrial_i=3, P5: Practice key pressing (frozen + pulsing)
+    'T_v3_green_mid',             # ftrial_i=4, P6: Practice F key
+    'T_v3_red_mid',               # ftrial_i=5, P7: Practice J key
+    'T_v3_keyswitch_ball_stable', # ftrial_i=6, P8: Switch keys intro
+    'T_v3_keyswitch_practice_1',  # ftrial_i=7, P9: Key switching practice 1
+    'T_v3_keyswitch_practice_2',  # ftrial_i=8, P10: Key switching practice 2
+    'T_v3_occluder_intro',        # ftrial_i=9, P11: Occluder intro
+    'T_v3_occluder_practice',     # ftrial_i=10, P12: Occluder practice
+    'T_v3_before_test',           # ftrial_i=11, P13: Before test
+]
+USE_V3_FAM_TRIALS = True  # Set to True to use V3 familiarization trial order
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 EXPERIMENT_RUN_VERSION = 'chs_zoom_pilot'  # Version identifier for this experiment run
@@ -307,10 +324,13 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         entries = os.listdir(absolute_directory_path)
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
-        # V2: Use explicit familiarization trial order if enabled
-        if USE_V2_FAM_TRIALS:
-            # Keep the full order including None entries (for image-only pages)
-            # The None entries represent image-only pages that don't need trial data
+        # V2/V3: Use explicit familiarization trial order if enabled
+        if USE_V3_FAM_TRIALS:
+            # V3: 11 familiarization trials (P3-P13)
+            participants_f_assignments = V3_FAM_TRIAL_ORDER.copy()
+            print(f"V3 Mode: Using explicit familiarization trial order: {participants_f_assignments}")
+        elif USE_V2_FAM_TRIALS:
+            # V2: 15 familiarization trials including None entries for image-only pages
             participants_f_assignments = V2_FAM_TRIAL_ORDER.copy()
             print(f"V2 Mode: Using explicit familiarization trial order (including image pages): {participants_f_assignments}")
         else:
@@ -597,8 +617,13 @@ def start_experiment(experiment_name):
     print(f"=========================")
 
     # Build full timeline: training pages + familiarization trials + experimental trials
-    # V2: Only 3 training pages (P1-P3)
-    training_pages = ["P1", "P2", "P3"] if USE_V2_FAM_TRIALS else ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+    # V3: Only 2 training pages (P1-P2), V2: 3 training pages (P1-P3), Legacy: 7 training pages
+    if USE_V3_FAM_TRIALS:
+        training_pages = ["P1", "P2"]
+    elif USE_V2_FAM_TRIALS:
+        training_pages = ["P1", "P2", "P3"]
+    else:
+        training_pages = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
     full_timeline = training_pages + (f_trial_order if f_trial_order else []) + (randomized_trial_order if randomized_trial_order else [])
     
     # Print full timeline to server console

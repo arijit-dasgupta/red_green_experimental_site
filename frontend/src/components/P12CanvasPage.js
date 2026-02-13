@@ -1,29 +1,45 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
- * Dedicated component for p12: Canvas with audio
- * - Audio: 13_press_keys.mp3
- * - Canvas: T_red_green trial data
- * - Canvas size: 600x600 pixels (matching testing trials)
- * - Canvas border: 20px with barrier texture (matching testing trials)
- * - All textures: ball, barrier, sensors, occluder (matching testing trials)
+ * V2 P7: Canvas with keys audio and timed keyboard overlay images
+ * - Audio: v2_keys.mp3
+ * - Canvas: T_v2_bg_no_occluder trial data (V2)
+ * - Timed keyboard overlays:
+ *   | Time    | Overlay           |
+ *   | 0-6s    | None              |
+ *   | 6-11s   | keyboard.png      |
+ *   | 11-13s  | None              |
+ *   | 13-16s  | keyboard_F.png    |
+ *   | 16-17s  | None              |
+ *   | 17-20s  | keyboard_J.png    |
+ *   | 20-24s  | None              |
+ *   | 24-26s  | keyboard_F.png    |
+ *   | 26-29s  | None              |
+ *   | 29s-end | keyboard_J.png    |
+ * - Auto-advance when audio finishes
+ * - Canvas size: 600x600 pixels
  */
 const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
-    console.log("🎬 P12CanvasPage: Component mounted/rendered");
+    console.log("🎬 P12CanvasPage (V2 P7): Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
     const audioRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
-    const currentFrameRef = useRef(0); // Use ref to track current frame for animation loop
+    const currentFrameRef = useRef(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [videoFinished, setVideoFinished] = useState(false);
+    const [currentOverlay, setCurrentOverlay] = useState(null); // Current overlay image
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
-    const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
+    const hasAutoAdvancedRef = useRef(false);
+    const overlayTimerRef = useRef(null);
+    const renderFrameRef = useRef(null); // Store renderFrame function reference
     
-    // Texture refs (matching App.js)
+    // Texture refs
     const ballTextureRef = useRef(null);
     const ballOffscreenCanvasRef = useRef(null);
     const barrierTextureRef = useRef(null);
@@ -31,53 +47,60 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const greenSensorTextureRef = useRef(null);
     const occluderTextureRef = useRef(null);
 
-    // Fixed canvas size (matching testing trials)
     const canvasSize = { width: 600, height: 600 };
 
-    // Load all textures (matching App.js)
+    // Timed overlay schedule (in seconds)
+    const overlaySchedule = [
+        { start: 0, end: 6, overlay: null },
+        { start: 6, end: 11, overlay: '/images/keyboard.png' },
+        { start: 11, end: 13, overlay: null },
+        { start: 13, end: 16, overlay: '/images/keyboard_F.png' },
+        { start: 16, end: 17, overlay: null },
+        { start: 17, end: 20, overlay: '/images/keyboard_J.png' },
+        { start: 20, end: 24, overlay: null },
+        { start: 24, end: 26, overlay: '/images/keyboard_F.png' },
+        { start: 26, end: 29, overlay: null },
+        { start: 29, end: 9999, overlay: '/images/keyboard_J.png' }, // Until end
+    ];
+
+    // Load all textures
     useEffect(() => {
-        // Ball texture
         if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
             const img = new Image();
             img.src = config.ballTexturePath;
             img.onload = () => { ballTextureRef.current = img; };
-            img.onerror = () => { console.error("Failed to load ball texture:", config.ballTexturePath); };
         }
-
-        // Barrier texture
         if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
             const img = new Image();
             img.src = config.barrierTexturePath;
             img.onload = () => { barrierTextureRef.current = img; };
-            img.onerror = () => { console.error("Failed to load barrier texture:", config.barrierTexturePath); };
         }
-
-        // Red sensor texture
         if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
             const img = new Image();
             img.src = config.redSensorTexturePath;
             img.onload = () => { redSensorTextureRef.current = img; };
-            img.onerror = () => { console.error("Failed to load red sensor texture:", config.redSensorTexturePath); };
         }
-
-        // Green sensor texture
         if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
             const img = new Image();
             img.src = config.greenSensorTexturePath;
             img.onload = () => { greenSensorTextureRef.current = img; };
-            img.onerror = () => { console.error("Failed to load green sensor texture:", config.greenSensorTexturePath); };
         }
-
-        // Occluder texture
         if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
             const img = new Image();
             img.src = config.occluderTexturePath;
             img.onload = () => { occluderTextureRef.current = img; };
-            img.onerror = () => { console.error("Failed to load occluder texture:", config.occluderTexturePath); };
         }
     }, []);
 
-    // Helper to draw tiled textures (copied from App.js)
+    // Preload overlay images
+    useEffect(() => {
+        const overlayImages = ['/images/keyboard.png', '/images/keyboard_F.png', '/images/keyboard_J.png'];
+        overlayImages.forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+    }, []);
+
     const drawTiledTexture = (ctx, texture, x, y, width, height) => {
         if (!texture || !texture.complete) return false;
         ctx.save();
@@ -107,95 +130,66 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return true;
     };
 
-    // Load T_red_green trial data
+    // Load T_v2_bg_no_occluder trial data
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P12CanvasPage: Loading T_red_green trial data from /api/load_trial_data/T_red_green...');
-                const response = await fetch('/api/load_trial_data/T_red_green', {
+                console.log('📥 P12CanvasPage: Loading T_v2_bg_no_occluder trial data...');
+                const response = await fetch('/api/load_trial_data/T_v2_bg_no_occluder', {
                     method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
+                    headers: { 'Content-Type': 'application/json' }
                 });
 
                 if (response.ok) {
                     const data = await response.json();
-                    const frameCount = Object.keys(data.step_data || {}).length;
                     console.log('✅ P12CanvasPage: Successfully loaded trial data');
-                    console.log('📊 P12CanvasPage: Data summary:', {
-                        numFrames: frameCount,
-                        fps: data.fps,
-                        worldWidth: data.worldWidth,
-                        worldHeight: data.worldHeight,
-                        hasBarriers: (data.barriers || []).length > 0,
-                        hasOccluders: (data.occluders || []).length > 0,
-                        hasRedSensor: !!data.red_sensor,
-                        hasGreenSensor: !!data.green_sensor,
-                        radius: data.radius
-                    });
                     setSceneData(data);
                 } else {
-                    const errorText = await response.text();
-                    console.error('❌ P12CanvasPage: Failed to load T_red_green data:', response.status, errorText);
+                    console.error('❌ P12CanvasPage: Failed to load trial data');
                 }
             } catch (error) {
                 console.error('❌ P12CanvasPage: Error loading trial data:', error);
             }
         };
-
         loadTrialData();
     }, []);
 
-    // Render frame function (matching App.js rendering logic)
+    // Render frame function
     const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
-        if (!canvas || !sceneData) {
-            console.log('P12CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
-            return;
-        }
+        if (!canvas || !sceneData) return;
 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
         const { barriers, occluders, step_data, red_sensor, green_sensor, radius, worldWidth, worldHeight } = sceneData;
 
-        // Enable high-quality rendering
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
-
-        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Calculate scale
         const scale = Math.min(canvas.width / worldWidth, canvas.height / worldHeight);
 
-        // Transform coordinate system (flip Y to match website's coordinate system)
         ctx.save();
         ctx.scale(1, -1);
         ctx.translate(0, -canvas.height);
 
-        // Draw barriers with texture (skip frame 0)
+        // Draw barriers
         if (frameIndex !== 0) {
             barriers.forEach(({ x, y, width, height }) => {
                 const scaledX = x * scale;
                 const scaledY = y * scale;
                 const scaledWidth = width * scale;
                 const scaledHeight = height * scale;
-                
                 ctx.save();
-                // Check if texture path is provided and texture is loaded
-                if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '' && 
-                    barrierTextureRef.current && barrierTextureRef.current.complete) {
+                if (barrierTextureRef.current && barrierTextureRef.current.complete) {
                     if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                        // Fallback to black fill if texture draw failed
                         ctx.fillStyle = "black";
                         ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                     }
                 } else {
-                    // Use original black fill if no texture path or texture not loaded
                     ctx.fillStyle = "black";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
@@ -203,80 +197,49 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             });
         }
 
-        // Draw sensors with texture
+        // Draw sensors
         if (red_sensor) {
             const { x, y, width, height } = red_sensor;
-            const scaledX = x * scale;
-            const scaledY = y * scale;
-            const scaledWidth = width * scale;
-            const scaledHeight = height * scale;
-            
             ctx.save();
-            // Check if texture path is provided and texture is loaded
-            if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
-                redSensorTextureRef.current && redSensorTextureRef.current.complete) {
-                if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to red fill if texture draw failed
+            if (redSensorTextureRef.current && redSensorTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, redSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale)) {
                     ctx.fillStyle = "red";
-                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
                 }
             } else {
-                // Use original red fill if no texture path or texture not loaded
                 ctx.fillStyle = "red";
-                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
             ctx.restore();
         }
 
         if (green_sensor) {
             const { x, y, width, height } = green_sensor;
-            const scaledX = x * scale;
-            const scaledY = y * scale;
-            const scaledWidth = width * scale;
-            const scaledHeight = height * scale;
-            
             ctx.save();
-            // Check if texture path is provided and texture is loaded
-            if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
-                greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
-                if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to green fill if texture draw failed
+            if (greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, greenSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale)) {
                     ctx.fillStyle = "green";
-                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
                 }
             } else {
-                // Use original green fill if no texture path or texture not loaded
                 ctx.fillStyle = "green";
-                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
             ctx.restore();
         }
 
-        // Draw ball with texture and rotation (matching App.js)
+        // Draw ball
         if (step_data && step_data[frameIndex]) {
             const { x, y } = step_data[frameIndex];
             const centerX = (x + radius) * scale;
             const centerY = (y + radius) * scale;
             const ballRadius = scale * radius;
             
-            // Debug logging
-            if (frameIndex === 0) {
-                console.log('P12CanvasPage: Rendering ball at frame 0', {
-                    x, y, radius, centerX, centerY, ballRadius, scale,
-                    worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
-                });
-            }
-            
-            // Use texture if path is provided and texture is loaded, otherwise fall back to blue fill
-            if (config.ballTexturePath && config.ballTexturePath.trim() !== '' && 
-                ballTextureRef.current && ballTextureRef.current.complete) {
-                // Use supersampling (render at 2x resolution) for smoother edges
+            if (ballTextureRef.current && ballTextureRef.current.complete) {
                 const supersampleFactor = 2;
                 const offscreenSize = Math.ceil(ballRadius * 2 * supersampleFactor);
                 
-                // Create or reuse offscreen canvas for high-res rendering
-                if (!ballOffscreenCanvasRef.current || 
-                    ballOffscreenCanvasRef.current.width !== offscreenSize) {
+                if (!ballOffscreenCanvasRef.current || ballOffscreenCanvasRef.current.width !== offscreenSize) {
                     ballOffscreenCanvasRef.current = document.createElement('canvas');
                     ballOffscreenCanvasRef.current.width = offscreenSize;
                     ballOffscreenCanvasRef.current.height = offscreenSize;
@@ -284,15 +247,10 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 
                 const offscreenCanvas = ballOffscreenCanvasRef.current;
                 const offscreenCtx = offscreenCanvas.getContext('2d');
-                
-                // Enable high-quality rendering on offscreen canvas
                 offscreenCtx.imageSmoothingEnabled = true;
                 offscreenCtx.imageSmoothingQuality = 'high';
-                
-                // Clear the offscreen canvas
                 offscreenCtx.clearRect(0, 0, offscreenSize, offscreenSize);
                 
-                // Draw the ball on the offscreen canvas at higher resolution
                 const offscreenCenter = offscreenSize / 2;
                 const offscreenRadius = ballRadius * supersampleFactor;
                 
@@ -301,7 +259,6 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 offscreenCtx.arc(offscreenCenter, offscreenCenter, offscreenRadius, 0, 2 * Math.PI);
                 offscreenCtx.clip();
                 
-                // Calculate rotation angle
                 let rotationAngle = 0;
                 if (config.ballRotationRate !== 0 && isPlaying) {
                     const fps = sceneData.fps || 30;
@@ -309,36 +266,20 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
                 }
                 
-                // Apply rotation if needed
                 if (rotationAngle !== 0) {
                     offscreenCtx.translate(offscreenCenter, offscreenCenter);
                     offscreenCtx.rotate(rotationAngle);
                     offscreenCtx.translate(-offscreenCenter, -offscreenCenter);
                 }
                 
-                // Draw texture at higher resolution
                 const textureSize = offscreenRadius * 2;
-                offscreenCtx.drawImage(
-                    ballTextureRef.current,
-                    offscreenCenter - offscreenRadius,
-                    offscreenCenter - offscreenRadius,
-                    textureSize,
-                    textureSize
-                );
+                offscreenCtx.drawImage(ballTextureRef.current, offscreenCenter - offscreenRadius, offscreenCenter - offscreenRadius, textureSize, textureSize);
                 offscreenCtx.restore();
                 
-                // Draw the high-res offscreen canvas to the main canvas (scaled down)
                 ctx.save();
-                ctx.drawImage(
-                    offscreenCanvas,
-                    centerX - ballRadius,
-                    centerY - ballRadius,
-                    ballRadius * 2,
-                    ballRadius * 2
-                );
+                ctx.drawImage(offscreenCanvas, centerX - ballRadius, centerY - ballRadius, ballRadius * 2, ballRadius * 2);
                 ctx.restore();
             } else {
-                // Fallback to blue fill if texture not loaded
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
                 ctx.fillStyle = "blue";
@@ -346,37 +287,27 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             }
         }
 
-        // Draw occluders with texture (on top of everything)
+        // Draw occluders
         occluders.forEach(({ x, y, width, height }) => {
-            const scaledX = x * scale;
-            const scaledY = y * scale;
-            const scaledWidth = width * scale;
-            const scaledHeight = height * scale;
-            
             ctx.save();
-            // Check if texture path is provided and texture is loaded
-            if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
-                occluderTextureRef.current && occluderTextureRef.current.complete) {
-                if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to gray fill if texture draw failed
+            if (occluderTextureRef.current && occluderTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, occluderTextureRef.current, x * scale, y * scale, width * scale, height * scale)) {
                     ctx.fillStyle = "gray";
-                    ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                    ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
                 }
             } else {
-                // Use original gray fill if no texture path or texture not loaded
                 ctx.fillStyle = "gray";
-                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+                ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
             ctx.restore();
         });
 
         ctx.restore();
-    }, [sceneData, ballTextureRef, barrierTextureRef, redSensorTextureRef, greenSensorTextureRef, occluderTextureRef, ballOffscreenCanvasRef, isPlaying]);
+    }, [sceneData, isPlaying]);
 
     // Animation loop
     useEffect(() => {
         if (!isPlaying || !sceneData) {
-            // Cancel animation if not playing
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
                 animationRef.current = null;
@@ -392,50 +323,34 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const elapsed = timestamp - lastTimestampRef.current;
             const frameTime = 1000 / (sceneData.fps || 30);
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
-            
-            // Calculate how many frames should have advanced based on elapsed time
-            // Cap at 5 frames per update to avoid huge jumps that look choppy
             const framesToAdvance = Math.min(Math.floor(elapsed / frameTime), 5);
             
             if (framesToAdvance > 0) {
-                // Use ref to get current frame value (avoids stale closure issues)
                 const nextFrame = currentFrameRef.current + framesToAdvance;
-
                 if (nextFrame < maxFrames) {
-                    // Advance to the correct frame (may skip frames if browser is slow)
                     currentFrameRef.current = nextFrame;
                     setCurrentFrame(nextFrame);
                     renderFrame(nextFrame);
-                    // Update lastTimestamp to account for the frames we advanced
                     lastTimestampRef.current = timestamp - (elapsed % frameTime);
-                    // Continue animation
                     if (isPlaying) {
                         animationRef.current = requestAnimationFrame(animate);
                     }
                 } else {
-                    // Video finished - render the last frame
                     currentFrameRef.current = maxFrames - 1;
                     setCurrentFrame(maxFrames - 1);
                     renderFrame(maxFrames - 1);
                     setIsPlaying(false);
                     setVideoFinished(true);
-                    if (startTimeRef.current) {
-                        const actualDuration = (timestamp - startTimeRef.current) / 1000;
-                        const expectedDuration = maxFrames / (sceneData.fps || 30);
-                        console.log(`🏁 P12CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
-                        console.log(`⏱️ P12CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
-                    }
+                    console.log(`🏁 P12CanvasPage: Video finished`);
                     lastTimestampRef.current = null;
                 }
             } else {
-                // Not enough time elapsed, continue animation
                 if (isPlaying) {
                     animationRef.current = requestAnimationFrame(animate);
                 }
             }
         };
 
-        // Start animation loop
         animationRef.current = requestAnimationFrame(animate);
         
         return () => {
@@ -447,59 +362,133 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [isPlaying, sceneData, renderFrame]);
 
-    // Track start time for duration calculation
+    // Store renderFrame in ref so it can be used in resume effect
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
+
     const startTimeRef = useRef(null);
 
-    // Auto-start when scene data is loaded and reset states
+    // Handle global pause state - stop animation when paused
     useEffect(() => {
-        if (sceneData) {
-            const maxFrames = Object.keys(sceneData.step_data || {}).length;
-            const fps = sceneData.fps || 30;
-            const expectedVideoDuration = maxFrames / fps;
-            console.log('P12CanvasPage: Scene data loaded, starting animation and audio');
-            console.log(`📊 P12CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
+        if (isPaused) {
+            console.log('⏸️ P12CanvasPage: Study paused - stopping animation and audio');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Clear overlay timer
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+                overlayTimerRef.current = null;
+            }
+            
+            // Pause audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P12CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
             setIsPlaying(false);
             setCurrentFrame(0);
-            currentFrameRef.current = 0; // Reset ref as well
+            currentFrameRef.current = 0;
+            setAudioFinished(false);
+            setVideoFinished(false);
+            setCurrentOverlay(null);
+            hasAutoAdvancedRef.current = false;
+            lastTimestampRef.current = null;
+            startTimeRef.current = null;
+            
+            // Clear overlay timer
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+                overlayTimerRef.current = null;
+            }
+            
+            // Restart from beginning
+            if (renderFrameRef.current && sceneData) {
+                setTimeout(() => {
+                    renderFrameRef.current(0);
+                    
+                    // Reset and restart audio
+                    if (audioRef.current) {
+                        audioRef.current.currentTime = 0;
+                        audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+                    }
+                    
+                    // Restart video and overlay timer
+                    startTimeRef.current = performance.now();
+                    setIsPlaying(true);
+                }, 100);
+            }
+        }
+    }, [resumeCounter, sceneData]);
+
+    // Auto-start when scene data is loaded
+    useEffect(() => {
+        if (sceneData) {
+            console.log('P12CanvasPage: Scene data loaded, starting animation and audio');
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
             setVideoFinished(false);
             setAudioFinished(false);
-            hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
-            startTimeRef.current = null; // Reset start time
-            lastTimestampRef.current = null; // Reset animation timestamp
+            setCurrentOverlay(null);
+            hasAutoAdvancedRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
             
-            // Render first frame immediately
             renderFrame(0);
             
-            // Start video animation after a brief delay to ensure state is set
             setTimeout(() => {
                 startTimeRef.current = performance.now();
-                console.log('🎬 P12CanvasPage: Starting video animation at', new Date().toISOString());
+                console.log('🎬 P12CanvasPage: Starting video animation');
                 setIsPlaying(true);
             }, 100);
             
-            // Start audio playback
             if (audioRef.current) {
                 console.log('🔊 P12CanvasPage: Starting audio playback');
-                console.log('🔊 P12CanvasPage: Audio src:', audioRef.current.src);
-                console.log('🔊 P12CanvasPage: Audio readyState:', audioRef.current.readyState);
-                audioRef.current.currentTime = 0; // Reset audio to start
-                const playPromise = audioRef.current.play();
-                if (playPromise !== undefined) {
-                    playPromise
-                        .then(() => {
-                            console.log('✅ P12CanvasPage: Audio playback started successfully');
-                            console.log('🔊 P12CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
-                            console.log(`📊 P12CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
-                        })
-                        .catch(error => {
-                            console.error("❌ P12CanvasPage: Audio autoplay prevented:", error);
-                        });
-                }
-            } else {
-                console.error('❌ P12CanvasPage: Audio ref is null - cannot play audio');
+                audioRef.current.currentTime = 0;
+                audioRef.current.play()
+                    .then(() => console.log('✅ P12CanvasPage: Audio playback started'))
+                    .catch(error => console.error("❌ P12CanvasPage: Audio autoplay prevented:", error));
             }
         }
     }, [sceneData]);
+
+    // Update overlay based on audio time
+    useEffect(() => {
+        if (!audioRef.current) return;
+
+        const updateOverlay = () => {
+            const currentTime = audioRef.current?.currentTime || 0;
+            const schedule = overlaySchedule.find(s => currentTime >= s.start && currentTime < s.end);
+            const newOverlay = schedule?.overlay || null;
+            setCurrentOverlay(newOverlay);
+        };
+
+        // Update overlay every 100ms
+        overlayTimerRef.current = setInterval(updateOverlay, 100);
+
+        return () => {
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+            }
+        };
+    }, []);
 
     // Listen for audio end
     useEffect(() => {
@@ -507,38 +496,32 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         if (!audio) return;
 
         const handleAudioEnd = () => {
-            console.log('🏁 P12CanvasPage: Audio ended at', new Date().toISOString());
-            if (audioRef.current) {
-                console.log(`⏱️ P12CanvasPage: Audio actual duration: ${audioRef.current.duration.toFixed(2)}s`);
-            }
+            console.log('🏁 P12CanvasPage: Audio ended');
             setAudioFinished(true);
+            // Keep overlay visible until page transitions (don't clear it here)
         };
 
         audio.addEventListener('ended', handleAudioEnd);
-        return () => {
-            audio.removeEventListener('ended', handleAudioEnd);
-        };
+        return () => audio.removeEventListener('ended', handleAudioEnd);
     }, []);
 
-    // Auto-advance when both audio and video finish (whichever finishes last)
+    // Auto-advance when audio finishes (audio is the longer one)
     useEffect(() => {
-        if (audioFinished && videoFinished && !hasAutoAdvancedRef.current) {
-            // Both finished, auto-advance after a short delay (only once)
-            console.log("🎬 P12CanvasPage: Audio and video finished, auto-advancing to next scene...");
+        if (audioFinished && !hasAutoAdvancedRef.current) {
+            console.log("🎬 P12CanvasPage: Audio finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
             const timer = setTimeout(() => {
-                console.log("🎬 P12CanvasPage: Calling fetchNextScene to load next page...");
                 fetchNextScene(setdisableCountdownTrigger);
-            }, 500); // 500ms delay for smooth transition
+            }, 500);
             return () => clearTimeout(timer);
         }
-    }, [audioFinished, videoFinished, fetchNextScene, setdisableCountdownTrigger]);
+    }, [audioFinished, fetchNextScene, setdisableCountdownTrigger]);
 
-    // Add keyboard shortcut: Press 'Shift+S' to skip to next page
+    // Keyboard shortcut: Shift+S to skip
     useEffect(() => {
         const handleKeyPress = (e) => {
             if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("SKIP KEY PRESSED: Shift+S detected in P12CanvasPage, skipping to next page");
+                console.log("SKIP KEY PRESSED: Shift+S detected in P12CanvasPage");
                 e.preventDefault();
                 e.stopPropagation();
                 fetchNextScene(setdisableCountdownTrigger);
@@ -547,9 +530,7 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
         
         document.addEventListener('keydown', handleKeyPress, true);
-        return () => {
-            document.removeEventListener('keydown', handleKeyPress, true);
-        };
+        return () => document.removeEventListener('keydown', handleKeyPress, true);
     }, [fetchNextScene, setdisableCountdownTrigger]);
 
     const borderThickness = config.canvasBorderThickness || 0;
@@ -564,6 +545,9 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         backgroundColor: 'black',
     };
 
+    // Image sizes - matching P6 for consistency
+    const elmoImageSize = canvasSize.width * 0.25;
+
     return (
         <div style={{
             display: "flex",
@@ -577,29 +561,42 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         }}>
             <audio
                 ref={audioRef}
-                src="/audios/13_press_keys.mp3"
+                src="/audios/v2_keys.mp3"
                 preload="auto"
-                onLoadedData={() => console.log('🔊 P12CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
-                onPlay={() => console.log('▶️ P12CanvasPage: Audio started playing')}
-                onPause={() => console.log('⏸️ P12CanvasPage: Audio paused')}
+                onLoadedData={() => console.log('🔊 P12CanvasPage: Audio loaded')}
                 onEnded={() => console.log('🏁 P12CanvasPage: Audio ended')}
                 onError={(e) => console.error('❌ P12CanvasPage: Audio error:', e)}
             />
 
-            {/* Canvas container - centered on page */}
+            {/* Canvas container */}
             <div style={{
                 position: "relative",
                 display: "inline-block",
             }}>
-                {/* Canvas with external border (matching Experiment.js) */}
+                {/* Elmo image - positioned absolutely to the left of canvas (matching P6) */}
+                <img
+                    src="/images/elmo.png"
+                    alt=""
+                    style={{
+                        position: "absolute",
+                        right: "100%",
+                        marginRight: "20px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: `${elmoImageSize}px`,
+                        height: "auto",
+                        maxWidth: "300px",
+                        objectFit: "contain",
+                    }}
+                />
+
                 <div style={{
                     position: "relative",
                     display: "inline-block",
                 }}>
-                    {/* Border divs positioned around canvas */}
+                    {/* Border divs */}
                     {borderThickness > 0 && (
                         <>
-                            {/* Top border */}
                             <div style={{
                                 position: "absolute",
                                 top: -borderThickness,
@@ -608,7 +605,6 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 height: `${borderThickness}px`,
                                 ...borderStyle,
                             }} />
-                            {/* Bottom border */}
                             <div style={{
                                 position: "absolute",
                                 bottom: -borderThickness,
@@ -617,7 +613,6 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 height: `${borderThickness}px`,
                                 ...borderStyle,
                             }} />
-                            {/* Left border */}
                             <div style={{
                                 position: "absolute",
                                 top: 0,
@@ -626,7 +621,6 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                                 height: `${canvasSize.height}px`,
                                 ...borderStyle,
                             }} />
-                            {/* Right border */}
                             <div style={{
                                 position: "absolute",
                                 top: 0,
@@ -643,31 +637,32 @@ const P12CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                         ref={canvasRef}
                         width={canvasSize.width}
                         height={canvasSize.height}
-                        style={{
-                            display: "block",
-                        }}
+                        style={{ display: "block" }}
                     />
+
+                    {/* Keyboard overlay image - positioned on top of canvas, same width as canvas */}
+                    {currentOverlay && (
+                        <img
+                            src={currentOverlay}
+                            alt=""
+                            style={{
+                                position: "absolute",
+                                bottom: "10px",
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                width: `${canvasSize.width}px`,
+                                height: "auto",
+                                zIndex: 10,
+                            }}
+                        />
+                    )}
                 </div>
             </div>
 
-            {/* Audio/video playing indicator - always rendered to prevent layout shift */}
-            <div style={{
-                marginTop: "20px",
-                fontSize: "1.2rem",
-                color: "#666",
-                fontStyle: "italic",
-                minHeight: "30px", // Fixed height to prevent layout shift
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-            }}>
-                {!audioFinished && !videoFinished ? "Playing audio and video..." : 
-                 !audioFinished ? "Playing audio..." : 
-                 !videoFinished ? "Playing video..." : ""}
-            </div>
+            {/* Spacer for layout consistency */}
+            <div style={{ marginTop: "20px", minHeight: "30px" }} />
         </div>
     );
 };
 
 export default P12CanvasPage;
-

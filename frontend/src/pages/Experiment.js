@@ -2,22 +2,17 @@ import React, { useEffect, useRef, useState } from 'react';
 import TransitionPage from './Transition';
 import { config } from '../config';
 import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
-import P8CanvasPage from '../components/P8CanvasPage';
-import P9CanvasPage from '../components/P9CanvasPage';
-import P10CanvasPage from '../components/P10CanvasPage';
-import P11CanvasPage from '../components/P11CanvasPage';
-import P12CanvasPage from '../components/P12CanvasPage';
-import P14CanvasPage from '../components/P14CanvasPage';
-import P15CanvasPage from '../components/P15CanvasPage';
-import P16CanvasPage from '../components/P16CanvasPage';
-import P17CanvasPage from '../components/P17CanvasPage';
-import P18CanvasPage from '../components/P18CanvasPage';
-import P19CanvasPage from '../components/P19CanvasPage';
-import P20CanvasPage from '../components/P20CanvasPage';
-import P21CanvasPage from '../components/P21CanvasPage';
-import P22CanvasPage from '../components/P22CanvasPage';
-import P8DemoPage from '../components/P8DemoPage';
-import P13DemoPage from '../components/P13DemoPage';
+import P3V3Page from '../components/P3V3Page';
+import P4V3Page from '../components/P4V3Page';
+import P5V3Page from '../components/P5V3Page';
+import P6V3Page from '../components/P6V3Page';
+import P7V3Page from '../components/P7V3Page';
+import P8V3Page from '../components/P8V3Page';
+import P9V3Page from '../components/P9V3Page';
+import P10V3Page from '../components/P10V3Page';
+import P11V3Page from '../components/P11V3Page';
+import P12V3Page from '../components/P12V3Page';
+import P13V3Page from '../components/P13V3Page';
 
 const ExperimentPage = ({
     sceneData,
@@ -125,406 +120,34 @@ const ExperimentPage = ({
         );
     }
 
-    // V2: Check for familiarization pages (P4-P18)
-    // After BackstoryPage (p1-p3), familiarization trials start at P4
-    // ftrial_i mapping for V2:
-    // 1=P4 (Ball intro), 2=P5 (Ball bounce), 3=P6 (Sensors intro), 4=P7 (Keys intro)
-    // 5=P8 (Before easy practice), 6=P9 (Practice F), 7=P10 (Practice J)
-    // 8=P11 (Practice swapped), 9=P12 (Practice swapped), 10=P13 (Switch keys intro)
-    // 11=P14 (Key switch stable), 12=P15 (Key switch moving), 13=P16 (Occluder intro)
-    // 14=P17 (Occluder practice), 15=P18 (Before test)
+    // Familiarization: ftrial_i 1–11 → P3–P13 (single flow)
     const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
-    
-    // V2 page mappings - using existing component files but for new page numbers
-    // ftrial_i 1 = P4 (Ball intro) - uses P8CanvasPage component
-    // ftrial_i 2 = P5 (Ball bounce) - uses P9CanvasPage component
-    // ftrial_i 3 = P6 (Sensors intro) - uses P11CanvasPage component (repurposed)
-    // ftrial_i 4 = P7 (Keys intro) - uses P12CanvasPage component (repurposed)
-    // ftrial_i 5 = P8 (Before practice) - image page, handled specially
-    // ftrial_i 6 = P9 (Practice F) - uses P14CanvasPage component
-    // ftrial_i 7 = P10 (Practice J) - uses P15CanvasPage component
-    // ftrial_i 8 = P11 (Practice swapped) - uses P16CanvasPage component
-    // ftrial_i 9 = P12 (Practice swapped) - uses P17CanvasPage component
-    // ftrial_i 10 = P13 (Switch keys intro) - uses P18CanvasPage component
-    // ftrial_i 11 = P14 (Key switch stable) - uses P19CanvasPage component
-    // ftrial_i 12 = P15 (Key switch moving) - uses P20CanvasPage component
-    // ftrial_i 13 = P16 (Occluder intro) - uses P21CanvasPage component
-    // ftrial_i 14 = P17 (Occluder practice) - uses P10CanvasPage component (repurposed)
-    // ftrial_i 15 = P18 (Before test) - uses P22CanvasPage component
-    
-    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;  // P4: Ball intro
-    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;  // P5: Ball bounce
-    const isP10 = trialInfo.is_ftrial && trialInfo.ftrial_i === 14; // P17: Occluder practice (reused for new page)
-    const isP11 = trialInfo.is_ftrial && trialInfo.ftrial_i === 3;  // P6: Sensors intro
-    const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 4;  // P7: Keys intro
-    const isP14 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;  // P9: Practice F key
-    const isP15 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;  // P10: Practice J key
-    const isP16 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;  // P11: Practice swapped
-    const isP17 = trialInfo.is_ftrial && trialInfo.ftrial_i === 9;  // P12: Practice swapped
-    const isP13Demo = trialInfo.is_ftrial && trialInfo.ftrial_i === 10; // P13: Switch keys intro (image + audio)
-    const isP19 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11; // P14: Key switch stable
-    const isP20 = trialInfo.is_ftrial && trialInfo.ftrial_i === 12; // P15: Key switch moving
-    const isP21 = trialInfo.is_ftrial && trialInfo.ftrial_i === 13; // P16: Occluder intro
-    const isP22 = trialInfo.is_ftrial && trialInfo.ftrial_i === 15; // P18: Before test
-    
-    // New pages in v2
-    const isP8Demo = trialInfo.is_ftrial && trialInfo.ftrial_i === 5; // P8: Before easy practice (image + audio)
-    
-    // Debug: Explicitly log isP13Demo calculation - ALWAYS log when ftrial_i is 10
-    if (trialInfo.ftrial_i === 10) {
-        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 10!", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            isP13Demo: isP13Demo,
-            'trialInfo.is_ftrial': trialInfo.is_ftrial,
-            'trialInfo.ftrial_i': trialInfo.ftrial_i,
-            'trialInfo.ftrial_i === 10': trialInfo.ftrial_i === 10,
-            'trialInfo.is_ftrial && trialInfo.ftrial_i === 10': trialInfo.is_ftrial && trialInfo.ftrial_i === 10
-        });
-    }
-    
-    // Debug: Explicitly log isP19 calculation - ALWAYS log when ftrial_i is 11
-    if (trialInfo.ftrial_i === 11) {
-        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 11!", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            isP19: isP19,
-            'trialInfo.is_ftrial': trialInfo.is_ftrial,
-            'trialInfo.ftrial_i': trialInfo.ftrial_i,
-            'trialInfo.ftrial_i === 11': trialInfo.ftrial_i === 11,
-            'trialInfo.is_ftrial && trialInfo.ftrial_i === 11': trialInfo.is_ftrial && trialInfo.ftrial_i === 11
-        });
-    }
-    
-    // Debug: Explicitly log isP20 calculation - ALWAYS log when ftrial_i is 12
-    if (trialInfo.ftrial_i === 12) {
-        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 12!", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            isP20: isP20,
-            'trialInfo.is_ftrial': trialInfo.is_ftrial,
-            'trialInfo.ftrial_i': trialInfo.ftrial_i,
-            'trialInfo.ftrial_i === 12': trialInfo.ftrial_i === 12,
-            'trialInfo.is_ftrial && trialInfo.ftrial_i === 12': trialInfo.is_ftrial && trialInfo.ftrial_i === 12
-        });
-    }
-    
-    // Debug: Explicitly log isP21 calculation - ALWAYS log when ftrial_i is 13
-    if (trialInfo.ftrial_i === 13) {
-        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 13!", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            isP21: isP21,
-            'trialInfo.is_ftrial': trialInfo.is_ftrial,
-            'trialInfo.ftrial_i': trialInfo.ftrial_i,
-            'trialInfo.ftrial_i === 13': trialInfo.ftrial_i === 13,
-            'trialInfo.is_ftrial && trialInfo.ftrial_i === 13': trialInfo.is_ftrial && trialInfo.ftrial_i === 13
-        });
-    }
-    
-    // Debug: Explicitly log isP22 calculation - ALWAYS log when ftrial_i is 14
-    if (trialInfo.ftrial_i === 14) {
-        console.log("🔍 ExperimentPage: DEBUG - ftrial_i is 14!", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            isP22: isP22,
-            'trialInfo.is_ftrial': trialInfo.is_ftrial,
-            'trialInfo.ftrial_i': trialInfo.ftrial_i,
-            'trialInfo.ftrial_i === 14': trialInfo.ftrial_i === 14,
-            'trialInfo.is_ftrial && trialInfo.ftrial_i === 14': trialInfo.is_ftrial && trialInfo.ftrial_i === 14
-        });
-    }
-    
-    // Debug: Log when we're in experimental phase (not familiarization)
-    if (!trialInfo.is_ftrial && trialInfo.is_trial) {
-        console.log("🧪 ExperimentPage: EXPERIMENTAL PHASE DETECTED!", {
-            is_ftrial: trialInfo.is_ftrial,
-            is_trial: trialInfo.is_trial,
-            trial_i: trialInfo.trial_i,
-            num_trials: trialInfo.num_trials,
-            ftrial_i: trialInfo.ftrial_i,
-        });
-    }
-    
-    console.log("🔍 ExperimentPage: Checking for p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21/p22", {
-            is_ftrial: trialInfo.is_ftrial,
-            is_trial: trialInfo.is_trial,
-            ftrial_i: trialInfo.ftrial_i,
-            trial_i: trialInfo.trial_i,
-            familiarizationPageType,
-            isP8,
-            isP9,
-            isP10,
-            isP11,
-            isP12,
-            isP14,
-            isP15,
-            isP16,
-            isP17,
-            isP13Demo,
-            isP19,
-            isP20,
-            isP21,
-            isP22,
-            isP22,
-            unique_trial_id: trialInfo.unique_trial_id,
-            trialInfo
-        });
-    
-    if (isP8) {
-        console.log("✅ ExperimentPage: DETECTED P8 - Rendering P8CanvasPage");
-    } else if (isP9) {
-        console.log("✅ ExperimentPage: DETECTED P9 - Rendering P9CanvasPage");
-        console.log("🎬 ExperimentPage: P9 should load T_ball_move trial data");
-    } else if (isP10) {
-        console.log("✅ ExperimentPage: DETECTED P10 - Rendering P10CanvasPage");
-        console.log("🎬 ExperimentPage: P10 should load T_barrier2complex trial data");
-    } else if (isP11) {
-        console.log("✅ ExperimentPage: DETECTED P11 - Rendering P11CanvasPage");
-        console.log("🎬 ExperimentPage: P11 should load T_red_green trial data");
-    } else if (isP12) {
-        console.log("✅ ExperimentPage: DETECTED P12 - Rendering P12CanvasPage");
-        console.log("🎬 ExperimentPage: P12 should load T_red_green trial data");
-    } else if (isP14) {
-        console.log("✅ ExperimentPage: DETECTED P14 - Rendering P14CanvasPage");
-        console.log("🎬 ExperimentPage: P14 should load T_greeneasy trial data (interactive practice)");
-    } else if (isP15) {
-        console.log("✅ ExperimentPage: DETECTED P15 - Rendering P15CanvasPage");
-        console.log("🎬 ExperimentPage: P15 should load T_redeasy trial data (interactive practice)");
-    } else if (isP16) {
-        console.log("✅ ExperimentPage: DETECTED P16 - Rendering P16CanvasPage");
-        console.log("🎬 ExperimentPage: P16 should load T_greenmid trial data (interactive practice)");
-    } else if (isP17) {
-        console.log("✅ ExperimentPage: DETECTED P17 - Rendering P17CanvasPage");
-        console.log("🎬 ExperimentPage: P17 should load T_v2_green_mid trial data (interactive practice)");
-    } else if (isP13Demo) {
-        console.log("✅ ExperimentPage: DETECTED P13Demo - Rendering P13DemoPage");
-        console.log("🎬 ExperimentPage: P13Demo should show whole_scene_no_occluder.png with v2_switch_keys.mp3");
-    } else if (isP19) {
-        console.log("✅ ExperimentPage: DETECTED P19 - Rendering P19CanvasPage");
-        console.log("🎬 ExperimentPage: P19 should load T_switch_keys_easy trial data (interactive practice)");
-    } else if (trialInfo.is_ftrial) {
-        console.log("ℹ️ ExperimentPage: Familiarization trial but not p8/p9/p10/p11/p12/p14/p15/p16/p17/p18/p19/p20/p21, ftrial_i:", trialInfo.ftrial_i);
-    }
-    
-    if (isP8) {
-        console.log("ExperimentPage: Rendering P8CanvasPage");
-        return (
-            <P8CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP9) {
-        console.log("ExperimentPage: Rendering P9CanvasPage");
-        return (
-            <P9CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP10) {
-        console.log("ExperimentPage: Rendering P10CanvasPage");
-        return (
-            <P10CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP11) {
-        console.log("ExperimentPage: Rendering P11CanvasPage");
-        return (
-            <P11CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP12) {
-        console.log("ExperimentPage: Rendering P12CanvasPage");
-        return (
-            <P12CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    // V2: P8 "Before Easy Practice" - image + audio page
-    if (isP8Demo) {
-        console.log("ExperimentPage: Rendering P8 Demo (Before Easy Practice)");
-        return (
-            <P8DemoPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP14) {
-        console.log("ExperimentPage: Rendering P14CanvasPage");
-        return (
-            <P14CanvasPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP15) {
-        console.log("ExperimentPage: Rendering P15CanvasPage");
-        return (
-            <P15CanvasPage
-                key={`p15-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP16) {
-        console.log("ExperimentPage: Rendering P16CanvasPage");
-        return (
-            <P16CanvasPage
-                key={`p16-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP17) {
-        console.log("ExperimentPage: Rendering P17CanvasPage");
-        return (
-            <P17CanvasPage
-                key={`p17-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    // V2: P13 "Switch Keys Introduction" - image + audio page
-    if (isP13Demo) {
-        console.log("✅ ExperimentPage: RENDERING P13DemoPage - isP13Demo is TRUE");
-        return (
-            <P13DemoPage
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP19) {
-        console.log("✅ ExperimentPage: RENDERING P19CanvasPage - isP19 is TRUE");
-        console.log("🔍 ExperimentPage: P19 details", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            unique_trial_id: trialInfo.unique_trial_id,
-            'P19CanvasPage component': typeof P19CanvasPage
-        });
-        
-        // Double-check that component is available
-        if (!P19CanvasPage) {
-            console.error("❌ ExperimentPage: P19CanvasPage component is not imported!");
-            return <div>Error: P19CanvasPage not found</div>;
-        }
-        
-        return (
-            <P19CanvasPage
-                key={`p19-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP20) {
-        console.log("✅ ExperimentPage: RENDERING P20CanvasPage - isP20 is TRUE");
-        console.log("🔍 ExperimentPage: P20 details", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            unique_trial_id: trialInfo.unique_trial_id,
-            'P20CanvasPage component': typeof P20CanvasPage
-        });
-        
-        // Double-check that component is available
-        if (!P20CanvasPage) {
-            console.error("❌ ExperimentPage: P20CanvasPage component is not imported!");
-            return <div>Error: P20CanvasPage not found</div>;
-        }
-        
-        return (
-            <P20CanvasPage
-                key={`p20-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP21) {
-        console.log("✅ ExperimentPage: RENDERING P21CanvasPage - isP21 is TRUE");
-        console.log("🔍 ExperimentPage: P21 details", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            unique_trial_id: trialInfo.unique_trial_id,
-            'P21CanvasPage component': typeof P21CanvasPage
-        });
-        
-        // Double-check that component is available
-        if (!P21CanvasPage) {
-            console.error("❌ ExperimentPage: P21CanvasPage component is not imported!");
-            return <div>Error: P21CanvasPage not found</div>;
-        }
-        
-        return (
-            <P21CanvasPage
-                key={`p21-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    if (isP22) {
-        console.log("✅ ExperimentPage: RENDERING P22CanvasPage - isP22 is TRUE");
-        console.log("🔍 ExperimentPage: P22 details", {
-            is_ftrial: trialInfo.is_ftrial,
-            ftrial_i: trialInfo.ftrial_i,
-            unique_trial_id: trialInfo.unique_trial_id,
-            'P22CanvasPage component': typeof P22CanvasPage
-        });
-        
-        // Double-check that component is available
-        if (!P22CanvasPage) {
-            console.error("❌ ExperimentPage: P22CanvasPage component is not imported!");
-            return <div>Error: P22CanvasPage not found</div>;
-        }
-        
-        return (
-            <P22CanvasPage
-                key={`p22-${trialInfo.unique_trial_id}`}
-                fetchNextScene={fetchNextScene}
-                setdisableCountdownTrigger={setdisableCountdownTrigger}
-            />
-        );
-    }
-    
-    // Debug: Log if we reach here without matching p8-p22
+    const isP3 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
+    const isP4 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;
+    const isP5 = trialInfo.is_ftrial && trialInfo.ftrial_i === 3;
+    const isP6 = trialInfo.is_ftrial && trialInfo.ftrial_i === 4;
+    const isP7 = trialInfo.is_ftrial && trialInfo.ftrial_i === 5;
+    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;
+    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;
+    const isP10 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;
+    const isP11 = trialInfo.is_ftrial && trialInfo.ftrial_i === 9;
+    const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 10;
+    const isP13 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11;
+
+    if (isP3) return <P3V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP4) return <P4V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP5) return <P5V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP6) return <P6V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP7) return <P7V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP8) return <P8V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP9) return <P9V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP10) return <P10V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP11) return <P11V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP12) return <P12V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP13) return <P13V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+
     if (trialInfo.is_ftrial) {
-        console.error("❌ ExperimentPage: ERROR - is_ftrial is true but none of p8-p22 matched!", {
-            ftrial_i: trialInfo.ftrial_i,
-            isP8, isP9, isP10, isP11, isP12, isP8Demo, isP14, isP15, isP16, isP17, isP13Demo, isP19, isP20, isP21, isP22,
-            familiarizationPageType
-        });
+        console.error("❌ ExperimentPage: familiarization ftrial_i not matched (expected 1–11)", { ftrial_i: trialInfo.ftrial_i, familiarizationPageType });
     }
 
     return (

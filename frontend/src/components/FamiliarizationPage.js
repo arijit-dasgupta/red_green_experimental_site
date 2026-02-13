@@ -231,7 +231,7 @@ const FamiliarizationPage = ({
             color: "#666",
             fontStyle: "italic",
           }}>
-            Playing audio...
+            {/* V2: Removed distracting "Playing..." text */}
           </div>
         )}
       </div>
@@ -341,7 +341,7 @@ const FamiliarizationPage = ({
             color: "#666",
             fontStyle: "italic",
           }}>
-            Playing audio...
+            {/* V2: Removed distracting "Playing..." text */}
           </div>
         )}
       </div>

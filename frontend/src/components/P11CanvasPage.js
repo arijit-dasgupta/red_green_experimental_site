@@ -1,42 +1,32 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { config } from '../config';
+import { usePause } from '../contexts/PauseContext';
 
 /**
- * Dedicated component for p11: Canvas with audio and image overlay
- * - Audio: 11_red_green.mp3 (first audio)
- * - Canvas: T_red_green trial data
- * - Images: 
- *   - elmo.png on left middle of canvas, 25% size
- *   - kermit.png on right side, top aligned with canvas top, 20% size
- *   - cookiemonster.png on right side, bottom aligned with canvas bottom, 20% size
- * - After first audio and canvas finish: 12_F_J.mp3 starts
- * - 3 seconds into 12_F_J.mp3: Fkey.mp4 plays (visual only, muted)
- * - After Fkey.mp4 finishes: Jkey.mp4 plays (visual only, muted)
- * - Auto-advance when 12_F_J.mp3 finishes
+ * V2 P6: Canvas with sensors intro audio
+ * - Audio: v2_sensors.mp3 (single audio, starts immediately)
+ * - Canvas: T_v2_ball_sensor_red trial data
+ * - Static first frame shown immediately, animation starts after 14 seconds
+ * - Images: elmo.png on left middle of canvas
+ * - Auto-advance when audio finishes
  * - Canvas size: 600x600 pixels (matching testing trials)
  * - Canvas border: 20px with barrier texture (matching testing trials)
- * - All textures: ball, barrier, sensors, occluder (matching testing trials)
  */
 const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
-    console.log("🎬 P11CanvasPage: Component mounted/rendered");
+    console.log("🎬 P11CanvasPage (V2 P6): Component mounted/rendered");
+    const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
-    const audioRef = useRef(null); // First audio: 11_red_green.mp3
-    const secondAudioRef = useRef(null); // Second audio: 12_F_J.mp3
-    const fkeyVideoRef = useRef(null); // Fkey.mp4 video
-    const jkeyVideoRef = useRef(null); // Jkey.mp4 video
+    const audioRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
     const [currentFrame, setCurrentFrame] = useState(0);
-    const currentFrameRef = useRef(0); // Use ref to track current frame for animation loop
+    const currentFrameRef = useRef(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [audioFinished, setAudioFinished] = useState(false);
     const [videoFinished, setVideoFinished] = useState(false);
-    const [secondAudioFinished, setSecondAudioFinished] = useState(false);
-    const [fkeyVideoPlaying, setFkeyVideoPlaying] = useState(false);
-    const [jkeyVideoPlaying, setJkeyVideoPlaying] = useState(false);
     const animationRef = useRef(null);
     const lastTimestampRef = useRef(null);
-    const hasAutoAdvancedRef = useRef(false); // Track if we've already auto-advanced
-    const fkeyVideoTimerRef = useRef(null); // Timer for starting Fkey video 3s after second audio
+    const hasAutoAdvancedRef = useRef(false);
+    const renderFrameRef = useRef(null); // Store renderFrame function reference
     
     // Texture refs (matching App.js)
     const ballTextureRef = useRef(null);
@@ -122,12 +112,12 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         return true;
     };
 
-    // Load T_red_green trial data
+    // Load T_v2_ball_sensor_red trial data (V2)
     useEffect(() => {
         const loadTrialData = async () => {
             try {
-                console.log('📥 P11CanvasPage: Loading T_red_green trial data from /api/load_trial_data/T_red_green...');
-                const response = await fetch('/api/load_trial_data/T_red_green', {
+                console.log('📥 P11CanvasPage: Loading T_v2_ball_sensor_red trial data...');
+                const response = await fetch('/api/load_trial_data/T_v2_ball_sensor_red', {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -152,7 +142,7 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     setSceneData(data);
                 } else {
                     const errorText = await response.text();
-                    console.error('❌ P11CanvasPage: Failed to load T_red_green data:', response.status, errorText);
+                    console.error('❌ P11CanvasPage: Failed to load T_v2_ball_sensor_red data:', response.status, errorText);
                 }
             } catch (error) {
                 console.error('❌ P11CanvasPage: Error loading trial data:', error);
@@ -166,7 +156,6 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     const renderFrame = React.useCallback((frameIndex) => {
         const canvas = canvasRef.current;
         if (!canvas || !sceneData) {
-            console.log('P11CanvasPage: renderFrame skipped - canvas or sceneData missing', { canvas: !!canvas, sceneData: !!sceneData });
             return;
         }
 
@@ -192,31 +181,26 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         ctx.scale(1, -1);
         ctx.translate(0, -canvas.height);
 
-        // Draw barriers with texture (skip frame 0)
-        if (frameIndex !== 0) {
-            barriers.forEach(({ x, y, width, height }) => {
-                const scaledX = x * scale;
-                const scaledY = y * scale;
-                const scaledWidth = width * scale;
-                const scaledHeight = height * scale;
-                
-                ctx.save();
-                // Check if texture path is provided and texture is loaded
-                if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '' && 
-                    barrierTextureRef.current && barrierTextureRef.current.complete) {
-                    if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                        // Fallback to black fill if texture draw failed
-                        ctx.fillStyle = "black";
-                        ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
-                    }
-                } else {
-                    // Use original black fill if no texture path or texture not loaded
+        // Draw barriers with texture (show from frame 0 for P6)
+        barriers.forEach(({ x, y, width, height }) => {
+            const scaledX = x * scale;
+            const scaledY = y * scale;
+            const scaledWidth = width * scale;
+            const scaledHeight = height * scale;
+            
+            ctx.save();
+            if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '' && 
+                barrierTextureRef.current && barrierTextureRef.current.complete) {
+                if (!drawTiledTexture(ctx, barrierTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
                     ctx.fillStyle = "black";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
-                ctx.restore();
-            });
-        }
+            } else {
+                ctx.fillStyle = "black";
+                ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
+            }
+            ctx.restore();
+        });
 
         // Draw sensors with texture
         if (red_sensor) {
@@ -227,16 +211,13 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const scaledHeight = height * scale;
             
             ctx.save();
-            // Check if texture path is provided and texture is loaded
             if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
                 redSensorTextureRef.current && redSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to red fill if texture draw failed
                     ctx.fillStyle = "red";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
             } else {
-                // Use original red fill if no texture path or texture not loaded
                 ctx.fillStyle = "red";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
@@ -251,16 +232,13 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const scaledHeight = height * scale;
             
             ctx.save();
-            // Check if texture path is provided and texture is loaded
             if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
                 greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to green fill if texture draw failed
                     ctx.fillStyle = "green";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
             } else {
-                // Use original green fill if no texture path or texture not loaded
                 ctx.fillStyle = "green";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
@@ -274,22 +252,11 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const centerY = (y + radius) * scale;
             const ballRadius = scale * radius;
             
-            // Debug logging
-            if (frameIndex === 0) {
-                console.log('P11CanvasPage: Rendering ball at frame 0', {
-                    x, y, radius, centerX, centerY, ballRadius, scale,
-                    worldWidth, worldHeight, canvasWidth: canvas.width, canvasHeight: canvas.height
-                });
-            }
-            
-            // Use texture if path is provided and texture is loaded, otherwise fall back to blue fill
             if (config.ballTexturePath && config.ballTexturePath.trim() !== '' && 
                 ballTextureRef.current && ballTextureRef.current.complete) {
-                // Use supersampling (render at 2x resolution) for smoother edges
                 const supersampleFactor = 2;
                 const offscreenSize = Math.ceil(ballRadius * 2 * supersampleFactor);
                 
-                // Create or reuse offscreen canvas for high-res rendering
                 if (!ballOffscreenCanvasRef.current || 
                     ballOffscreenCanvasRef.current.width !== offscreenSize) {
                     ballOffscreenCanvasRef.current = document.createElement('canvas');
@@ -300,14 +267,10 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 const offscreenCanvas = ballOffscreenCanvasRef.current;
                 const offscreenCtx = offscreenCanvas.getContext('2d');
                 
-                // Enable high-quality rendering on offscreen canvas
                 offscreenCtx.imageSmoothingEnabled = true;
                 offscreenCtx.imageSmoothingQuality = 'high';
-                
-                // Clear the offscreen canvas
                 offscreenCtx.clearRect(0, 0, offscreenSize, offscreenSize);
                 
-                // Draw the ball on the offscreen canvas at higher resolution
                 const offscreenCenter = offscreenSize / 2;
                 const offscreenRadius = ballRadius * supersampleFactor;
                 
@@ -316,7 +279,6 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 offscreenCtx.arc(offscreenCenter, offscreenCenter, offscreenRadius, 0, 2 * Math.PI);
                 offscreenCtx.clip();
                 
-                // Calculate rotation angle
                 let rotationAngle = 0;
                 if (config.ballRotationRate !== 0 && isPlaying) {
                     const fps = sceneData.fps || 30;
@@ -324,14 +286,12 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
                 }
                 
-                // Apply rotation if needed
                 if (rotationAngle !== 0) {
                     offscreenCtx.translate(offscreenCenter, offscreenCenter);
                     offscreenCtx.rotate(rotationAngle);
                     offscreenCtx.translate(-offscreenCenter, -offscreenCenter);
                 }
                 
-                // Draw texture at higher resolution
                 const textureSize = offscreenRadius * 2;
                 offscreenCtx.drawImage(
                     ballTextureRef.current,
@@ -342,7 +302,6 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 );
                 offscreenCtx.restore();
                 
-                // Draw the high-res offscreen canvas to the main canvas (scaled down)
                 ctx.save();
                 ctx.drawImage(
                     offscreenCanvas,
@@ -353,7 +312,6 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                 );
                 ctx.restore();
             } else {
-                // Fallback to blue fill if texture not loaded
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
                 ctx.fillStyle = "blue";
@@ -369,16 +327,13 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const scaledHeight = height * scale;
             
             ctx.save();
-            // Check if texture path is provided and texture is loaded
             if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '' && 
                 occluderTextureRef.current && occluderTextureRef.current.complete) {
                 if (!drawTiledTexture(ctx, occluderTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                    // Fallback to gray fill if texture draw failed
                     ctx.fillStyle = "gray";
                     ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                 }
             } else {
-                // Use original gray fill if no texture path or texture not loaded
                 ctx.fillStyle = "gray";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
@@ -386,12 +341,16 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         });
 
         ctx.restore();
-    }, [sceneData, ballTextureRef, barrierTextureRef, redSensorTextureRef, greenSensorTextureRef, occluderTextureRef, ballOffscreenCanvasRef, isPlaying]);
+    }, [sceneData, isPlaying]);
+
+    // Store renderFrame in ref so it can be used in resume effect
+    useEffect(() => {
+        renderFrameRef.current = renderFrame;
+    }, [renderFrame]);
 
     // Animation loop
     useEffect(() => {
         if (!isPlaying || !sceneData) {
-            // Cancel animation if not playing
             if (animationRef.current) {
                 cancelAnimationFrame(animationRef.current);
                 animationRef.current = null;
@@ -408,49 +367,35 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             const frameTime = 1000 / (sceneData.fps || 30);
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
             
-            // Calculate how many frames should have advanced based on elapsed time
-            // Cap at 5 frames per update to avoid huge jumps that look choppy
             const framesToAdvance = Math.min(Math.floor(elapsed / frameTime), 5);
             
             if (framesToAdvance > 0) {
-                // Use ref to get current frame value (avoids stale closure issues)
                 const nextFrame = currentFrameRef.current + framesToAdvance;
 
                 if (nextFrame < maxFrames) {
-                    // Advance to the correct frame (may skip frames if browser is slow)
                     currentFrameRef.current = nextFrame;
                     setCurrentFrame(nextFrame);
                     renderFrame(nextFrame);
-                    // Update lastTimestamp to account for the frames we advanced
                     lastTimestampRef.current = timestamp - (elapsed % frameTime);
-                    // Continue animation
                     if (isPlaying) {
                         animationRef.current = requestAnimationFrame(animate);
                     }
                 } else {
-                    // Video finished - render the last frame
                     currentFrameRef.current = maxFrames - 1;
                     setCurrentFrame(maxFrames - 1);
                     renderFrame(maxFrames - 1);
                     setIsPlaying(false);
                     setVideoFinished(true);
-                    if (startTimeRef.current) {
-                        const actualDuration = (timestamp - startTimeRef.current) / 1000;
-                        const expectedDuration = maxFrames / (sceneData.fps || 30);
-                        console.log(`🏁 P11CanvasPage: Video finished - Frame ${maxFrames - 1}/${maxFrames}`);
-                        console.log(`⏱️ P11CanvasPage: Expected duration: ${expectedDuration.toFixed(2)}s, Actual duration: ${actualDuration.toFixed(2)}s`);
-                    }
+                    console.log(`🏁 P11CanvasPage: Video finished`);
                     lastTimestampRef.current = null;
                 }
             } else {
-                // Not enough time elapsed, continue animation
                 if (isPlaying) {
                     animationRef.current = requestAnimationFrame(animate);
                 }
             }
         };
 
-        // Start animation loop
         animationRef.current = requestAnimationFrame(animate);
         
         return () => {
@@ -465,7 +410,90 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     // Track start time for duration calculation
     const startTimeRef = useRef(null);
 
-    // Auto-start when scene data is loaded and reset states
+    // Track if we've paused after initial 1-second play
+    const hasPausedAfterInitialPlayRef = useRef(false);
+    
+    // Track animation delay timeouts so they can be cancelled when paused
+    const initialPlayTimeoutRef = useRef(null);
+    const resumePlayTimeoutRef = useRef(null);
+
+    // Handle global pause state - stop animation when paused
+    useEffect(() => {
+        if (isPaused) {
+            console.log('⏸️ P11CanvasPage: Study paused - stopping animation and audio');
+            // Stop animation
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            setIsPlaying(false);
+            
+            // Clear animation delay timeouts
+            if (initialPlayTimeoutRef.current) {
+                clearTimeout(initialPlayTimeoutRef.current);
+                initialPlayTimeoutRef.current = null;
+            }
+            if (resumePlayTimeoutRef.current) {
+                clearTimeout(resumePlayTimeoutRef.current);
+                resumePlayTimeoutRef.current = null;
+            }
+            
+            // Pause audio
+            if (audioRef.current) {
+                audioRef.current.pause();
+            }
+        }
+    }, [isPaused]);
+
+    // Handle resume - reset and restart from beginning
+    const lastResumeCounterRef = useRef(resumeCounter);
+    useEffect(() => {
+        // Only trigger reset when resumeCounter actually increments (not on initial mount)
+        if (resumeCounter > 0 && resumeCounter !== lastResumeCounterRef.current) {
+            lastResumeCounterRef.current = resumeCounter;
+            console.log('▶️ P11CanvasPage: Study resumed - resetting and restarting from beginning');
+            
+            // Reset all state to beginning
+            setIsPlaying(false);
+            setCurrentFrame(0);
+            currentFrameRef.current = 0;
+            setAudioFinished(false);
+            setVideoFinished(false);
+            hasAutoAdvancedRef.current = false;
+            hasPausedAfterInitialPlayRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
+            
+            // Clear any existing timeouts
+            if (initialPlayTimeoutRef.current) {
+                clearTimeout(initialPlayTimeoutRef.current);
+                initialPlayTimeoutRef.current = null;
+            }
+            if (resumePlayTimeoutRef.current) {
+                clearTimeout(resumePlayTimeoutRef.current);
+                resumePlayTimeoutRef.current = null;
+            }
+            
+            // Restart from beginning - static frozen scene
+            if (renderFrameRef.current && sceneData) {
+                setTimeout(() => {
+                    renderFrameRef.current(0);
+                    console.log('🖼️ P11CanvasPage: Restarting - showing static frozen scene');
+                    
+                    // Mark video as finished immediately since we're not animating
+                    setVideoFinished(true);
+                    
+                    // Reset and restart audio
+                    if (audioRef.current) {
+                        audioRef.current.currentTime = 0;
+                        audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
+                    }
+                }, 100);
+            }
+        }
+    }, [resumeCounter, sceneData]);
+
+    // Auto-start when scene data is loaded
     useEffect(() => {
         if (sceneData) {
             const maxFrames = Object.keys(sceneData.step_data || {}).length;
@@ -475,52 +503,36 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             console.log(`📊 P11CanvasPage: Video info - Frames: ${maxFrames}, FPS: ${fps}, Expected duration: ${expectedVideoDuration.toFixed(2)}s`);
             setIsPlaying(false);
             setCurrentFrame(0);
-            currentFrameRef.current = 0; // Reset ref as well
+            currentFrameRef.current = 0;
             setVideoFinished(false);
             setAudioFinished(false);
-            setSecondAudioFinished(false);
-            setFkeyVideoPlaying(false);
-            setJkeyVideoPlaying(false);
-            hasAutoAdvancedRef.current = false; // Reset auto-advance flag when new scene loads
-            startTimeRef.current = null; // Reset start time
-            lastTimestampRef.current = null; // Reset animation timestamp
+            hasAutoAdvancedRef.current = false;
+            hasPausedAfterInitialPlayRef.current = false;
+            startTimeRef.current = null;
+            lastTimestampRef.current = null;
             
-            // Clean up any running timers
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-                fkeyVideoTimerRef.current = null;
-            }
-            
-            // Render first frame immediately
+            // Render first frame immediately (barriers now show from frame 0)
+            // P6: Show static scene - no animation, just frozen frame
             renderFrame(0);
+            console.log('🖼️ P11CanvasPage: Showing static frozen scene (no animation)');
             
-            // Start video animation after a brief delay to ensure state is set
-            setTimeout(() => {
-                startTimeRef.current = performance.now();
-                console.log('🎬 P11CanvasPage: Starting video animation at', new Date().toISOString());
-                setIsPlaying(true);
-            }, 100);
+            // Mark video as finished immediately since we're not animating
+            setVideoFinished(true);
             
-            // Start audio playback
+            // Start audio playback immediately
             if (audioRef.current) {
                 console.log('🔊 P11CanvasPage: Starting audio playback');
-                console.log('🔊 P11CanvasPage: Audio src:', audioRef.current.src);
-                console.log('🔊 P11CanvasPage: Audio readyState:', audioRef.current.readyState);
-                audioRef.current.currentTime = 0; // Reset audio to start
+                audioRef.current.currentTime = 0;
                 const playPromise = audioRef.current.play();
                 if (playPromise !== undefined) {
                     playPromise
                         .then(() => {
                             console.log('✅ P11CanvasPage: Audio playback started successfully');
-                            console.log('🔊 P11CanvasPage: Audio duration:', audioRef.current.duration, 'seconds');
-                            console.log(`📊 P11CanvasPage: Audio should finish at ${audioRef.current.duration.toFixed(2)}s`);
                         })
                         .catch(error => {
                             console.error("❌ P11CanvasPage: Audio autoplay prevented:", error);
                         });
                 }
-            } else {
-                console.error('❌ P11CanvasPage: Audio ref is null - cannot play audio');
             }
         }
     }, [sceneData]);
@@ -531,10 +543,7 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         if (!audio) return;
 
         const handleAudioEnd = () => {
-            console.log('🏁 P11CanvasPage: Audio ended at', new Date().toISOString());
-            if (audioRef.current) {
-                console.log(`⏱️ P11CanvasPage: Audio actual duration: ${audioRef.current.duration.toFixed(2)}s`);
-            }
+            console.log('🏁 P11CanvasPage: Audio ended');
             setAudioFinished(true);
         };
 
@@ -544,120 +553,19 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, []);
 
-    // When first audio and canvas finish, start second audio
+    // Auto-advance when BOTH audio AND video finish
     useEffect(() => {
-        if (audioFinished && videoFinished && secondAudioRef.current && !secondAudioFinished) {
-            console.log("🎬 P11CanvasPage: First audio and canvas finished, starting second audio (12_F_J.mp3)...");
-            console.log("🎬 P11CanvasPage: fkeyVideoRef.current:", fkeyVideoRef.current);
-            console.log("🎬 P11CanvasPage: jkeyVideoRef.current:", jkeyVideoRef.current);
-            secondAudioRef.current.currentTime = 0;
-            const playPromise = secondAudioRef.current.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        console.log('✅ P11CanvasPage: Second audio playback started successfully');
-                        console.log('🔊 P11CanvasPage: Second audio duration:', secondAudioRef.current.duration, 'seconds');
-                        
-                        // Set timer to start Fkey video 3 seconds after second audio starts
-                        if (fkeyVideoTimerRef.current) {
-                            clearTimeout(fkeyVideoTimerRef.current);
-                        }
-                        console.log("⏰ P11CanvasPage: Setting timer to start Fkey video in 3 seconds...");
-                        fkeyVideoTimerRef.current = setTimeout(() => {
-                            console.log("⏰ P11CanvasPage: Timer fired! Checking video refs...");
-                            console.log("⏰ P11CanvasPage: fkeyVideoRef.current:", fkeyVideoRef.current);
-                            console.log("⏰ P11CanvasPage: fkeyVideoPlaying state:", fkeyVideoPlaying);
-                            if (fkeyVideoRef.current) {
-                                console.log("🎬 P11CanvasPage: Starting Fkey_short.mp4 video (3 seconds after second audio started)");
-                                fkeyVideoRef.current.currentTime = 0;
-                                const videoPlayPromise = fkeyVideoRef.current.play();
-                                if (videoPlayPromise !== undefined) {
-                                    videoPlayPromise
-                                        .then(() => {
-                                            setFkeyVideoPlaying(true);
-                                            console.log('✅ P11CanvasPage: Fkey video started successfully');
-                                        })
-                                        .catch(error => {
-                                            console.error("❌ P11CanvasPage: Fkey video autoplay prevented:", error);
-                                        });
-                                }
-                            } else {
-                                console.error("❌ P11CanvasPage: fkeyVideoRef.current is null!");
-                            }
-                        }, 3000); // 3 seconds
-                    })
-                    .catch(error => {
-                        console.error("❌ P11CanvasPage: Second audio autoplay prevented:", error);
-                    });
-            }
-        }
-    }, [audioFinished, videoFinished, secondAudioFinished]);
-
-    // When Fkey video finishes, start Jkey video
-    useEffect(() => {
-        const fkeyVideo = fkeyVideoRef.current;
-        if (!fkeyVideo) return;
-
-        const handleFkeyVideoEnd = () => {
-            console.log('🏁 P11CanvasPage: Fkey video ended');
-            setFkeyVideoPlaying(false);
-            
-            // Start Jkey video
-            if (jkeyVideoRef.current && !jkeyVideoPlaying) {
-                console.log("🎬 P11CanvasPage: Starting Jkey_short.mp4 video");
-                jkeyVideoRef.current.currentTime = 0;
-                jkeyVideoRef.current.play()
-                    .then(() => {
-                        setJkeyVideoPlaying(true);
-                        console.log('✅ P11CanvasPage: Jkey video started');
-                    })
-                    .catch(error => {
-                        console.error("❌ P11CanvasPage: Jkey video autoplay prevented:", error);
-                    });
-            }
-        };
-
-        fkeyVideo.addEventListener('ended', handleFkeyVideoEnd);
-        return () => {
-            fkeyVideo.removeEventListener('ended', handleFkeyVideoEnd);
-        };
-    }, [fkeyVideoPlaying, jkeyVideoPlaying]);
-
-    // Listen for second audio end
-    useEffect(() => {
-        const secondAudio = secondAudioRef.current;
-        if (!secondAudio) return;
-
-        const handleSecondAudioEnd = () => {
-            console.log('🏁 P11CanvasPage: Second audio (12_F_J.mp3) ended');
-            setSecondAudioFinished(true);
-        };
-
-        secondAudio.addEventListener('ended', handleSecondAudioEnd);
-        return () => {
-            secondAudio.removeEventListener('ended', handleSecondAudioEnd);
-        };
-    }, []);
-
-    // Auto-advance when second audio finishes
-    useEffect(() => {
-        if (secondAudioFinished && !hasAutoAdvancedRef.current) {
-            // Second audio finished, auto-advance after a short delay (only once)
-            console.log("🎬 P11CanvasPage: Second audio finished, auto-advancing to next scene...");
+        if (audioFinished && videoFinished && !hasAutoAdvancedRef.current) {
+            console.log("🎬 P11CanvasPage: Both audio and video finished, auto-advancing to next scene...");
             hasAutoAdvancedRef.current = true;
-            
-            // Clean up any running timers
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-            }
             
             const timer = setTimeout(() => {
                 console.log("🎬 P11CanvasPage: Calling fetchNextScene to load next page...");
                 fetchNextScene(setdisableCountdownTrigger);
-            }, 500); // 500ms delay for smooth transition
+            }, 500);
             return () => clearTimeout(timer);
         }
-    }, [secondAudioFinished, fetchNextScene, setdisableCountdownTrigger]);
+    }, [audioFinished, videoFinished, fetchNextScene, setdisableCountdownTrigger]);
 
     // Add keyboard shortcut: Press 'Shift+S' to skip to next page
     useEffect(() => {
@@ -677,16 +585,6 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
         };
     }, [fetchNextScene, setdisableCountdownTrigger]);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            // Clean up any running timers
-            if (fkeyVideoTimerRef.current) {
-                clearTimeout(fkeyVideoTimerRef.current);
-            }
-        };
-    }, []);
-
     const borderThickness = config.canvasBorderThickness || 0;
     const borderTextureUrl = barrierTextureRef?.current?.src || config.barrierTexturePath || '';
     const hasBorderTexture = borderTextureUrl && barrierTextureRef?.current?.complete;
@@ -700,9 +598,7 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
     };
 
     // Image sizes
-    const elmoImageSize = canvasSize.width * 0.25; // Elmo: 25% of canvas width
-    const kermitImageSize = canvasSize.width * 0.20; // Kermit: 20% of canvas width
-    const cookieMonsterImageSize = canvasSize.width * 0.20; // Cookie Monster: 20% of canvas width
+    const elmoImageSize = canvasSize.width * 0.25;
 
     return (
         <div style={{
@@ -715,28 +611,15 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
             padding: "20px",
             position: "relative",
         }}>
-            {/* First audio: 11_red_green.mp3 */}
+            {/* V2: Single audio for sensors intro */}
             <audio
                 ref={audioRef}
-                src="/audios/11_red_green.mp3"
+                src="/audios/v2_sensors.mp3"
                 preload="auto"
-                onLoadedData={() => console.log('🔊 P11CanvasPage: First audio loaded, duration:', audioRef.current?.duration)}
-                onPlay={() => console.log('▶️ P11CanvasPage: First audio started playing')}
-                onPause={() => console.log('⏸️ P11CanvasPage: First audio paused')}
-                onEnded={() => console.log('🏁 P11CanvasPage: First audio ended')}
-                onError={(e) => console.error('❌ P11CanvasPage: First audio error:', e)}
-            />
-
-            {/* Second audio: 12_F_J.mp3 */}
-            <audio
-                ref={secondAudioRef}
-                src="/audios/12_F_J.mp3"
-                preload="auto"
-                onLoadedData={() => console.log('🔊 P11CanvasPage: Second audio loaded, duration:', secondAudioRef.current?.duration)}
-                onPlay={() => console.log('▶️ P11CanvasPage: Second audio started playing')}
-                onPause={() => console.log('⏸️ P11CanvasPage: Second audio paused')}
-                onEnded={() => console.log('🏁 P11CanvasPage: Second audio ended')}
-                onError={(e) => console.error('❌ P11CanvasPage: Second audio error:', e)}
+                onLoadedData={() => console.log('🔊 P11CanvasPage: Audio loaded, duration:', audioRef.current?.duration)}
+                onPlay={() => console.log('▶️ P11CanvasPage: Audio started playing')}
+                onEnded={() => console.log('🏁 P11CanvasPage: Audio ended')}
+                onError={(e) => console.error('❌ P11CanvasPage: Audio error:', e)}
             />
 
             {/* Canvas container - centered on page */}
@@ -750,11 +633,11 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                     alt=""
                     style={{
                         position: "absolute",
-                        right: "100%", // Position to the left of the canvas container
-                        marginRight: "20px", // 20px gap between Elmo and canvas
+                        right: "100%",
+                        marginRight: "20px",
                         top: "50%",
                         transform: "translateY(-50%)",
-                        width: `${elmoImageSize}px`, // 25% of canvas width
+                        width: `${elmoImageSize}px`,
                         height: "auto",
                         maxWidth: "300px",
                         objectFit: "contain",
@@ -818,122 +701,16 @@ const P11CanvasPage = ({ fetchNextScene, setdisableCountdownTrigger }) => {
                         }}
                     />
                 </div>
-
-                {/* Kermit image - positioned absolutely to the right of canvas, top aligned */}
-                <img
-                    src="/images/kermit.png"
-                    alt=""
-                    style={{
-                        position: "absolute",
-                        left: "100%", // Position to the right of the canvas container
-                        marginLeft: "20px", // 20px gap between canvas and Kermit
-                        top: 0, // Top aligned with canvas top
-                        width: `${kermitImageSize}px`, // 20% of canvas width
-                        height: "auto",
-                        maxWidth: "300px",
-                        objectFit: "contain",
-                    }}
-                />
-
-                {/* Cookie Monster image - positioned absolutely to the right of canvas, bottom aligned */}
-                <img
-                    src="/images/cookiemonster.png"
-                    alt=""
-                    style={{
-                        position: "absolute",
-                        left: "100%", // Position to the right of the canvas container
-                        marginLeft: "20px", // 20px gap between canvas and Cookie Monster
-                        bottom: 0, // Bottom aligned with canvas bottom
-                        width: `${cookieMonsterImageSize}px`, // 20% of canvas width
-                        height: "auto",
-                        maxWidth: "300px",
-                        objectFit: "contain",
-                    }}
-                />
             </div>
 
-            {/* Video overlays - always rendered but hidden when not playing, positioned fixed in center of viewport */}
-            <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 9999, // Very high z-index to be on top of everything
-                pointerEvents: "none", // Don't block interactions
-                backgroundColor: "transparent",
-                display: fkeyVideoPlaying ? "block" : "none",
-            }}>
-                <video
-                    ref={fkeyVideoRef}
-                    src="/videos/Fkey_short.mp4"
-                    muted
-                    playsInline
-                    preload="auto"
-                    style={{
-                        maxWidth: "80vw",
-                        maxHeight: "80vh",
-                        display: "block",
-                    }}
-                    onLoadStart={() => console.log('📹 P11CanvasPage: Fkey video load started')}
-                    onLoadedData={() => console.log('📹 P11CanvasPage: Fkey video loaded')}
-                    onPlay={() => console.log('▶️ P11CanvasPage: Fkey video playing')}
-                    onError={(e) => {
-                        console.error('❌ P11CanvasPage: Fkey video error:', e);
-                        console.error('❌ P11CanvasPage: Video error details:', e.target?.error);
-                    }}
-                />
-            </div>
-            <div style={{
-                position: "fixed",
-                top: "50%",
-                left: "50%",
-                transform: "translate(-50%, -50%)",
-                zIndex: 9999, // Very high z-index to be on top of everything
-                pointerEvents: "none", // Don't block interactions
-                backgroundColor: "transparent",
-                display: jkeyVideoPlaying ? "block" : "none",
-            }}>
-                <video
-                    ref={jkeyVideoRef}
-                    src="/videos/Jkey_short.mp4"
-                    muted
-                    playsInline
-                    preload="auto"
-                    style={{
-                        maxWidth: "80vw",
-                        maxHeight: "80vh",
-                        display: "block",
-                    }}
-                    onLoadStart={() => console.log('📹 P11CanvasPage: Jkey video load started')}
-                    onLoadedData={() => console.log('📹 P11CanvasPage: Jkey video loaded')}
-                    onPlay={() => console.log('▶️ P11CanvasPage: Jkey video playing')}
-                    onError={(e) => {
-                        console.error('❌ P11CanvasPage: Jkey video error:', e);
-                        console.error('❌ P11CanvasPage: Video error details:', e.target?.error);
-                    }}
-                />
-            </div>
-
-            {/* Audio/video playing indicator - always rendered to prevent layout shift */}
+            {/* Spacer for layout consistency */}
             <div style={{
                 marginTop: "20px",
-                fontSize: "1.2rem",
-                color: "#666",
-                fontStyle: "italic",
-                minHeight: "30px", // Fixed height to prevent layout shift
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                minHeight: "30px",
             }}>
-                {!secondAudioFinished ? 
-                    (!audioFinished && !videoFinished ? "Playing audio and video..." : 
-                     !audioFinished ? "Playing audio..." : 
-                     !videoFinished ? "Playing video..." : 
-                     "Playing audio...") : ""}
             </div>
         </div>
     );
 };
 
 export default P11CanvasPage;
-
