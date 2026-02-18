@@ -185,9 +185,10 @@ const ExperimentPage = ({
                     const progress = total > 0 ? current / total : 0;
                     const progressPercent = Math.min(100, Math.max(0, progress * 100));
                     
-                    // Sesame Street colors: red, yellow, blue, green
-                    const colors = ['#E31C23', '#F4C430', '#1BA1E2', '#6BBF59'];
-                    const currentColor = colors[current % colors.length];
+                    // Light blue for test trials; cycling colors for practice
+                    const TEST_PHASE_COLOR = '#5DADE2';
+                    const practiceColors = ['#E31C23', '#F4C430', '#1BA1E2', '#6BBF59'];
+                    const currentColor = isFamiliarization ? practiceColors[current % practiceColors.length] : TEST_PHASE_COLOR;
                     
                     return (
                         <div style={{

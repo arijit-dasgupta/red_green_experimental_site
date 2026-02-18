@@ -664,19 +664,21 @@ const P7V3Page = ({ onComplete }) => {
                 </div>
             )}
 
-            {/* Key state notification - bottom left */}
-            <div style={{
-                position: 'fixed',
-                bottom: '10px',
-                left: '10px',
-                fontSize: '12px',
-                color: '#666',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                padding: '5px',
-                borderRadius: '4px',
-            }}>
-                P7V3 | F: {keyStates.f.toString()} | J: {keyStates.j.toString()}
-            </div>
+            {/* Key state indicator - bottom left (controlled by config) */}
+            {config.showKeyIndicators && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: '10px',
+                    left: '10px',
+                    fontSize: '12px',
+                    color: '#666',
+                    backgroundColor: 'rgba(255,255,255,0.8)',
+                    padding: '5px',
+                    borderRadius: '4px',
+                }}>
+                    F: {keyStates.f.toString()} | J: {keyStates.j.toString()}
+                </div>
+            )}
         </div>
     );
 };

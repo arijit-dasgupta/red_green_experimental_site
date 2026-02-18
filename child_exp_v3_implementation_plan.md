@@ -57,19 +57,19 @@
 
 ### Familiarization Pages (P3-P13)
 
-| v3 Page | Content                | Audio                              | Visual/Trial Data                                                 | Type        |
-| ------- | ---------------------- | ---------------------------------- | ----------------------------------------------------------------- | ----------- |
-| P3      | Sensor intro           | `v3_sensors.mp3`                   | Canvas: `T_v3_ball_sensor_red`, Elmo below: `v3_elmo_trimmed.png`  | Demo        |
-| P4      | Keys intro             | `v3_keys.mp3`                      | Canvas `T_v3_keys` + keyboard overlays on top, Elmo below: `v3_elmo_trimmed.png` | Demo        |
-| P5      | practice key pressing  | `v3_practice_keys.mp3`             | Canvas: `T_v3_area_no_ball`, Elmo below: `v3_elmo_trimmed.png`     | Demo        |
-| P6      | Practice F key         | None                               | Canvas: `T_v3_green_mid`                                          | Interactive |
-| P7      | Practice J key         | None                               | Canvas: `T_v3_red_mid`                                            | Interactive |
-| P8      | switch keys into       | `v3_before_practice_switching.mp3` | Canvas: `T_v3_keyswitch_ball_stable`                              | Demo        |
-| P9      | practice key switching | None                               | Canvas: `T_v3_keyswitch_practice_1`                               | Interactive |
-| P10     | practice key switching | None                               | Canvas: `T_v3_keyswitch_practice_2`                               | Interactive |
-| P11     | Occluder intro         | `v3_occluder.mp3`                  | Canvas: `T_v3_occluder_intro`, Elmo below: `v3_elmo_trimmed.png`   | Demo        |
-| P12     | Occluder practice      | None                               | Canvas: `T_v3_occluder_practice`                                  | Interactive |
-| P13     | Before test            | `v3_before_test.mp3`               | Canvas: `T_v3_before_test` + keyboard overlays on top                   | Demo        |
+| v3 Page | Content                | Audio                              | Visual/Trial Data                                                                        | Type        |
+| ------- | ---------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------- | ----------- |
+| P3      | Sensor intro           | `v3_sensors.mp3`                   | Canvas: `T_v3_ball_sensor_red`, Elmo below: `v3_elmo_trimmed.png`                        | Demo        |
+| P4      | Keys intro             | `v3_keys.mp3`                      | Canvas `T_v3_keys` + keyboard overlays on top, Elmo below: `v3_elmo_trimmed.png`         | Demo        |
+| P5      | practice key pressing  | `v3_practice_keys.mp3`             | Canvas: `T_v3_area_no_ball`                                                              | Demo        |
+| P6      | Practice F key         | None                               | Canvas: `T_v3_green_mid`                                                                 | Interactive |
+| P7      | Practice J key         | None                               | Canvas: `T_v3_red_mid`                                                                   | Interactive |
+| P8      | switch keys into       | `v3_before_practice_switching.mp3` | Canvas: `T_v3_keyswitch_ball_stable`, Elmo below: `v3_elmo_trimmed.png`                  | Demo        |
+| P9      | practice key switching | None                               | Canvas: `T_v3_keyswitch_practice_1`                                                      | Interactive |
+| P10     | practice key switching | None                               | Canvas: `T_v3_keyswitch_practice_2`                                                      | Interactive |
+| P11     | Occluder intro         | `v3_occluder.mp3`                  | Canvas: `T_v3_occluder_intro`, Elmo below: `v3_elmo_trimmed.png`                         | Demo        |
+| P12     | Occluder practice      | None                               | Canvas: `T_v3_occluder_practice`                                                         | Interactive |
+| P13     | Before test            | `v3_before_test.mp3`               | Canvas: `T_v3_before_test` + keyboard overlays on top, Elmo below: `v3_elmo_trimmed.png` | Demo        |
 
 ---
 
@@ -77,25 +77,25 @@
 
 ### P4 (`v3_keys.mp3`) - Keys Introduction
 
-| Time    | Base Visual         | Overlay             |
-| ------- | ------------------- | ------------------- |
-| 0-2s    | Canvas: `T_v3_keys` | None                |
-| 2-5s   | Canvas: `T_v3_keys` | `v3_keyboard.png`   |
-| 5-12s  | Canvas: `T_v3_keys` |   `v3_keyboard_hands.png`             |
-| 12-15s    | Canvas: `T_v3_keys` | None                |
-| 15-19s  | Canvas: `T_v3_keys` | `v3_keyboard_F.png` |
-| 19-20s  | Canvas: `T_v3_keys` | None                |
-| 20-25s  | Canvas: `T_v3_keys` | `v3_keyboard_J.png` |
-| 25s-end | Canvas: `T_v3_keys` | None|
+| Time    | Base Visual         | Overlay                 |
+| ------- | ------------------- | ----------------------- |
+| 0-2s    | Canvas: `T_v3_keys` | None                    |
+| 2-5s    | Canvas: `T_v3_keys` | `v3_keyboard.png`       |
+| 5-12s   | Canvas: `T_v3_keys` | `v3_keyboard_hands.png` |
+| 12-15s  | Canvas: `T_v3_keys` | None                    |
+| 15-19s  | Canvas: `T_v3_keys` | `v3_keyboard_F.png`     |
+| 19-20s  | Canvas: `T_v3_keys` | None                    |
+| 20-25s  | Canvas: `T_v3_keys` | `v3_keyboard_J.png`     |
+| 25s-end | Canvas: `T_v3_keys` | None                    |
 
 ### P13 (v3_before_test.mp3) - Before Easy Practice
 
-| Time    | Base Visual                | Overlay                |
-| ------- | -------------------------- | ---------------------- |
-| 0-10s   | Canvas: `T_v3_before_test` | None                   |
-| 10-11s  | Canvas: `T_v3_before_test` | `v3_keyboard_F.png`    |
-| 11-12s  | Canvas: `T_v3_before_test` | `v3_keyboard_J.png`    |
-| 12-end  | Canvas: `T_v3_before_test` | None                   |
+| Time   | Base Visual                | Overlay             |
+| ------ | -------------------------- | ------------------- |
+| 0-10s  | Canvas: `T_v3_before_test` | None                |
+| 10-11s | Canvas: `T_v3_before_test` | `v3_keyboard_F.png` |
+| 11-12s | Canvas: `T_v3_before_test` | `v3_keyboard_J.png` |
+| 12-end | Canvas: `T_v3_before_test` | None                |
 ---
 
 ## Audio Files
@@ -199,18 +199,18 @@ P5 requires a unique behavior:
 
 ## Implementation Refinements (Applied)
 
-| Change | Details |
-| ------ | ------- |
-| P2 video size | Height 600px, width auto; BackstoryPage and P2V3Page both use 600px height |
-| StudyControls | Dedicated top bar (48px) - no overlap with canvas/video |
-| Elmo below canvas | Uses `v3_elmo_trimmed.png` at 70% of canvas-width proportion (P3, P4, P5, P11) |
-| Canvas centering | Canvas always centered; Elmo absolutely positioned below so canvas position is invariant |
-| P12 countdown | Countdown first (3-2-1) with border visible; then canvas without occluder (1.5s); then occluder; then ball moves |
-| P12 occluder delay | 1.5 seconds (P12, App.js test trials) |
-| P13 canvas | Frozen on first frame only; no animation; overlays driven by audio time; advance when audio ends |
-| P4 ball | Transparent (not drawn) - keys intro shows canvas without ball like P5 |
-| Ball rotation | All canvas pages with moving ball rotate ball when `config.ballRotationRate` ≠ 0 (P3, P6, P7, P8, P9, P10, P11, P12) |
-| Key state notification | Bottom-left "PxV3 \| F: false \| J: false" on interactive pages (P5, P6, P7, P9, P10, P12) |
+| Change                 | Details                                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| P2 video size          | Height 600px, width auto; BackstoryPage and P2V3Page both use 600px height                                           |
+| StudyControls          | Dedicated top bar (48px) - no overlap with canvas/video                                                              |
+| Elmo below canvas      | Uses `v3_elmo_trimmed.png` at 70% of canvas-width proportion (P3, P4, P5, P11)                                       |
+| Canvas centering       | Canvas always centered; Elmo absolutely positioned below so canvas position is invariant                             |
+| P12 countdown          | Countdown first (3-2-1) with border visible; then canvas without occluder (1.5s); then occluder; then ball moves     |
+| P12 occluder delay     | 1.5 seconds (P12, App.js test trials)                                                                                |
+| P13 canvas             | Frozen on first frame only; no animation; overlays driven by audio time; advance when audio ends                     |
+| P4 ball                | Transparent (not drawn) - keys intro shows canvas without ball like P5                                               |
+| Ball rotation          | All canvas pages with moving ball rotate ball when `config.ballRotationRate` ≠ 0 (P3, P6, P7, P8, P9, P10, P11, P12) |
+| Key state notification | Bottom-left "PxV3 \| F: false \| J: false" on interactive pages (P5, P6, P7, P9, P10, P12)                           |
 
 ## Implementation Order
 

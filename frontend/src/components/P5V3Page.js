@@ -10,7 +10,7 @@ import { usePause } from '../contexts/PauseContext';
  * Special behavior: Canvas is frozen but sensors pulse when keys are pressed
  *   - Press F: green sensor pulses
  *   - Press J: red sensor pulses
- * Visual: Canvas + Elmo below
+ * Visual: Canvas only (no Elmo)
  * Behavior: Audio plays, canvas shows frozen first frame, sensors pulse on key press, auto-advance when audio finishes
  */
 const P5V3Page = ({ onComplete }) => {
@@ -457,23 +457,8 @@ const P5V3Page = ({ onComplete }) => {
                 />
             </div>
 
-            {/* Elmo below canvas - absolutely positioned so canvas stays centered */}
-            <img
-                src="/images/v3_elmo_trimmed.png"
-                alt="Elmo"
-                style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: `calc(50% + ${canvasSize.height / 2 + 20}px)`,
-                    transform: "translateX(-50%)",
-                    width: `${canvasSize.width * 0.3 * 0.7}px`,
-                    height: "auto",
-                    objectFit: "contain",
-                }}
-            />
-
-            {/* Debug: show current key states */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* Key state indicator - bottom left (controlled by config) */}
+            {config.showKeyIndicators && (
                 <div style={{
                     position: 'fixed',
                     bottom: '10px',
@@ -484,7 +469,7 @@ const P5V3Page = ({ onComplete }) => {
                     padding: '5px',
                     borderRadius: '4px',
                 }}>
-                    P5V3 | F: {keyStates.f.toString()} | J: {keyStates.j.toString()}
+                    F: {keyStates.f.toString()} | J: {keyStates.j.toString()}
                 </div>
             )}
         </div>

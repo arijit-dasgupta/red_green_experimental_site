@@ -58,7 +58,8 @@ const App = () => {
     if (OVERRIDE_FPS !== null) {
       return OVERRIDE_FPS;
     }
-    return sceneData?.fps || 30; // Use FPS from JSON, default to 30
+    // Use ref to avoid stale closure issues when called from animate
+    return sceneDataRef.current?.fps || 30; // Use FPS from JSON, default to 30
   };
 
   const [sceneData, setSceneData] = useState(null);
@@ -89,6 +90,7 @@ const App = () => {
   const occluderRevealTimerRef = useRef(null); // Timer for occluder reveal sequence
   const animationStartTimerRef = useRef(null); // Timer for starting animation after occluder reveal
   const showOccluderRef = useRef(true); // Ref for occluder visibility in renderFrame
+  const sceneDataRef = useRef(null); // Ref for scene data - always holds latest sceneData to avoid stale closures
   
   const OCCLUDER_REVEAL_DELAY = 1000; // Freeze scene for 1 second before ball starts (occluder appears at this point too)
   
@@ -203,8 +205,11 @@ const App = () => {
     // Get isPlaying state for rotation calculation
     const isCurrentlyPlaying = isPlayingRef.current;
 
-    if (!sceneData || !canvasRef.current) {
-        console.error("Scene data or canvas not available:", { sceneData, canvasRef });
+    // Use ref to always access the latest scene data (avoids stale closure issues)
+    const currentSceneData = sceneDataRef.current;
+
+    if (!currentSceneData || !canvasRef.current) {
+        console.error("Scene data or canvas not available:", { currentSceneData, canvasRef });
         return;
     }
 
@@ -220,8 +225,8 @@ const App = () => {
     ctx.imageSmoothingQuality = 'high';
 
     const scale = Math.min(
-        canvas.width / sceneData.worldWidth,
-        canvas.height / sceneData.worldHeight
+        canvas.width / currentSceneData.worldWidth,
+        canvas.height / currentSceneData.worldHeight
     );
 
     // const scale = 20;
@@ -237,9 +242,9 @@ const App = () => {
     ctx.translate(0, -canvas.height);
 
     try {
-        const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = sceneData;
+        const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = currentSceneData;
         // For E trials: swapSensorsForETrials forces green left/red right; otherwise use randomSwapRedGreenSensor
-        const forceSwapForE = config.swapSensorsForETrials && sceneData?.is_trial;
+        const forceSwapForE = config.swapSensorsForETrials && currentSceneData?.is_trial;
         const effectiveCounterbalance = forceSwapForE || (config.randomSwapRedGreenSensor ? (counterbalance ?? false) : false);
 
         if (frameIndex !== 0 || countdown === null) { 
@@ -528,6 +533,11 @@ const App = () => {
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
   
+  // Sync sceneData state to ref for use in renderFrame/animate (avoids stale closures)
+  useEffect(() => {
+    sceneDataRef.current = sceneData;
+  }, [sceneData]);
+
   // Sync showOccluder state to ref for use in renderFrame
   useEffect(() => {
     showOccluderRef.current = showOccluder;
@@ -953,6 +963,7 @@ const renderCurrentPage = () => {
       }
   
       setSceneData(data);
+      sceneDataRef.current = data; // Sync ref immediately for timer callbacks that read from ref
       console.log("🔄 Frontend updating trialInfo with:", {
         ftrial_i: data.ftrial_i,
         trial_i: data.trial_i,
@@ -1067,9 +1078,11 @@ const renderCurrentPage = () => {
   };
 
 const animate = (timestamp) => {
-  if (!sceneData?.step_data) return;
+  // Use ref to always access the latest scene data (avoids stale closure issues)
+  const currentSceneData = sceneDataRef.current;
+  if (!currentSceneData?.step_data) return;
 
-  const totalFrames = Object.keys(sceneData.step_data).length;
+  const totalFrames = Object.keys(currentSceneData.step_data).length;
   const fps = getFPS();
   const frameDuration = 1000 / fps;
 
@@ -1123,13 +1136,13 @@ const animate = (timestamp) => {
                  },
                 body: JSON.stringify({
                   session_id: sessionId,
-                  trial_i: sceneData.trial_i, // Include trial_id in the payload
-                  ftrial_i: sceneData.ftrial_i,
-                  unique_trial_id: sceneData.unique_trial_id,
-                  is_ftrial: sceneData.is_ftrial,
-                  is_trial: sceneData.is_trial,
+                  trial_i: currentSceneData.trial_i, // Include trial_id in the payload
+                  ftrial_i: currentSceneData.ftrial_i,
+                  unique_trial_id: currentSceneData.unique_trial_id,
+                  is_ftrial: currentSceneData.is_ftrial,
+                  is_trial: currentSceneData.is_trial,
                   recordedKeyStates: recordedKeyStates.current,
-                  counterbalance: (config.swapSensorsForETrials && sceneData?.is_trial) || (config.randomSwapRedGreenSensor ? (sceneData.counterbalance ?? false) : false),
+                  counterbalance: (config.swapSensorsForETrials && currentSceneData?.is_trial) || (config.randomSwapRedGreenSensor ? (currentSceneData.counterbalance ?? false) : false),
                   first_frame_utc: animate.firstFrameUtc,
                   last_frame_utc: lastFrameUtc,
                 }),
@@ -1205,6 +1218,7 @@ const animate = (timestamp) => {
       const setdisableCountdownTrigger = pendingSetdisableCountdownTriggerRef.current;
       
       setSceneData(data);
+      sceneDataRef.current = data; // Sync ref immediately for timer callbacks that read from ref
       console.log("🔄 Frontend updating trialInfo after break with:", {
         ftrial_i: data.ftrial_i,
         trial_i: data.trial_i,

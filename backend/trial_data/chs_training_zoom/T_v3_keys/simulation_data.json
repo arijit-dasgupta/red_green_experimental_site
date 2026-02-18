@@ -1,12 +1,5 @@
 {
-  "barriers": [
-    {
-      "height": 2.9000000000000004,
-      "width": 8.6,
-      "x": 6.5,
-      "y": 8.5
-    }
-  ],
+  "barriers": [],
   "elasticity": 1,
   "fps": 30,
   "friction": 0,
@@ -18,7 +11,7 @@
   },
   "interval": 0.025,
   "key_distractors": [],
-  "num_barriers": 1,
+  "num_barriers": 0,
   "num_frames": 122,
   "num_occs": 0,
   "occluders": [],

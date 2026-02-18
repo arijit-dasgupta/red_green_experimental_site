@@ -2,10 +2,11 @@
 // Paths are relative to the public folder
 
 export const config = {
-  // Show key press indicators below the canvas during interactive trials
-  // Set to true to show the icon indicators when F or J keys are pressed
-  // Set to false to hide them (default: false)
-  showKeyIndicators: false,
+  // Show F/J key press indicators on all interactive (non-frozen) pages
+  // Displays current key state (F/J pressed) at the bottom-left of the screen
+  // Also shows image-based indicators below the canvas during test trials
+  // Set to true to show, false to hide
+  showKeyIndicators: true,
 
   // Whether to randomly swap red and green sensor positions in test phase (counterbalancing)
   // Set to true to enable random swap per trial, false to keep sensors in original positions (default: false)

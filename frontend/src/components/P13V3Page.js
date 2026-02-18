@@ -455,6 +455,7 @@ const P13V3Page = ({ onComplete }) => {
             minHeight: "100vh",
             background: "#ffffff",
             padding: "20px",
+            position: "relative",
         }}>
             
             <audio
@@ -498,6 +499,21 @@ const P13V3Page = ({ onComplete }) => {
                     />
                 )}
             </div>
+
+            {/* Elmo below canvas - absolutely positioned so canvas stays centered */}
+            <img
+                src="/images/v3_elmo_trimmed.png"
+                alt="Elmo"
+                style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: `calc(50% + ${canvasSize.height / 2 + 20}px)`,
+                    transform: "translateX(-50%)",
+                    width: `${canvasSize.width * 0.3 * 0.7}px`,
+                    height: "auto",
+                    objectFit: "contain",
+                }}
+            />
         </div>
     );
 };
