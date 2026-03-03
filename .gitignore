@@ -190,3 +190,16 @@ sketch
 
 # MACOS
 .DS_Store
+
+# Generated trajectory plots and archive (do not commit)
+trajectory_plots/
+archive/
+
+# Participant data (do not upload)
+*.db
+
+# R analysis outputs and session files (do not upload)
+backend/.Rhistory
+backend/postprocess_redgreen_human_data.R
+backend/postprocess_redgreen_human_data.Rmd
+backend/postprocess_redgreen_human_data.html

@@ -1,7 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 import TransitionPage from './Transition';
 import { config } from '../config';
+import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
+import VisualCountdownRing from '../components/VisualCountdownRing';
+import P3V3Page from '../components/P3V3Page';
+import P4V3Page from '../components/P4V3Page';
+import P5V3Page from '../components/P5V3Page';
+import P6V3Page from '../components/P6V3Page';
+import P7V3Page from '../components/P7V3Page';
+import P8V3Page from '../components/P8V3Page';
+import P9V3Page from '../components/P9V3Page';
+import P10V3Page from '../components/P10V3Page';
+import P11V3Page from '../components/P11V3Page';
+import P12V3Page from '../components/P12V3Page';
+import P13V3Page from '../components/P13V3Page';
 
 const ExperimentPage = ({
     sceneData,
@@ -30,6 +42,9 @@ const ExperimentPage = ({
     const isInitializedRef = useRef(false);
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
+    const [nextTrialCountdown, setNextTrialCountdown] = useState(null); // 5,4,3,2,1 then auto-advance; null when not counting
+    const nextTrialIntervalRef = useRef(null);
+    const skipHeldRef = useRef(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -74,8 +89,12 @@ const ExperimentPage = ({
     
         const handleKeyUp = (e) => {
             if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage) {
-                // console.log("Spacebar pressed. Fetching next scene...");
-                isSpacePressed = false; // Set flag to true when Spacebar is pressed
+                isSpacePressed = false;
+                if (nextTrialIntervalRef.current) {
+                    clearInterval(nextTrialIntervalRef.current);
+                    nextTrialIntervalRef.current = null;
+                }
+                setNextTrialCountdown(null);
                 fetchNextScene(setdisableCountdownTrigger);
             }
         };
@@ -95,6 +114,88 @@ const ExperimentPage = ({
         };
     }, [fetchNextScene, finished, isTransitionPage]);
 
+    // Skip-to-next (test phase): Shift+Control+S
+    // Active only during test trials (not familiarization pages) to avoid duplicate skip handlers.
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const isTestTrial = trialInfo?.is_trial && !trialInfo?.is_ftrial;
+            if (!isTestTrial || isTransitionPage) return;
+            const isCombo = e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's');
+            if (!isCombo) return;
+            if (skipHeldRef.current) return;
+            skipHeldRef.current = true;
+            e.preventDefault();
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+            setNextTrialCountdown(null);
+            fetchNextScene(setdisableCountdownTrigger);
+        };
+
+        const handleKeyUp = (e) => {
+            if (e.key === 'S' || e.key === 's') {
+                skipHeldRef.current = false;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [trialInfo, isTransitionPage, fetchNextScene]);
+
+    // When finished becomes true, start 5s countdown to auto-advance; clear when finished becomes false
+    useEffect(() => {
+        if (!finished) {
+            setNextTrialCountdown(null);
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+            return;
+        }
+        if (nextTrialIntervalRef.current) return;
+        setNextTrialCountdown(5);
+        nextTrialIntervalRef.current = setInterval(() => {
+            setNextTrialCountdown((prev) => {
+                if (prev == null || prev <= 0) {
+                    if (nextTrialIntervalRef.current) {
+                        clearInterval(nextTrialIntervalRef.current);
+                        nextTrialIntervalRef.current = null;
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => {
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+        };
+    }, [finished]);
+
+    // Fire fetchNextScene 1s after countdown reaches 0 (gives the ring animation time to finish)
+    const advanceTimerRef = useRef(null);
+    useEffect(() => {
+        if (nextTrialCountdown === 0 && finished) {
+            advanceTimerRef.current = setTimeout(() => {
+                fetchNextScene(setdisableCountdownTrigger);
+            }, 1000);
+        }
+        return () => {
+            if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null; }
+        };
+    }, [nextTrialCountdown, finished, fetchNextScene, setdisableCountdownTrigger]);
+
+    // Skip key handler REMOVED from ExperimentPage to prevent race condition
+    // Each child component (P8CanvasPage, P9CanvasPage, etc.) has its own skip handler
+    // Having a handler here too causes duplicate fetchNextScene calls
+
     if (isTransitionPage) {
         return (
             <TransitionPage
@@ -103,6 +204,36 @@ const ExperimentPage = ({
                 setdisableCountdownTrigger={setdisableCountdownTrigger}
             />
         );
+    }
+
+    // Familiarization: ftrial_i 1–11 → P3–P13 (single flow)
+    const familiarizationPageType = trialInfo.is_ftrial ? getFamiliarizationPageType(trialInfo.ftrial_i) : null;
+    const isP3 = trialInfo.is_ftrial && trialInfo.ftrial_i === 1;
+    const isP4 = trialInfo.is_ftrial && trialInfo.ftrial_i === 2;
+    const isP5 = trialInfo.is_ftrial && trialInfo.ftrial_i === 3;
+    const isP6 = trialInfo.is_ftrial && trialInfo.ftrial_i === 4;
+    const isP7 = trialInfo.is_ftrial && trialInfo.ftrial_i === 5;
+    const isP8 = trialInfo.is_ftrial && trialInfo.ftrial_i === 6;
+    const isP9 = trialInfo.is_ftrial && trialInfo.ftrial_i === 7;
+    const isP10 = trialInfo.is_ftrial && trialInfo.ftrial_i === 8;
+    const isP11 = trialInfo.is_ftrial && trialInfo.ftrial_i === 9;
+    const isP12 = trialInfo.is_ftrial && trialInfo.ftrial_i === 10;
+    const isP13 = trialInfo.is_ftrial && trialInfo.ftrial_i === 11;
+
+    if (isP3) return <P3V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP4) return <P4V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP5) return <P5V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP6) return <P6V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP7) return <P7V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP8) return <P8V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP9) return <P9V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP10) return <P10V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP11) return <P11V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP12) return <P12V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+    if (isP13) return <P13V3Page onComplete={() => fetchNextScene(setdisableCountdownTrigger)} />;
+
+    if (trialInfo.is_ftrial) {
+        console.error("❌ ExperimentPage: familiarization ftrial_i not matched (expected 1–11)", { ftrial_i: trialInfo.ftrial_i, familiarizationPageType });
     }
 
     return (
@@ -140,9 +271,10 @@ const ExperimentPage = ({
                     const progress = total > 0 ? current / total : 0;
                     const progressPercent = Math.min(100, Math.max(0, progress * 100));
                     
-                    // Sesame Street colors: red, yellow, blue, green
-                    const colors = ['#E31C23', '#F4C430', '#1BA1E2', '#6BBF59'];
-                    const currentColor = colors[current % colors.length];
+                    // Light blue for test trials; cycling colors for practice
+                    const TEST_PHASE_COLOR = '#5DADE2';
+                    const practiceColors = ['#E31C23', '#F4C430', '#1BA1E2', '#6BBF59'];
+                    const currentColor = isFamiliarization ? practiceColors[current % practiceColors.length] : TEST_PHASE_COLOR;
                     
                     return (
                         <div style={{
@@ -253,7 +385,46 @@ const ExperimentPage = ({
                                 color: "#555",
                                 textAlign: "center"
                             }}>
-                                Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                                {nextTrialCountdown != null && (
+                                    <>
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: "14px",
+                                            flexWrap: "wrap",
+                                            marginBottom: "10px",
+                                        }}>
+                                            <VisualCountdownRing
+                                                size={56}
+                                                strokeWidth={8}
+                                                color="#2e86de"
+                                                trackColor="rgba(46,134,222,0.18)"
+                                                progress={nextTrialCountdown / 5}
+                                                glow={false}
+                                                label={nextTrialCountdown}
+                                            />
+                                            <span style={{ color: "#2e86de" }}>Starting next one…</span>
+                                        </div>
+                                        <div>
+                                            Or press <span style={{ color: "blue" }}>Spacebar</span> to continue now.
+                                        </div>
+                                    </>
+                                )}
+                                {nextTrialCountdown === 0 && (keyStates.f || keyStates.j) && (
+                                    <div style={{
+                                        marginTop: "12px",
+                                        padding: "8px 18px",
+                                        backgroundColor: "rgba(255, 165, 0, 0.15)",
+                                        borderRadius: "8px",
+                                        color: "#cc7700",
+                                        fontWeight: "bold",
+                                        fontSize: "1.1rem",
+                                        animation: "pulse-gentle 1.5s ease-in-out infinite",
+                                    }}>
+                                        Let go of your keys to continue!
+                                    </div>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -304,7 +475,46 @@ const ExperimentPage = ({
                             color: "#555",
                             textAlign: "center"
                         }}>
-                            Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                            {nextTrialCountdown != null && (
+                                <>
+                                    <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "14px",
+                                        flexWrap: "wrap",
+                                        marginBottom: "10px",
+                                    }}>
+                                        <VisualCountdownRing
+                                            size={56}
+                                            strokeWidth={8}
+                                            color="#2e86de"
+                                            trackColor="rgba(46,134,222,0.18)"
+                                            progress={nextTrialCountdown / 5}
+                                            glow={false}
+                                            label={nextTrialCountdown}
+                                        />
+                                        <span style={{ color: "#2e86de" }}>Starting next one…</span>
+                                    </div>
+                                    <div>
+                                        Or press <span style={{ color: "blue" }}>Spacebar</span> to continue now.
+                                    </div>
+                                </>
+                            )}
+                            {nextTrialCountdown === 0 && (keyStates.f || keyStates.j) && (
+                                <div style={{
+                                    marginTop: "12px",
+                                    padding: "8px 18px",
+                                    backgroundColor: "rgba(255, 165, 0, 0.15)",
+                                    borderRadius: "8px",
+                                    color: "#cc7700",
+                                    fontWeight: "bold",
+                                    fontSize: "1.1rem",
+                                    animation: "pulse-gentle 1.5s ease-in-out infinite",
+                                }}>
+                                    Let go of your keys to continue!
+                                </div>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -328,6 +538,7 @@ const ExperimentPage = ({
                     alignItems: "center",
                     gap: "20px"
                 }}>
+                    {trialInfo.is_ftrial && (
                     <div>
                         <p style={{
                             fontSize: "1.2rem",
@@ -339,6 +550,7 @@ const ExperimentPage = ({
                             Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.
                         </p>
                     </div>
+                    )}
 
                     {/* Canvas with external border */}
                     <div style={{
@@ -421,7 +633,8 @@ const ExperimentPage = ({
                     </div>
                 </div>
 
-                {/* Key State Indicators - Below Canvas, Texture-based */}
+                {/* Key State Indicators - Below Canvas, Texture-based (conditionally shown based on config) */}
+                {config.showTestTrialKeyIcons && (
                 <div style={{
                     display: "flex",
                     flexDirection: "column",
@@ -436,6 +649,8 @@ const ExperimentPage = ({
                         const baseSize = 400;
                         const maxCanvasDim = Math.max(canvasSize.width, canvasSize.height);
                         const scaleFactor = Math.min(1, baseSize / maxCanvasDim);
+                        const size = `${Math.max(canvasSize.width * 0.12 * scaleFactor, 60)}px`;
+                        
                         return (
                             <div style={{
                                 display: "flex",
@@ -444,13 +659,104 @@ const ExperimentPage = ({
                                 alignItems: "center",
                                 width: "100%",
                             }}>
-                                {renderKeyState("f", redSensorTextureRef, keyStates, canvasSize)}
-                                {renderKeyState("j", greenSensorTextureRef, keyStates, canvasSize)}
-                                {renderEmptyKeyState(keyStates, canvasSize)}
+                                {/* Show grass icon when F key is pressed (for green grassland) */}
+                                {keyStates.f && !keyStates.j && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                overflow: "hidden",
+                                                animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                border: "2px solid rgba(255, 255, 255, 0.8)",
+                                                backgroundColor: "#f0f0f0",
+                                                position: "relative",
+                                            }}
+                                        >
+                                            <img
+                                                src="/images/icon_green.png"
+                                                alt="Green Grassland"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: "contain",
+                                                    display: "block",
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Show flower icon when J key is pressed (for yellow flower garden) */}
+                                {keyStates.j && !keyStates.f && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                overflow: "hidden",
+                                                animation: "subtle-pulse 1.5s ease-in-out infinite",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.2)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                border: "2px solid rgba(255, 255, 255, 0.8)",
+                                                backgroundColor: "#f0f0f0",
+                                                position: "relative",
+                                            }}
+                                        >
+                                            <img
+                                                src="/images/icon_yellow.png"
+                                                alt="Yellow Flower Garden"
+                                                style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: "contain",
+                                                    display: "block",
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Empty placeholder when both or neither keys are pressed */}
+                                {((keyStates.f && keyStates.j) || (!keyStates.f && !keyStates.j)) && (
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        alignItems: "center",
+                                        gap: `${canvasSize.width * 0.01 * scaleFactor}px`,
+                                    }}>
+                                        <div
+                                            style={{
+                                                width: size,
+                                                height: size,
+                                                borderRadius: "8px",
+                                                boxShadow: `0 0 ${Math.max(canvasSize.width * 0.02 * scaleFactor, 4)}px rgba(0, 0, 0, 0.1)`,
+                                                marginTop: `${canvasSize.width * 0.03 * scaleFactor}px`,
+                                                backgroundColor: "#e0e0e0",
+                                                border: "2px dashed #999",
+                                            }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}
                 </div>
+                )}
             </div>
         </div>
     );

@@ -25,6 +25,12 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>Behavioral Experiment</title>
+    <!-- Preload experiment textures so they are cached before trials begin -->
+    <link rel="preload" href="%PUBLIC_URL%/ball.png" as="image" />
+    <link rel="preload" href="%PUBLIC_URL%/barrier.png" as="image" />
+    <link rel="preload" href="%PUBLIC_URL%/yellow.jpg" as="image" />
+    <link rel="preload" href="%PUBLIC_URL%/green.jpg" as="image" />
+    <link rel="preload" href="%PUBLIC_URL%/cloud.jpg" as="image" />
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
