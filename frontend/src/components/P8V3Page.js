@@ -6,6 +6,7 @@ import { usePause } from '../contexts/PauseContext';
  * 
  * Audio: v3_before_practice_switching.mp3
  * Canvas: T_v3_keyswitch_ball_stable trial data
+ * Visual: Canvas with Elmo below (v3_elmo_trimmed.png)
  * Behavior: Auto-play audio + canvas animation, auto-advance when both finish
  */
 const P8V3Page = ({ onComplete }) => {
@@ -44,32 +45,26 @@ const P8V3Page = ({ onComplete }) => {
         onCompleteRef.current = onComplete;
     }, [onComplete]);
 
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath) {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath) {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath) {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath) {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath) {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     const drawTiledTexture = (ctx, texture, x, y, width, height) => {
@@ -161,7 +156,7 @@ const P8V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -171,7 +166,7 @@ const P8V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -226,7 +221,7 @@ const P8V3Page = ({ onComplete }) => {
             } else {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "#999";
                 ctx.fill();
             }
         }
@@ -350,7 +345,7 @@ const P8V3Page = ({ onComplete }) => {
 
     // Auto-start when scene data loaded (do not depend on renderFrame to avoid re-running when isPlaying changes)
     useEffect(() => {
-        if (!sceneData) return;
+        if (!sceneData || !texturesLoaded) return;
         setIsPlaying(false);
         setCurrentFrame(0);
         currentFrameRef.current = 0;
@@ -373,7 +368,7 @@ const P8V3Page = ({ onComplete }) => {
         }
 
         return () => clearTimeout(startTimer);
-    }, [sceneData]);
+    }, [sceneData, texturesLoaded]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -449,7 +444,7 @@ const P8V3Page = ({ onComplete }) => {
 
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
                 e.preventDefault();
                 if (onCompleteRef.current) onCompleteRef.current();
             }
@@ -479,6 +474,7 @@ const P8V3Page = ({ onComplete }) => {
             minHeight: "100vh",
             background: "#ffffff",
             padding: "20px",
+            position: "relative",
         }}>
             
             <audio
@@ -503,6 +499,21 @@ const P8V3Page = ({ onComplete }) => {
                     style={{ display: "block" }}
                 />
             </div>
+
+            {/* Elmo below canvas - absolutely positioned so canvas stays centered */}
+            <img
+                src="/images/v3_elmo_trimmed.png"
+                alt="Elmo"
+                style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: `calc(50% + ${canvasSize.height / 2 + 20}px)`,
+                    transform: "translateX(-50%)",
+                    width: `${canvasSize.width * 0.3 * 0.7}px`,
+                    height: "auto",
+                    objectFit: "contain",
+                }}
+            />
         </div>
     );
 };

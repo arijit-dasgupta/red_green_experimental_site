@@ -44,33 +44,26 @@ const P5V3Page = ({ onComplete }) => {
     // Track key presses using the hook
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Helper to draw tiled textures
@@ -175,7 +168,8 @@ const P5V3Page = ({ onComplete }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
-            const isPulsing = currentKeyStates.j && !currentKeyStates.f;
+            const bothKeysPressed = currentKeyStates.f && currentKeyStates.j;
+            const isPulsing = currentKeyStates.j;
             
             // Draw pulsing glow FIRST (beneath sensor) - V2 style with glowing border
             if (isPulsing) {
@@ -184,10 +178,12 @@ const P5V3Page = ({ onComplete }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with golden yellow color
+                // Draw glowing border beneath sensor. If both keys are pressed, use gray to indicate invalid input.
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
-                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
+                ctx.shadowColor = bothKeysPressed ? "rgba(128, 128, 128, 0.9)" : "rgba(255, 200, 0, 0.8)";
+                ctx.strokeStyle = bothKeysPressed
+                    ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                    : `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`;
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -201,7 +197,7 @@ const P5V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -215,7 +211,8 @@ const P5V3Page = ({ onComplete }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
-            const isPulsing = currentKeyStates.f && !currentKeyStates.j;
+            const bothKeysPressed = currentKeyStates.f && currentKeyStates.j;
+            const isPulsing = currentKeyStates.f;
             
             // Draw pulsing glow FIRST (beneath sensor) - V2 style with glowing border
             if (isPulsing) {
@@ -224,10 +221,12 @@ const P5V3Page = ({ onComplete }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
                 const glowSize = 8 * pulseIntensity; // Pulsing glow size
                 
-                // Draw glowing border beneath sensor with dark green color
+                // Draw glowing border beneath sensor. If both keys are pressed, use gray to indicate invalid input.
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 102, 0, 0.8)"; // Dark green with alpha
-                ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`; // Dark green with varying alpha
+                ctx.shadowColor = bothKeysPressed ? "rgba(128, 128, 128, 0.9)" : "rgba(0, 102, 0, 0.8)";
+                ctx.strokeStyle = bothKeysPressed
+                    ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                    : `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`;
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -241,7 +240,7 @@ const P5V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -321,7 +320,7 @@ const P5V3Page = ({ onComplete }) => {
 
     // Auto-start when scene data loaded
     useEffect(() => {
-        if (sceneData && !hasStartedAudioRef.current) {
+        if (sceneData && !hasStartedAudioRef.current && texturesLoaded) {
             console.log('P5V3Page: Scene data loaded, starting');
             hasStartedAudioRef.current = true;
             
@@ -334,7 +333,7 @@ const P5V3Page = ({ onComplete }) => {
                 audioRef.current.play().catch(e => console.error('Audio play failed:', e));
             }
         }
-    }, [sceneData, renderFrame]);
+    }, [sceneData, renderFrame, texturesLoaded]);
 
     // Listen for audio end - set up once when component mounts
     useEffect(() => {
@@ -397,12 +396,15 @@ const P5V3Page = ({ onComplete }) => {
         }
     }, [audioFinished, onComplete]);
 
-    // Skip shortcut
+    // Skip shortcut (Shift+Control+S)
+    // Skip shortcut - clean up immediately before calling onComplete to prevent lingering audio
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("⏭️ P5V3Page: Skip pressed");
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
+                console.log("⏭️ P5V3Page: Skip pressed - cleaning up before advancing");
                 e.preventDefault();
+                if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+                if (audioRef.current) { try { audioRef.current.pause(); audioRef.current.currentTime = 0; } catch(e2) {} }
                 if (onComplete) onComplete();
             }
         };

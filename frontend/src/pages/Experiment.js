@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import TransitionPage from './Transition';
 import { config } from '../config';
 import { getFamiliarizationPageType } from '../utils/familiarizationPageTypes';
+import VisualCountdownRing from '../components/VisualCountdownRing';
 import P3V3Page from '../components/P3V3Page';
 import P4V3Page from '../components/P4V3Page';
 import P5V3Page from '../components/P5V3Page';
@@ -41,6 +42,9 @@ const ExperimentPage = ({
     const isInitializedRef = useRef(false);
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
+    const [nextTrialCountdown, setNextTrialCountdown] = useState(null); // 5,4,3,2,1 then auto-advance; null when not counting
+    const nextTrialIntervalRef = useRef(null);
+    const skipHeldRef = useRef(false);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -85,8 +89,12 @@ const ExperimentPage = ({
     
         const handleKeyUp = (e) => {
             if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage) {
-                // console.log("Spacebar pressed. Fetching next scene...");
-                isSpacePressed = false; // Set flag to true when Spacebar is pressed
+                isSpacePressed = false;
+                if (nextTrialIntervalRef.current) {
+                    clearInterval(nextTrialIntervalRef.current);
+                    nextTrialIntervalRef.current = null;
+                }
+                setNextTrialCountdown(null);
                 fetchNextScene(setdisableCountdownTrigger);
             }
         };
@@ -105,6 +113,84 @@ const ExperimentPage = ({
             window.removeEventListener('keyup', handleKeyUp);
         };
     }, [fetchNextScene, finished, isTransitionPage]);
+
+    // Skip-to-next (test phase): Shift+Control+S
+    // Active only during test trials (not familiarization pages) to avoid duplicate skip handlers.
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const isTestTrial = trialInfo?.is_trial && !trialInfo?.is_ftrial;
+            if (!isTestTrial || isTransitionPage) return;
+            const isCombo = e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's');
+            if (!isCombo) return;
+            if (skipHeldRef.current) return;
+            skipHeldRef.current = true;
+            e.preventDefault();
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+            setNextTrialCountdown(null);
+            fetchNextScene(setdisableCountdownTrigger);
+        };
+
+        const handleKeyUp = (e) => {
+            if (e.key === 'S' || e.key === 's') {
+                skipHeldRef.current = false;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, [trialInfo, isTransitionPage, fetchNextScene]);
+
+    // When finished becomes true, start 5s countdown to auto-advance; clear when finished becomes false
+    useEffect(() => {
+        if (!finished) {
+            setNextTrialCountdown(null);
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+            return;
+        }
+        if (nextTrialIntervalRef.current) return;
+        setNextTrialCountdown(5);
+        nextTrialIntervalRef.current = setInterval(() => {
+            setNextTrialCountdown((prev) => {
+                if (prev == null || prev <= 0) {
+                    if (nextTrialIntervalRef.current) {
+                        clearInterval(nextTrialIntervalRef.current);
+                        nextTrialIntervalRef.current = null;
+                    }
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        return () => {
+            if (nextTrialIntervalRef.current) {
+                clearInterval(nextTrialIntervalRef.current);
+                nextTrialIntervalRef.current = null;
+            }
+        };
+    }, [finished]);
+
+    // Fire fetchNextScene 1s after countdown reaches 0 (gives the ring animation time to finish)
+    const advanceTimerRef = useRef(null);
+    useEffect(() => {
+        if (nextTrialCountdown === 0 && finished) {
+            advanceTimerRef.current = setTimeout(() => {
+                fetchNextScene(setdisableCountdownTrigger);
+            }, 1000);
+        }
+        return () => {
+            if (advanceTimerRef.current) { clearTimeout(advanceTimerRef.current); advanceTimerRef.current = null; }
+        };
+    }, [nextTrialCountdown, finished, fetchNextScene, setdisableCountdownTrigger]);
 
     // Skip key handler REMOVED from ExperimentPage to prevent race condition
     // Each child component (P8CanvasPage, P9CanvasPage, etc.) has its own skip handler
@@ -299,7 +385,46 @@ const ExperimentPage = ({
                                 color: "#555",
                                 textAlign: "center"
                             }}>
-                                Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                                {nextTrialCountdown != null && (
+                                    <>
+                                        <div style={{
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            gap: "14px",
+                                            flexWrap: "wrap",
+                                            marginBottom: "10px",
+                                        }}>
+                                            <VisualCountdownRing
+                                                size={56}
+                                                strokeWidth={8}
+                                                color="#2e86de"
+                                                trackColor="rgba(46,134,222,0.18)"
+                                                progress={nextTrialCountdown / 5}
+                                                glow={false}
+                                                label={nextTrialCountdown}
+                                            />
+                                            <span style={{ color: "#2e86de" }}>Starting next one…</span>
+                                        </div>
+                                        <div>
+                                            Or press <span style={{ color: "blue" }}>Spacebar</span> to continue now.
+                                        </div>
+                                    </>
+                                )}
+                                {nextTrialCountdown === 0 && (keyStates.f || keyStates.j) && (
+                                    <div style={{
+                                        marginTop: "12px",
+                                        padding: "8px 18px",
+                                        backgroundColor: "rgba(255, 165, 0, 0.15)",
+                                        borderRadius: "8px",
+                                        color: "#cc7700",
+                                        fontWeight: "bold",
+                                        fontSize: "1.1rem",
+                                        animation: "pulse-gentle 1.5s ease-in-out infinite",
+                                    }}>
+                                        Let go of your keys to continue!
+                                    </div>
+                                )}
                             </p>
                         </div>
                     </div>
@@ -350,7 +475,46 @@ const ExperimentPage = ({
                             color: "#555",
                             textAlign: "center"
                         }}>
-                            Press the <span style={{ color: "blue" }}>Spacebar</span> to continue.
+                            {nextTrialCountdown != null && (
+                                <>
+                                    <div style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "14px",
+                                        flexWrap: "wrap",
+                                        marginBottom: "10px",
+                                    }}>
+                                        <VisualCountdownRing
+                                            size={56}
+                                            strokeWidth={8}
+                                            color="#2e86de"
+                                            trackColor="rgba(46,134,222,0.18)"
+                                            progress={nextTrialCountdown / 5}
+                                            glow={false}
+                                            label={nextTrialCountdown}
+                                        />
+                                        <span style={{ color: "#2e86de" }}>Starting next one…</span>
+                                    </div>
+                                    <div>
+                                        Or press <span style={{ color: "blue" }}>Spacebar</span> to continue now.
+                                    </div>
+                                </>
+                            )}
+                            {nextTrialCountdown === 0 && (keyStates.f || keyStates.j) && (
+                                <div style={{
+                                    marginTop: "12px",
+                                    padding: "8px 18px",
+                                    backgroundColor: "rgba(255, 165, 0, 0.15)",
+                                    borderRadius: "8px",
+                                    color: "#cc7700",
+                                    fontWeight: "bold",
+                                    fontSize: "1.1rem",
+                                    animation: "pulse-gentle 1.5s ease-in-out infinite",
+                                }}>
+                                    Let go of your keys to continue!
+                                </div>
+                            )}
                         </p>
                     </div>
                 </div>
@@ -374,6 +538,7 @@ const ExperimentPage = ({
                     alignItems: "center",
                     gap: "20px"
                 }}>
+                    {trialInfo.is_ftrial && (
                     <div>
                         <p style={{
                             fontSize: "1.2rem",
@@ -385,6 +550,7 @@ const ExperimentPage = ({
                             Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.
                         </p>
                     </div>
+                    )}
 
                     {/* Canvas with external border */}
                     <div style={{
@@ -468,7 +634,7 @@ const ExperimentPage = ({
                 </div>
 
                 {/* Key State Indicators - Below Canvas, Texture-based (conditionally shown based on config) */}
-                {config.showKeyIndicators && (
+                {config.showTestTrialKeyIcons && (
                 <div style={{
                     display: "flex",
                     flexDirection: "column",

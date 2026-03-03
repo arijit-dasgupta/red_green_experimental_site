@@ -20,8 +20,8 @@ from pathlib import Path
 CONFIG = {
     'ball_texture_path': 'frontend/public/ball.png',
     'barrier_texture_path': 'frontend/public/barrier.png',
-    'red_sensor_texture_path': 'frontend/public/yellow.png',
-    'green_sensor_texture_path': 'frontend/public/green.png',
+    'red_sensor_texture_path': 'frontend/public/yellow.jpg',
+    'green_sensor_texture_path': 'frontend/public/green.jpg',
     'occluder_texture_path': 'frontend/public/cloud.jpg',
     'world_width': 20,
     'world_height': 20,

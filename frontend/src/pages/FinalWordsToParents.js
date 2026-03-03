@@ -60,7 +60,7 @@ const FinalWordsToParents = ({ setTrialInfo }) => {
                         Please help your child to find the computer keys if they have trouble. But while the video is playing, please do not instruct your child which key they should press.
                     </li>
                     <li style={{ marginBottom: "15px" }}>
-                        You may pause the study by clicking the "pause study" button on the bottom-right corner.
+                        You may pause the study by clicking the "pause study" button on top of the page. You might need to scroll up to the top of the page to see that button. You can resume the study by clicking the "resume study" button. 
                     </li>
                 </ul>
             </div>

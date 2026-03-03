@@ -1,0 +1,110 @@
+{
+  "entities": [
+    {
+      "id": 1765467967066,
+      "type": "red_sensor",
+      "x": 17.4,
+      "y": 0,
+      "width": 2.6,
+      "height": 20.200000000000003,
+      "direction": 0
+    },
+    {
+      "id": 1765467986995,
+      "type": "green_sensor",
+      "x": 0,
+      "y": 0,
+      "width": 2.6,
+      "height": 20.200000000000003,
+      "direction": 0
+    },
+    {
+      "id": 1765468009250,
+      "type": "target",
+      "x": 14.600000000000001,
+      "y": 16.8,
+      "width": 1,
+      "height": 1,
+      "direction": -2.646690306653522
+    },
+    {
+      "id": 1771623864184,
+      "type": "barrier",
+      "x": 4.5,
+      "y": 16.5,
+      "width": 7.1000000000000005,
+      "height": 1,
+      "direction": 0
+    },
+    {
+      "id": 1771623884250,
+      "type": "barrier",
+      "x": 10.4,
+      "y": 11.8,
+      "width": 5.7,
+      "height": 1.1,
+      "direction": 0
+    },
+    {
+      "id": 1771623921417,
+      "type": "barrier",
+      "x": 3.3000000000000003,
+      "y": 7,
+      "width": 1.2000000000000002,
+      "height": 10.5,
+      "direction": 0
+    },
+    {
+      "id": 1771623938315,
+      "type": "barrier",
+      "x": 4.5,
+      "y": 7,
+      "width": 12.3,
+      "height": 1,
+      "direction": 0
+    },
+    {
+      "id": 1771623964500,
+      "type": "barrier",
+      "x": 15.600000000000001,
+      "y": 0,
+      "width": 1.2000000000000002,
+      "height": 7,
+      "direction": 0
+    },
+    {
+      "id": 1771623992216,
+      "type": "barrier",
+      "x": 3.7,
+      "y": 2.7,
+      "width": 6,
+      "height": 1.2000000000000002,
+      "direction": 0
+    },
+    {
+      "id": 1771624076247,
+      "type": "occluder",
+      "x": 4.7,
+      "y": 8.3,
+      "width": 5.6000000000000005,
+      "height": 7.9,
+      "direction": 0
+    },
+    {
+      "id": 1771624085466,
+      "type": "occluder",
+      "x": 9.9,
+      "y": 0.2,
+      "width": 5.5,
+      "height": 6.6000000000000005,
+      "direction": 0
+    }
+  ],
+  "simulationParams": {
+    "videoLength": 40,
+    "ballSpeed": 2,
+    "fps": 30,
+    "worldWidth": 20,
+    "worldHeight": 20
+  }
+}

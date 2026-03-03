@@ -45,10 +45,10 @@ const P4V3Page = ({ onComplete }) => {
         { start: 2, end: 5, image: '/images/v3_keyboard.png' },
         { start: 5, end: 12, image: '/images/v3_keyboard_hands.png' },
         { start: 12, end: 15, image: null },
-        { start: 15, end: 19, image: '/images/v3_keyboard_F.png' },
-        { start: 19, end: 20, image: null },
-        { start: 20, end: 25, image: '/images/v3_keyboard_J.png' },
-        { start: 25, end: Infinity, image: null },
+        { start: 15, end: 20, image: '/images/v3_keyboard_F.png' },
+        { start: 20, end: 21, image: null },
+        { start: 21, end: 26, image: '/images/v3_keyboard_J.png' },
+        { start: 26, end: Infinity, image: null },
     ];
 
     // Determine current overlay based on elapsed time
@@ -61,33 +61,26 @@ const P4V3Page = ({ onComplete }) => {
         return null;
     };
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Helper to draw tiled textures
@@ -189,7 +182,7 @@ const P4V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -199,7 +192,7 @@ const P4V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -283,7 +276,7 @@ const P4V3Page = ({ onComplete }) => {
 
     // Auto-start when scene data loaded - render frozen first frame and start audio
     useEffect(() => {
-        if (sceneData) {
+        if (sceneData && texturesLoaded) {
             console.log('P4V3Page: Scene data loaded, rendering frozen first frame');
             setAudioFinished(false);
             hasAutoAdvancedRef.current = false;
@@ -298,7 +291,7 @@ const P4V3Page = ({ onComplete }) => {
                 audioRef.current.play().catch(e => console.error('Audio play failed:', e));
             }
         }
-    }, [sceneData, renderFrame]);
+    }, [sceneData, renderFrame, texturesLoaded]);
 
     // Listen for audio end
     useEffect(() => {
@@ -326,10 +319,10 @@ const P4V3Page = ({ onComplete }) => {
         }
     }, [audioFinished, onComplete]);
 
-    // Skip shortcut
+    // Skip shortcut (Shift+Control+S)
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
                 console.log("⏭️ P4V3Page: Skip pressed");
                 e.preventDefault();
                 if (onComplete) onComplete();

@@ -90,6 +90,11 @@ DATASET_NAME = 'chs_training_zoom'  # Specific dataset folder name within PATH_T
 FAM_TRIAL_PREFIXES = ['Q','F', 'T']
 EXP_TRIAL_PREFIXES = ['R','E']
 
+# Counterbalancing / key mapping
+# - This experiment version uses a fixed mapping: F = GREEN, J = RED.
+# - Set ENABLE_COUNTERBALANCING=True only if you intentionally want per-trial swapping.
+ENABLE_COUNTERBALANCING = False
+
 # V2: Explicit familiarization trial order (15 trials for P4-P18)
 # These must match the trial data folders in backend/trial_data/chs_training_zoom/
 V2_FAM_TRIAL_ORDER = [
@@ -154,8 +159,11 @@ app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 # Enable CORS for frontend-backend communication, with ngrok compatibility
 CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
-# Database configuration using SQLite with experiment-specific filename
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{EXPERIMENT_NAME}_redgreen.db'
+# Database configuration: store in backend/instance/ so location is predictable
+_instance_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+os.makedirs(_instance_dir, exist_ok=True)
+_db_path = os.path.join(_instance_dir, f'{EXPERIMENT_NAME}_redgreen.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'mysecretkey_redgreen_##$563456#$%^')
 app.config['ADMIN_EMAIL'] = 'arijitdg@mit.edu'
@@ -250,8 +258,8 @@ class KeyState(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     trial_id = db.Column(db.Integer, db.ForeignKey('trial.id'), nullable=False)
     frame = db.Column(db.Integer)  # Animation frame number (0-based)
-    f_pressed = db.Column(db.Boolean)  # State of F key (typically red choice) True if F key was pressed, False otherwise
-    j_pressed = db.Column(db.Boolean)  # State of J key (typically green choice) True if J key was pressed, False otherwise
+    f_pressed = db.Column(db.Boolean)  # State of F key (GREEN choice in this version) True if pressed, False otherwise
+    j_pressed = db.Column(db.Boolean)  # State of J key (RED choice in this version) True if pressed, False otherwise
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False) # foreign key to the session record
     relative_time_ms = db.Column(db.Float, nullable=True)  # Time in milliseconds relative to frame 0 of the trial
 
@@ -737,7 +745,7 @@ def load_next_scene():
         if len(fscores) < ftrial_i:
             print(f"ℹ️ V2: Skipping ftrial_i adjustment (all familiarization pages are demo/practice): ftrial_i={ftrial_i}, len(fscores)={len(fscores)}")
         if len(tscores) < trial_i:
-            trial_i -= 1
+            print(f"ℹ️ Trial score gap detected (skipped trial): len(tscores)={len(tscores)}, trial_i={trial_i}. NOT decrementing.")
 
     # Calculate and update average score
     avg_score = sum(tscores) / len(tscores) if tscores else 0
@@ -818,8 +826,8 @@ def load_next_scene():
     trial = None  # Initialize trial to None
     counterbalance = False  # Default counterbalance
     if (not transition_to_exp_page) and (not finish) and (not is_image_page):
-        # Randomly assign counterbalancing (swaps F/J key meanings)
-        counterbalance = random.choice([True, False])
+        # Randomly assign counterbalancing (swaps F/J key meanings) only if enabled
+        counterbalance = random.choice([True, False]) if ENABLE_COUNTERBALANCING else False
         
         # Determine global trial name for tracking
         if is_trial:
@@ -1036,7 +1044,7 @@ def save_data():
             return jsonify({"error": "No key state data provided"}), 406
             
         num_red = num_green = 0
-        counterbalance = request.json.get('counterbalance', False)
+        counterbalance = bool(request.json.get('counterbalance', False))
         
         # Parse first frame time for relative timing calculations
         first_frame_time = None
@@ -1045,12 +1053,18 @@ def save_data():
         
         # Process each frame of keypress data
         for entry in data:
-            f_pressed = entry['keys']['f']
-            j_pressed = entry['keys']['j']
-            
-            # Apply counterbalancing if active (swap key meanings)
+            # Raw physical key states from frontend
+            f_pressed_raw = bool(entry['keys']['f'])
+            j_pressed_raw = bool(entry['keys']['j'])
+
+            # Map keys to choices for scoring.
+            # Default mapping (this version): F=GREEN, J=RED.
+            # If counterbalance is enabled for a trial: swap meanings.
+            green_pressed = f_pressed_raw
+            red_pressed = j_pressed_raw
             if counterbalance:
-                f_pressed, j_pressed = j_pressed, f_pressed
+                green_pressed = j_pressed_raw
+                red_pressed = f_pressed_raw
             
             # Calculate relative time from frame 0
             relative_time_ms = None
@@ -1062,17 +1076,17 @@ def save_data():
             key_state = KeyState(
                 trial_id=trial.id, 
                 frame=entry['frame'], 
-                f_pressed=f_pressed, 
-                j_pressed=j_pressed, 
+                f_pressed=f_pressed_raw, 
+                j_pressed=j_pressed_raw, 
                 session_id=session_id,
                 relative_time_ms=relative_time_ms
             )
             db.session.add(key_state)
 
             # Count responses for scoring (only single key presses count)
-            if f_pressed and not j_pressed:
+            if red_pressed and not green_pressed:
                 num_red += 1
-            elif j_pressed and not f_pressed:
+            elif green_pressed and not red_pressed:
                 num_green += 1
 
         # Retrieve trial configuration to get ground truth
@@ -1212,8 +1226,9 @@ def sessions():
         }
 
         for ks in key_states:
-            time_series_data["red"].append(ks.f_pressed)
-            time_series_data["green"].append(ks.j_pressed)
+            # Fixed mapping in this version: J=RED, F=GREEN
+            time_series_data["red"].append(ks.j_pressed)
+            time_series_data["green"].append(ks.f_pressed)
             time_series_data["uncertain"].append(not (ks.f_pressed or ks.j_pressed))
 
         # Compile session summary
@@ -1261,8 +1276,9 @@ def export_combined_csv():
 
                 for ks in key_states:
                     # Convert to binary response indicators
-                    red = 1 if (ks.f_pressed and not ks.j_pressed) else 0
-                    green = 1 if (ks.j_pressed and not ks.f_pressed) else 0
+                    # Fixed mapping in this version: J=RED, F=GREEN
+                    red = 1 if (ks.j_pressed and not ks.f_pressed) else 0
+                    green = 1 if (ks.f_pressed and not ks.j_pressed) else 0
                     uncertain = 1 if not (red or green) else 0
 
                     # Add row to dataset

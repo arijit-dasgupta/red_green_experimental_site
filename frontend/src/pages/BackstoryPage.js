@@ -356,10 +356,10 @@ const BackstoryPage = () => {
         };
     }, [currentPage, handleNext]);
 
-    // Add keyboard shortcuts for testing: Press 'Q' or 'Shift+S' to skip to next page
+    // Add keyboard shortcuts for testing: Press 'Q' or 'Shift+Control+S' to skip to next page
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.key === 'Q' || e.key === 'q' || (e.shiftKey && (e.key === 'S' || e.key === 's'))) {
+            if (e.key === 'Q' || e.key === 'q' || (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's'))) {
                 console.log("SKIP KEY PRESSED: Skip key detected in BackstoryPage");
                 e.preventDefault();
                 e.stopPropagation();
@@ -457,18 +457,7 @@ const BackstoryPage = () => {
                 </div>
             )}
 
-            {/* Page indicator */}
-            <div style={{
-                position: "absolute",
-                top: "20px",
-                left: "20px",
-                fontSize: "18px",
-                fontWeight: "bold",
-                color: "#333",
-                zIndex: 10,
-            }}>
-                Training Page {currentPage}/{maxTrainingPages}
-            </div>
+            {/* Page indicator removed to keep UI clean for participants */}
 
             {/* Images (for P1 and P2) - with timed display support */}
             {currentPageSpec.images && currentPageSpec.images

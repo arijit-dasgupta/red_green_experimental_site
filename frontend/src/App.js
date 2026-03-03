@@ -93,6 +93,9 @@ const App = () => {
   const sceneDataRef = useRef(null); // Ref for scene data - always holds latest sceneData to avoid stale closures
   
   const OCCLUDER_REVEAL_DELAY = 1000; // Freeze scene for 1 second before ball starts (occluder appears at this point too)
+  const OCCLUDER_FLASH_DURATION = 1500; // Duration of occluder flash sequence (ms)
+  const occluderFlashTimersRef = useRef([]); // Store flash timer IDs for cleanup
+  const countdownIntervalRef = useRef(null); // Store countdown setInterval ID for cleanup on pause
   
   // Audio context and tones for precise timing
   const audioContextRef = useRef(null);
@@ -109,6 +112,7 @@ const App = () => {
   const keyStatesRef = useRef({ f: false, j: false });
   const ballTextureRef = useRef(null);
   const ballOffscreenCanvasRef = useRef(null); // Offscreen canvas for supersampled ball rendering
+  const lastBallRotationRef = useRef(0); // Freeze rotation at last value when animation stops
   const barrierTextureRef = useRef(null);
   const redSensorTextureRef = useRef(null);
   const greenSensorTextureRef = useRef(null);
@@ -242,10 +246,7 @@ const App = () => {
     ctx.translate(0, -canvas.height);
 
     try {
-        const { barriers, occluders, step_data, red_sensor, green_sensor, radius, counterbalance } = currentSceneData;
-        // For E trials: swapSensorsForETrials forces green left/red right; otherwise use randomSwapRedGreenSensor
-        const forceSwapForE = config.swapSensorsForETrials && currentSceneData?.is_trial;
-        const effectiveCounterbalance = forceSwapForE || (config.randomSwapRedGreenSensor ? (counterbalance ?? false) : false);
+        const { barriers, occluders, step_data, red_sensor, green_sensor, radius } = currentSceneData;
 
         if (frameIndex !== 0 || countdown === null) { 
           // Draw barriers with texture
@@ -274,7 +275,7 @@ const App = () => {
 
           // Draw sensors with texture and highlight when keys are pressed
           if (red_sensor) {
-              const { x, y, width, height } = effectiveCounterbalance ? green_sensor : red_sensor;
+              const { x, y, width, height } = red_sensor;
               const scaledX = x * scale;
               const scaledY = y * scale;
               const scaledWidth = width * scale;
@@ -283,20 +284,19 @@ const App = () => {
               // Use keyStatesRef to avoid dependency on keyStates state
               const currentKeyStates = keyStatesRef.current;
               
-              // Key mapping: J key = red sensor (regardless of counterbalance)
-              // Counterbalance only swaps which sensor is shown in which position, not the key mapping
-              // Draw pulsing glow effect FIRST (beneath sensor) when J key is pressed (J key = red sensor)
-              // Removed isCurrentlyPlaying condition so pulsing works even on frozen frames
-              if (currentKeyStates.j && !currentKeyStates.f) {
+              // J key = red/yellow sensor. Gray pulsing when both keys pressed.
+              const bothKeysPressed_r = currentKeyStates.f && currentKeyStates.j;
+              if (currentKeyStates.j) {
               ctx.save();
-                  const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
-                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
-                  const glowSize = 8 * pulseIntensity; // Pulsing glow size
-                  
-                  // Draw glowing border beneath sensor with golden yellow color (RGB: 255, 200, 0 - yellow flower)
+                  const pulseTime = (performance.now() / 1000) % 1;
+                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2);
+                  const glowSize = 8 * pulseIntensity;
+                  const pulseColor = bothKeysPressed_r ? "rgba(128, 128, 128, 0.9)" : "rgba(255, 200, 0, 0.8)";
                   ctx.shadowBlur = 20 * pulseIntensity;
-                  ctx.shadowColor = "rgba(255, 200, 0, 0.8)"; // Golden yellow with alpha
-                  ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`; // Golden yellow with varying alpha
+                  ctx.shadowColor = pulseColor;
+                  ctx.strokeStyle = bothKeysPressed_r
+                      ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                      : `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`;
                   ctx.lineWidth = 4 * pulseIntensity;
                   ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                   ctx.restore();
@@ -312,20 +312,18 @@ const App = () => {
               if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '' && 
                   redSensorTextureRef.current && redSensorTextureRef.current.complete) {
                   if (!drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                      // Fallback to red fill if texture draw failed
-                      ctx.fillStyle = "red";
+                      ctx.fillStyle = "#bbb";
                       ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                   }
               } else {
-                  // Use original red fill if no texture path or texture not loaded
-                  ctx.fillStyle = "red";
+                  ctx.fillStyle = "#bbb";
                   ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
               }
               ctx.restore();
           }
 
           if (green_sensor) {
-              const { x, y, width, height } = effectiveCounterbalance ? red_sensor : green_sensor;
+              const { x, y, width, height } = green_sensor;
               const scaledX = x * scale;
               const scaledY = y * scale;
               const scaledWidth = width * scale;
@@ -334,20 +332,19 @@ const App = () => {
               // Use keyStatesRef to avoid dependency on keyStates state
               const currentKeyStates = keyStatesRef.current;
               
-              // Key mapping: F key = green sensor (regardless of counterbalance)
-              // Counterbalance only swaps which sensor is shown in which position, not the key mapping
-              // Draw pulsing glow effect FIRST (beneath sensor) when F key is pressed (F key = green sensor)
-              // Removed isCurrentlyPlaying condition so pulsing works even on frozen frames
-              if (currentKeyStates.f && !currentKeyStates.j) {
+              // F key = green sensor. Gray pulsing when both keys pressed.
+              const bothKeysPressed_g = currentKeyStates.f && currentKeyStates.j;
+              if (currentKeyStates.f) {
               ctx.save();
-                  const pulseTime = (performance.now() / 1000) % 1; // 1 second pulse cycle
-                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2); // 0.5 to 1.0
-                  const glowSize = 8 * pulseIntensity; // Pulsing glow size
-                  
-                  // Draw glowing border beneath sensor with dark green color (RGB: 0, 102, 0 - dark green)
+                  const pulseTime = (performance.now() / 1000) % 1;
+                  const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2);
+                  const glowSize = 8 * pulseIntensity;
+                  const pulseColor = bothKeysPressed_g ? "rgba(128, 128, 128, 0.9)" : "rgba(0, 102, 0, 0.8)";
                   ctx.shadowBlur = 20 * pulseIntensity;
-                  ctx.shadowColor = "rgba(0, 102, 0, 0.8)"; // Dark green with alpha
-                  ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`; // Dark green with varying alpha
+                  ctx.shadowColor = pulseColor;
+                  ctx.strokeStyle = bothKeysPressed_g
+                      ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                      : `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`;
                   ctx.lineWidth = 4 * pulseIntensity;
                   ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                   ctx.restore();
@@ -363,13 +360,11 @@ const App = () => {
               if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '' && 
                   greenSensorTextureRef.current && greenSensorTextureRef.current.complete) {
                   if (!drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight)) {
-                      // Fallback to green fill if texture draw failed
-                      ctx.fillStyle = "green";
+                      ctx.fillStyle = "#bbb";
                       ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
                   }
               } else {
-                  // Use original green fill if no texture path or texture not loaded
-                  ctx.fillStyle = "green";
+                  ctx.fillStyle = "#bbb";
                   ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
               }
               ctx.restore();
@@ -417,14 +412,16 @@ const App = () => {
                   offscreenCtx.clip();
                   
                   // Calculate rotation angle if rotation is enabled
-                  // Rotation starts at frame 0 (trial start) and continues until trial ends
                   let rotationAngle = 0;
-                  if (config.ballRotationRate !== 0 && isCurrentlyPlaying) {
-                      // Calculate elapsed time in seconds based on frame index and FPS
-                      const fps = getFPS();
-                      const elapsedSeconds = frameIndex / fps;
-                      // Convert degrees per second to radians
-                      rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
+                  if (config.ballRotationRate !== 0) {
+                      if (isCurrentlyPlaying) {
+                          const fps = getFPS();
+                          const elapsedSeconds = frameIndex / fps;
+                          rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
+                          lastBallRotationRef.current = rotationAngle;
+                      } else {
+                          rotationAngle = lastBallRotationRef.current;
+                      }
                   }
                   
                   // Apply rotation if needed
@@ -457,10 +454,9 @@ const App = () => {
                   );
                   ctx.restore();
               } else {
-                  // Fallback to blue fill if texture not loaded
                   ctx.beginPath();
                   ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                  ctx.fillStyle = "blue";
+                  ctx.fillStyle = "#999";
                   ctx.fill();
               }
           }
@@ -832,6 +828,13 @@ const renderCurrentPage = () => {
       return;
     }
     fetchInProgressRef.current = true;
+
+    // Terminate previous trial: cancel all timers, animation, and audio so nothing from the old trial runs into the next
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    stopEverything();
     
     try {
       const sessionId = sessionStorage.getItem('sessionId');
@@ -956,6 +959,7 @@ const renderCurrentPage = () => {
           lastBreakTrialRef.current = completedTrial;
           pendingSceneDataRef.current = data;
           pendingSetdisableCountdownTriggerRef.current = setdisableCountdownTrigger;
+          setFinished(false);
           fetchInProgressRef.current = false; // Release lock before showing break page
           setShowBreakPage(true);
           return; // Don't load the next scene yet
@@ -974,65 +978,11 @@ const renderCurrentPage = () => {
         finish: data.finish,
       });
       
-      // Auto-start sequence for ALL test trials:
-      // Phase 1: Countdown 3-2-1 on white background (auto-triggered, no spacebar needed)
-      // Phase 2: Frozen scene for 1s (occluder hidden for occluder trials)
-      // Phase 3: Occluder appears (if applicable) + ball starts moving
-      // For non-occluder test trials: same timing (1s freeze) for consistency
-      const hasOccluders = data.occluders && data.occluders.length > 0;
       if (data.is_trial && !data.is_ftrial) {
-        console.log('🎬 App: Test trial - auto countdown → freeze → play', { hasOccluders, trial_i: data.trial_i });
-        
-        // Clear any existing timers
-        if (occluderRevealTimerRef.current) {
-          clearTimeout(occluderRevealTimerRef.current);
-        }
-        if (animationStartTimerRef.current) {
-          clearTimeout(animationStartTimerRef.current);
-        }
-        
-        // Disable spacebar - trial auto-starts with countdown
+        // Test trial: auto-start with 3-2-1 → flash → play
         setdisableCountdownTrigger(true);
-        
-        // Set occluder visibility for the frozen scene phase
-        if (hasOccluders) {
-          setShowOccluder(false);
-          showOccluderRef.current = false;
-        } else {
-          setShowOccluder(true);
-          showOccluderRef.current = true;
-        }
-        
-        // Phase 1: Auto countdown (3→2→1) on white background
-        let countdownValue = 3;
-        setCountdown(countdownValue);
-        
-        const countdownInterval = setInterval(() => {
-          countdownValue -= 1;
-          setCountdown(countdownValue);
-          
-          if (countdownValue === 0) {
-            clearInterval(countdownInterval);
-            // Setting countdown to null triggers useEffect → renderFrame(0) which now draws the frozen scene
-            setCountdown(null);
-            console.log('🎬 App: Countdown done - frozen scene visible for 1s');
-            
-            // Phase 2→3: After 1s freeze, reveal occluder (if any) and start ball
-            animationStartTimerRef.current = setTimeout(() => {
-              console.log('🎬 App: Freeze over - starting ball animation', { hasOccluders });
-              if (hasOccluders) {
-                setShowOccluder(true);
-                showOccluderRef.current = true;
-              }
-              // Reset animation state and start ball
-              animate.lastTimestamp = null;
-              animate.dataSaved = false;
-              isPlayingRef.current = true;
-              setIsPlaying(true);
-              animationRef.current = requestAnimationFrame(animate);
-            }, OCCLUDER_REVEAL_DELAY);
-          }
-        }, 750);
+        // Defer to after state updates settle so sceneDataRef is set
+        setTimeout(() => startTestTrialSequence(), 0);
       } else {
         // For familiarization/non-test trials: enable spacebar, reset occluder
         setShowOccluder(true);
@@ -1142,7 +1092,7 @@ const animate = (timestamp) => {
                   is_ftrial: currentSceneData.is_ftrial,
                   is_trial: currentSceneData.is_trial,
                   recordedKeyStates: recordedKeyStates.current,
-                  counterbalance: (config.swapSensorsForETrials && currentSceneData?.is_trial) || (config.randomSwapRedGreenSensor ? (currentSceneData.counterbalance ?? false) : false),
+                  counterbalance: config.randomSwapRedGreenSensor ? (currentSceneData.counterbalance ?? false) : false,
                   first_frame_utc: animate.firstFrameUtc,
                   last_frame_utc: lastFrameUtc,
                 }),
@@ -1245,59 +1195,10 @@ const animate = (timestamp) => {
       setWaitingForScoreSpacebar(false);
       animate.firstFrameUtc = null;
       
-      // Auto-start sequence for ALL test trials after break (same as fetchNextScene)
-      const hasOccluders = data.occluders && data.occluders.length > 0;
       if (data.is_trial && !data.is_ftrial) {
-        console.log('🎬 App: Test trial after break - auto countdown → freeze → play', { hasOccluders });
-        
-        // Clear any existing timers
-        if (occluderRevealTimerRef.current) {
-          clearTimeout(occluderRevealTimerRef.current);
-        }
-        if (animationStartTimerRef.current) {
-          clearTimeout(animationStartTimerRef.current);
-        }
-        
-        // Disable spacebar - trial auto-starts
+        // Test trial after break: auto-start with 3-2-1 → flash → play
         setdisableCountdownTrigger(true);
-        
-        // Set occluder visibility
-        if (hasOccluders) {
-          setShowOccluder(false);
-          showOccluderRef.current = false;
-        } else {
-          setShowOccluder(true);
-          showOccluderRef.current = true;
-        }
-        
-        // Phase 1: Auto countdown (3→2→1) on white background
-        let countdownValue = 3;
-        setCountdown(countdownValue);
-        
-        const countdownInterval = setInterval(() => {
-          countdownValue -= 1;
-          setCountdown(countdownValue);
-          
-          if (countdownValue === 0) {
-            clearInterval(countdownInterval);
-            setCountdown(null);
-            console.log('🎬 App: Countdown done after break - frozen scene visible for 1s');
-            
-            // Phase 2→3: After 1s freeze, reveal occluder (if any) and start ball
-            animationStartTimerRef.current = setTimeout(() => {
-              console.log('🎬 App: Freeze over after break - starting ball animation');
-              if (hasOccluders) {
-                setShowOccluder(true);
-                showOccluderRef.current = true;
-              }
-              animate.lastTimestamp = null;
-              animate.dataSaved = false;
-              isPlayingRef.current = true;
-              setIsPlaying(true);
-              animationRef.current = requestAnimationFrame(animate);
-            }, OCCLUDER_REVEAL_DELAY);
-          }
-        }, 750);
+        setTimeout(() => startTestTrialSequence(), 0);
       } else {
         // For non-test trials after break: enable spacebar, reset occluder
         setShowOccluder(true);
@@ -1332,6 +1233,80 @@ const animate = (timestamp) => {
     navigate('thankyou');
   }, [navigate, sessionId, currentPage]);
 
+  // Helper: start the full test-trial auto-sequence (3-2-1 → flash → play)
+  // Used when a test trial first loads AND when resuming after pause
+  const startTestTrialSequence = useCallback(() => {
+    const data = sceneDataRef.current;
+    if (!data || !data.is_trial || data.is_ftrial) return;
+
+    // Clear any existing timers
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+    if (animationStartTimerRef.current) { clearTimeout(animationStartTimerRef.current); animationStartTimerRef.current = null; }
+    occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
+    occluderFlashTimersRef.current = [];
+    if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+
+    // Reset animation state
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    setCurrentFrame(0);
+    currentFrameRef.current = 0;
+    recordedKeyStates.current = [];
+    animate.lastTimestamp = null;
+    animate.dataSaved = false;
+    animate.firstFrameUtc = null;
+    setFinished(false);
+    setShowOccluder(true);
+    showOccluderRef.current = true;
+    lastBallRotationRef.current = 0;
+
+    const hasOccluders = data.occluders && data.occluders.length > 0;
+    let countdownValue = 3;
+    setCountdown(countdownValue);
+
+    countdownIntervalRef.current = setInterval(() => {
+      countdownValue -= 1;
+      setCountdown(countdownValue);
+      if (countdownValue === 0) {
+        if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+        setCountdown(null);
+
+        if (hasOccluders) {
+          // Occluder is already visible (set before countdown).
+          // Flash once (off → on) so participants see exactly 2 appearances total.
+          const step = OCCLUDER_FLASH_DURATION / 3;
+          occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(false); showOccluderRef.current = false; }, step));
+          occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(true); showOccluderRef.current = true; }, step * 2));
+        }
+
+        animationStartTimerRef.current = setTimeout(() => {
+          setShowOccluder(true);
+          showOccluderRef.current = true;
+          animate.lastTimestamp = null;
+          animate.dataSaved = false;
+          isPlayingRef.current = true;
+          setIsPlaying(true);
+          animationRef.current = requestAnimationFrame(animate);
+        }, OCCLUDER_FLASH_DURATION);
+      }
+    }, 750);
+  }, []);
+
+  // Helper: stop all timers, animation, and audio (used by pause and cleanup)
+  const stopEverything = useCallback(() => {
+    if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+    if (animationStartTimerRef.current) { clearTimeout(animationStartTimerRef.current); animationStartTimerRef.current = null; }
+    if (occluderRevealTimerRef.current) { clearTimeout(occluderRevealTimerRef.current); occluderRevealTimerRef.current = null; }
+    occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
+    occluderFlashTimersRef.current = [];
+    setCountdown(null);
+    if (startAudioRef.current) { try { startAudioRef.current.pause(); startAudioRef.current.currentTime = 0; } catch (e) { /* ignore */ } }
+    if (endAudioRef.current) { try { endAudioRef.current.pause(); endAudioRef.current.currentTime = 0; } catch (e) { /* ignore */ } }
+  }, []);
+
   // Pages where study controls should be shown (during actual experiment flow)
   const showStudyControls = [
     'backstory',
@@ -1350,15 +1325,28 @@ const animate = (timestamp) => {
         {showStudyControls && (
           <StudyControls
             onStop={handleStopStudy}
+            onPause={() => { stopEverything(); }}
+            onResume={() => {
+              const currentSceneData = sceneDataRef.current;
+              if (!currentSceneData) return;
+              const isTestTrial = currentSceneData.is_trial && !currentSceneData.is_ftrial;
+              if (isTestTrial) {
+                // If the trial already finished (ball hit sensor), the congrats overlay is showing — do nothing.
+                // Otherwise, replay from the beginning with 3-2-1 countdown.
+                if (!finished) {
+                  startTestTrialSequence();
+                }
+              }
+              // For familiarization trials, components handle their own resume via PauseContext
+            }}
             showControls={true}
           />
         )}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          {showBreakPage ? (
-            <BreakPage onContinue={handleBreakContinue} />
-          ) : (
-            renderCurrentPage()
-          )}
+          {showBreakPage && <BreakPage onContinue={handleBreakContinue} />}
+          <div style={{ display: showBreakPage ? 'none' : 'flex', flex: 1, flexDirection: 'column', minHeight: 0 }}>
+            {renderCurrentPage()}
+          </div>
         </div>
       </div>
     </PauseProvider>

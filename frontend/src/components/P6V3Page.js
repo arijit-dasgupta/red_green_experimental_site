@@ -15,7 +15,27 @@ const P6V3Page = ({ onComplete }) => {
     // Only log on actual mount, not every render
     useEffect(() => {
         console.log("🎬 P6V3Page: Component MOUNTED");
-        return () => console.log("🎬 P6V3Page: Component UNMOUNTED");
+        return () => {
+            console.log("🎬 P6V3Page: Component UNMOUNTED");
+            if (countdownIntervalRef.current) {
+                clearInterval(countdownIntervalRef.current);
+                countdownIntervalRef.current = null;
+            }
+            if (congratulationsTimerRef.current) {
+                clearTimeout(congratulationsTimerRef.current);
+                congratulationsTimerRef.current = null;
+            }
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            if (startAudioRef.current) {
+                try { startAudioRef.current.pause(); startAudioRef.current.currentTime = 0; } catch(e) {}
+            }
+            if (endAudioRef.current) {
+                try { endAudioRef.current.pause(); endAudioRef.current.currentTime = 0; } catch(e) {}
+            }
+        };
     }, []);
     const canvasRef = useRef(null);
     const [sceneData, setSceneData] = useState(null);
@@ -62,33 +82,26 @@ const P6V3Page = ({ onComplete }) => {
     // Track key presses
     useUpdateKeyStates(keyStates, setKeyStates);
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath) {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath) {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath) {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath) {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath) {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Load start audio file
@@ -215,7 +228,8 @@ const P6V3Page = ({ onComplete }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
-            const isPulsing = currentKeyStates.j && !currentKeyStates.f;
+            const bothKeysPressed = currentKeyStates.f && currentKeyStates.j;
+            const isPulsing = currentKeyStates.j;
             
             if (isPulsing) {
                 ctx.save();
@@ -223,8 +237,10 @@ const P6V3Page = ({ onComplete }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2);
                 const glowSize = 8 * pulseIntensity;
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(255, 200, 0, 0.8)";
-                ctx.strokeStyle = `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`;
+                ctx.shadowColor = bothKeysPressed ? "rgba(128, 128, 128, 0.9)" : "rgba(255, 200, 0, 0.8)";
+                ctx.strokeStyle = bothKeysPressed
+                    ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                    : `rgba(255, 200, 0, ${0.6 + 0.4 * pulseIntensity})`;
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -236,7 +252,7 @@ const P6V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -250,7 +266,8 @@ const P6V3Page = ({ onComplete }) => {
             const scaledWidth = width * scale;
             const scaledHeight = height * scale;
             
-            const isPulsing = currentKeyStates.f && !currentKeyStates.j;
+            const bothKeysPressed = currentKeyStates.f && currentKeyStates.j;
+            const isPulsing = currentKeyStates.f;
             
             if (isPulsing) {
                 ctx.save();
@@ -258,8 +275,10 @@ const P6V3Page = ({ onComplete }) => {
                 const pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI * 2);
                 const glowSize = 8 * pulseIntensity;
                 ctx.shadowBlur = 20 * pulseIntensity;
-                ctx.shadowColor = "rgba(0, 102, 0, 0.8)";
-                ctx.strokeStyle = `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`;
+                ctx.shadowColor = bothKeysPressed ? "rgba(128, 128, 128, 0.9)" : "rgba(0, 102, 0, 0.8)";
+                ctx.strokeStyle = bothKeysPressed
+                    ? `rgba(128, 128, 128, ${0.7 + 0.3 * pulseIntensity})`
+                    : `rgba(0, 102, 0, ${0.6 + 0.4 * pulseIntensity})`;
                 ctx.lineWidth = 4 * pulseIntensity;
                 ctx.strokeRect(scaledX - glowSize, scaledY - glowSize, scaledWidth + glowSize * 2, scaledHeight + glowSize * 2);
                 ctx.restore();
@@ -271,7 +290,7 @@ const P6V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
             ctx.restore();
@@ -339,7 +358,7 @@ const P6V3Page = ({ onComplete }) => {
             } else {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "#999";
                 ctx.fill();
             }
         }
@@ -513,6 +532,7 @@ const P6V3Page = ({ onComplete }) => {
 
     // Auto-start countdown when scene data loaded
     useEffect(() => {
+        if (!texturesLoaded) return;
         const sceneDataId = sceneData ? JSON.stringify(Object.keys(sceneData.step_data || {}).sort()) : null;
         const isNewSceneData = sceneData && sceneDataId !== lastSceneDataRef.current;
         
@@ -539,7 +559,7 @@ const P6V3Page = ({ onComplete }) => {
             
             startCountdown();
         }
-    }, [sceneData, startCountdown]);
+    }, [sceneData, startCountdown, texturesLoaded]);
 
     // Show congratulations when video finishes
     useEffect(() => {
@@ -569,12 +589,18 @@ const P6V3Page = ({ onComplete }) => {
         };
     }, [showCongratulations]);
 
-    // Skip shortcut
+    // Skip shortcut (Shift+Control+S) - clean up immediately before calling onComplete to prevent lingering audio
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("⏭️ P6V3Page: Skip pressed");
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
+                console.log("⏭️ P6V3Page: Skip pressed - cleaning up before advancing");
                 e.preventDefault();
+                if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+                if (congratulationsTimerRef.current) { clearTimeout(congratulationsTimerRef.current); congratulationsTimerRef.current = null; }
+                if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+                setIsPlaying(false);
+                if (startAudioRef.current) { try { startAudioRef.current.pause(); startAudioRef.current.currentTime = 0; } catch(e2) {} }
+                if (endAudioRef.current) { try { endAudioRef.current.pause(); endAudioRef.current.currentTime = 0; } catch(e2) {} }
                 if (onCompleteRef.current) onCompleteRef.current();
             }
         };

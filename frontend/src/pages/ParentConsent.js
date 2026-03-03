@@ -67,19 +67,19 @@ const ParentConsent = ({ setTrialInfo }) => {
                 marginBottom: "30px",
             }}>
                 <p style={{ marginBottom: "20px" }}>
-                    Dear parents, thank you very much for your interest in our study. In today's study, your child will be hearing stories and playing some mini computer games. This study aims to explore how children make dynamic predictions about physical objects' movement when they have complete or partial visual information of the scene.
+                    Dear parents, thank you very much for your interest in our study. In today's study, your child will be hearing stories and playing some guessing games. This study aims to explore how children make predictions about physical objects' movements when they have complete or partial visual information of the scene.
                 </p>
 
                 <p style={{ marginBottom: "20px" }}>
-                    <strong>Procedure:</strong> Your child will first be introduced to some characters from Sesame Street and learn about their recent activities. Next, your child will be gradually familiarized with the physical videos where they will need to make predictions step-by-step. This familiarization will allow your children to make predictions about a ball movement in a physical scene by pressing some keys on your computer's keyboard. Your child will go through a few training trials, and after that they will be doing individual trials for about 10 minutes.
+                    <strong>Procedure:</strong> Your child will first be introduced to Elmo and his red bouncy ball. Next, your child will be introduced to the guessing game step-by-step. After going through a few training trials and familiarized about how to play the game, your child will be doing 30 to 40 individual trials. The whole study should take about 15-25 minutes.
                 </p>
 
                 <p style={{ marginBottom: "20px" }}>
-                    <strong>Payment:</strong> After you finish the study, we will email you a $5 Amazon gift card within approximately three business days. To be eligible for the gift card, your child must be in the age range for this study, you need to submit a valid consent statement, and we need to see that there is a child with you. But we will send a gift card even if you do not finish the whole study or we are not able to use your child's data! There are no other direct benefits to you or your child from participating, but we hope you will enjoy the experience. Multiple participations won't result in repeated payments.
+                    <strong>Payment:</strong> After you finish the study, we will email you a $5 Amazon gift card within approximately three business days. To be eligible for the gift card, we need to see that there is a child with you, your child must be in the age range for this study, you need to submit a valid consent statement. We will send a gift card even if your child did not finish the whole study or we are not able to use your child's data for other reasons. There are no other direct benefits to you or your child from participating, but we hope you will enjoy the experience. Multiple participations won't result in repeated payments.
                 </p>
 
                 <p style={{ marginBottom: "20px" }}>
-                    <strong>Your rights as a participant:</strong> You are not waiving any legal claims, rights or remedies because of your participation in this research study. This research is being overseen by an Institutional Review Board (IRB). An IRB is a group of people who perform independent review of research studies. You may also contact the MIT Institution Review Board at couhes@mit.edu or Johns Hopkins University Homewood Institution Review Board at HIRB@jhu.edu for any questions you may have about your rights as a research participant.
+                    <strong>Your rights as a participant:</strong> You are not waiving any legal claims, rights or remedies because of your participation in this research study. This research is being overseen by an Institutional Review Board (IRB). An IRB is a group of people who perform independent review of research studies. You may also contact the Johns Hopkins University Homewood Institution Review Board at HIRB@jhu.edu for any questions you may have about your rights as a research participant.
                 </p>
 
                 <p style={{ marginBottom: "20px" }}>

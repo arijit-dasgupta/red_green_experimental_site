@@ -15,10 +15,24 @@ import { usePause } from '../contexts/PauseContext';
  * Behavior: Auto-play audio, canvas stays on frame 0, auto-advance when audio finishes
  */
 const P13V3Page = ({ onComplete }) => {
-    // Only log on actual mount, not every render
+    // Only log on actual mount, not every render; cleanup on unmount (e.g. when skipping)
     useEffect(() => {
         console.log("🎬 P13V3Page: Component MOUNTED");
-        return () => console.log("🎬 P13V3Page: Component UNMOUNTED");
+        return () => {
+            console.log("🎬 P13V3Page: Component UNMOUNTED");
+            if (overlayTimerRef.current) {
+                clearInterval(overlayTimerRef.current);
+                overlayTimerRef.current = null;
+            }
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            if (audioRef.current) {
+                audioRef.current.pause().catch(() => {});
+                audioRef.current.currentTime = 0;
+            }
+        };
     }, []);
     const { isPaused, resumeCounter } = usePause();
     const canvasRef = useRef(null);
@@ -67,33 +81,26 @@ const P13V3Page = ({ onComplete }) => {
         return null;
     };
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Helper to draw tiled textures
@@ -195,7 +202,7 @@ const P13V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -205,7 +212,7 @@ const P13V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, x * scale, y * scale, width * scale, height * scale);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
             }
         }
@@ -263,7 +270,7 @@ const P13V3Page = ({ onComplete }) => {
             } else {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "#999";
                 ctx.fill();
             }
         }
@@ -351,7 +358,7 @@ const P13V3Page = ({ onComplete }) => {
 
     // Auto-start when scene data loaded: freeze canvas on frame 0 (all components visible), play audio, drive overlays by audio time
     useEffect(() => {
-        if (!sceneData) return;
+        if (!sceneData || !texturesLoaded) return;
         console.log('P13V3Page: Scene data loaded, frozen first frame + audio');
         setCurrentFrame(0);
         currentFrameRef.current = 0;
@@ -390,7 +397,7 @@ const P13V3Page = ({ onComplete }) => {
                 overlayTimerRef.current = null;
             }
         };
-    }, [sceneData]);
+    }, [sceneData, texturesLoaded]);
 
     // Listen for audio end (clear overlay timer when audio ends)
     useEffect(() => {
@@ -422,11 +429,15 @@ const P13V3Page = ({ onComplete }) => {
     }, [audioFinished, videoFinished, onComplete]);
 
     // Skip shortcut
+    // Skip shortcut - clean up immediately before calling onComplete to prevent lingering audio
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("⏭️ P13V3Page: Skip pressed");
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
+                console.log("⏭️ P13V3Page: Skip pressed - cleaning up before advancing");
                 e.preventDefault();
+                if (overlayTimerRef.current) { clearTimeout(overlayTimerRef.current); overlayTimerRef.current = null; }
+                if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+                if (audioRef.current) { try { audioRef.current.pause(); audioRef.current.currentTime = 0; } catch(e2) {} }
                 if (onComplete) onComplete();
             }
         };

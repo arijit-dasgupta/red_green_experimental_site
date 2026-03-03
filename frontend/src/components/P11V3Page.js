@@ -13,10 +13,30 @@ import { usePause } from '../contexts/PauseContext';
 const P11V3Page = ({ onComplete }) => {
     const { isPaused, resumeCounter } = usePause();
     
-    // Only log on actual mount, not every render
+    // Only log on actual mount, not every render; cleanup on unmount (e.g. when skipping)
     useEffect(() => {
         console.log("🎬 P11V3Page: Component MOUNTED");
-        return () => console.log("🎬 P11V3Page: Component UNMOUNTED");
+        return () => {
+            console.log("🎬 P11V3Page: Component UNMOUNTED");
+            if (occluderFlashTimerRef.current) {
+                clearTimeout(occluderFlashTimerRef.current);
+                occluderFlashTimerRef.current = null;
+            }
+            if (animationStartTimerRef.current) {
+                clearTimeout(animationStartTimerRef.current);
+                animationStartTimerRef.current = null;
+            }
+            occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
+            occluderFlashTimersRef.current = [];
+            if (animationRef.current) {
+                cancelAnimationFrame(animationRef.current);
+                animationRef.current = null;
+            }
+            if (audioRef.current) {
+                audioRef.current.pause().catch(() => {});
+                audioRef.current.currentTime = 0;
+            }
+        };
     }, []);
     const canvasRef = useRef(null);
     const audioRef = useRef(null);
@@ -31,12 +51,14 @@ const P11V3Page = ({ onComplete }) => {
     const lastTimestampRef = useRef(null);
     const hasAutoAdvancedRef = useRef(false);
     const renderFrameRef = useRef(null);
-    const occluderRevealTimerRef = useRef(null);
+    const occluderFlashTimerRef = useRef(null);
     const animationStartTimerRef = useRef(null);
+    const occluderFlashTimersRef = useRef([]);
     const lastSceneDataRef = useRef(null); // Track scene data to prevent duplicate initialization
     const onCompleteRef = useRef(onComplete); // Store onComplete in ref to avoid cleanup issues
     
-    const OCCLUDER_REVEAL_DELAY = 4000; // Show components without occluder for 4 seconds
+    const OCCLUDER_FLASH_DELAY = 4000; // Delay before starting occluder flash sequence
+    const OCCLUDER_FLASH_DURATION = 1500; // Duration of the occluder flash sequence
     
     // Keep onCompleteRef synced
     useEffect(() => {
@@ -53,33 +75,26 @@ const P11V3Page = ({ onComplete }) => {
 
     const canvasSize = { width: 600, height: 600 };
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Helper to draw tiled textures
@@ -186,7 +201,7 @@ const P11V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
         }
@@ -201,7 +216,7 @@ const P11V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
         }
@@ -239,9 +254,10 @@ const P11V3Page = ({ onComplete }) => {
                 
                 // Calculate rotation angle
                 let rotationAngle = 0;
-                if (config.ballRotationRate !== 0 && isPlaying) {
+                if (config.ballRotationRate !== 0) {
                     const fps = sceneData.fps || 30;
                     const elapsedSeconds = frameIndex / fps;
+                    // Keep orientation tied to frame index so the last frame does not snap when playback stops.
                     rotationAngle = (elapsedSeconds * config.ballRotationRate) * (Math.PI / 180);
                 }
                 
@@ -274,7 +290,7 @@ const P11V3Page = ({ onComplete }) => {
             } else {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "#999";
                 ctx.fill();
             }
         }
@@ -395,42 +411,49 @@ const P11V3Page = ({ onComplete }) => {
             currentFrameRef.current = 0;
             setAudioFinished(false);
             setVideoFinished(false);
-            setShowOccluder(false);
+            setShowOccluder(true); // Show occluder from the start
             hasAutoAdvancedRef.current = false;
             lastTimestampRef.current = null;
             
             // Clear any existing timers
-            if (occluderRevealTimerRef.current) {
-                clearTimeout(occluderRevealTimerRef.current);
+            if (occluderFlashTimerRef.current) {
+                clearTimeout(occluderFlashTimerRef.current);
             }
             if (animationStartTimerRef.current) {
                 clearTimeout(animationStartTimerRef.current);
             }
+            occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
+            occluderFlashTimersRef.current = [];
             
             if (renderFrameRef.current && sceneData) {
                 renderFrameRef.current(0);
                 
-                // Start audio immediately at Phase 1
+                // Start audio immediately
                 if (audioRef.current) {
                     audioRef.current.currentTime = 0;
                     audioRef.current.play().catch(e => console.warn('Failed to play audio:', e));
                 }
                 
-                // Phase 2: After 4 seconds, show occluder
-                occluderRevealTimerRef.current = setTimeout(() => {
-                    setShowOccluder(true);
+                // After delay, flash occluder twice within 1.5s, then start animation
+                occluderFlashTimerRef.current = setTimeout(() => {
+                    const flashInterval = OCCLUDER_FLASH_DURATION / 4;
+                    occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(false); }, 0));
+                    occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(true); }, flashInterval));
+                    occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(false); }, flashInterval * 2));
+                    occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(true); }, flashInterval * 3));
                     
-                    // Phase 3: Start animation
                     animationStartTimerRef.current = setTimeout(() => {
+                        setShowOccluder(true);
                         setIsPlaying(true);
-                    }, 500);
-                }, OCCLUDER_REVEAL_DELAY);
+                    }, OCCLUDER_FLASH_DURATION);
+                }, OCCLUDER_FLASH_DELAY);
             }
         }
     }, [resumeCounter, sceneData]);
 
     // Auto-start when scene data loaded - phased sequence for occluder reveal
     useEffect(() => {
+        if (!texturesLoaded) return;
         // Use scene data ID to prevent duplicate initialization
         const sceneDataId = sceneData ? JSON.stringify(Object.keys(sceneData.step_data || {}).sort()) : null;
         const isNewSceneData = sceneData && sceneDataId !== lastSceneDataRef.current;
@@ -443,54 +466,62 @@ const P11V3Page = ({ onComplete }) => {
             currentFrameRef.current = 0;
             setVideoFinished(false);
             setAudioFinished(false);
-            setShowOccluder(false);
+            setShowOccluder(true); // Show occluder from the start
             hasAutoAdvancedRef.current = false;
             lastTimestampRef.current = null;
             
             // Clear any existing timers
-            if (occluderRevealTimerRef.current) {
-                clearTimeout(occluderRevealTimerRef.current);
+            if (occluderFlashTimerRef.current) {
+                clearTimeout(occluderFlashTimerRef.current);
             }
             if (animationStartTimerRef.current) {
                 clearTimeout(animationStartTimerRef.current);
             }
+            occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
+            occluderFlashTimersRef.current = [];
             
-            // Phase 1: Show first frame without occluder and start audio immediately
+            // Phase 1: Show first frame WITH occluder and start audio immediately
             if (renderFrameRef.current) {
                 renderFrameRef.current(0);
             }
-            console.log('P11V3Page: Phase 1 - Showing components without occluder, starting audio');
+            console.log('P11V3Page: Phase 1 - Showing all components including occluder, starting audio');
             
-            // Start audio immediately at Phase 1
+            // Start audio immediately
             if (audioRef.current) {
                 audioRef.current.currentTime = 0;
                 audioRef.current.play().catch(e => console.error('Audio play failed:', e));
             }
             
-            // Phase 2: After 4 seconds, show occluder
-            occluderRevealTimerRef.current = setTimeout(() => {
-                console.log('P11V3Page: Phase 2 - Revealing occluder');
-                setShowOccluder(true);
+            // Phase 2: After delay, flash occluder twice within 1.5s to draw attention
+            occluderFlashTimerRef.current = setTimeout(() => {
+                console.log('P11V3Page: Phase 2 - Flashing occluder');
+                const flashInterval = OCCLUDER_FLASH_DURATION / 4;
+                occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(false); }, 0));
+                occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(true); }, flashInterval));
+                occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(false); }, flashInterval * 2));
+                occluderFlashTimersRef.current.push(setTimeout(() => { setShowOccluder(true); }, flashInterval * 3));
                 
-                // Phase 3: After a brief moment, start animation
+                // Phase 3: After flash completes, start animation
                 animationStartTimerRef.current = setTimeout(() => {
                     console.log('P11V3Page: Phase 3 - Starting animation');
+                    setShowOccluder(true);
                     setIsPlaying(true);
-                }, 500); // Brief pause after occluder appears
-            }, OCCLUDER_REVEAL_DELAY);
+                }, OCCLUDER_FLASH_DURATION);
+            }, OCCLUDER_FLASH_DELAY);
         }
         // Don't clear timers on cleanup - they should complete their sequence
-    }, [sceneData]);
+    }, [sceneData, texturesLoaded]);
     
     // Cleanup timers only on unmount
     useEffect(() => {
         return () => {
-            if (occluderRevealTimerRef.current) {
-                clearTimeout(occluderRevealTimerRef.current);
+            if (occluderFlashTimerRef.current) {
+                clearTimeout(occluderFlashTimerRef.current);
             }
             if (animationStartTimerRef.current) {
                 clearTimeout(animationStartTimerRef.current);
             }
+            occluderFlashTimersRef.current.forEach(t => clearTimeout(t));
         };
     }, []);
 
@@ -522,11 +553,17 @@ const P11V3Page = ({ onComplete }) => {
     }, [audioFinished, videoFinished]);
 
     // Skip shortcut
+    // Skip shortcut - clean up immediately before calling onComplete to prevent lingering audio
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
-                console.log("⏭️ P11V3Page: Skip pressed");
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
+                console.log("⏭️ P11V3Page: Skip pressed - cleaning up before advancing");
                 e.preventDefault();
+                if (occluderFlashTimerRef.current) { clearTimeout(occluderFlashTimerRef.current); occluderFlashTimerRef.current = null; }
+                if (animationStartTimerRef.current) { clearTimeout(animationStartTimerRef.current); animationStartTimerRef.current = null; }
+                occluderFlashTimersRef.current.forEach(t => clearTimeout(t)); occluderFlashTimersRef.current = [];
+                if (animationRef.current) { cancelAnimationFrame(animationRef.current); animationRef.current = null; }
+                if (audioRef.current) { try { audioRef.current.pause(); audioRef.current.currentTime = 0; } catch(e2) {} }
                 if (onCompleteRef.current) onCompleteRef.current();
             }
         };

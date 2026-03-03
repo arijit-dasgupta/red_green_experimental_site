@@ -8,11 +8,8 @@ const ChildAssent = () => {
     const audioRef = useRef(null);
 
     useEffect(() => {
-        // Auto-play audio when page loads
         if (audioRef.current) {
-            audioRef.current.play().catch(error => {
-                console.log("Audio autoplay prevented:", error);
-            });
+            audioRef.current.play().catch(() => {});
         }
     }, []);
 

@@ -20,9 +20,9 @@
 - key area component (v3_area.mp3)
 > Here is a park in Elmo's city where he plays his ball. The park is surrounded by black brick walls. Inside, there's a green grassland, a yellow flower garden, and white open space for Elmo to play. Sometimes there are also black brick walls inside the area.
 - Game Intro & Sensors (v3_sensors.mp3)
-> Let me tell you how the game works. You're going to help Elmo figure out where his ball is going to go. The ball will move in a straight line and bounce off when it touches a wall. Your job is to guess if the ball will land on the green grass or the yellow flower garden.
+> Let me tell you how the game works. You're going to help Elmo figure out where his ball is going to go. The ball will move in a straight line and bounce off when it touches a wall. Your job is to guess if the ball will land on the green grassland or the yellow flower garden.
 - Keys (v3_keys.mp3)
-> To help Elmo, you’ll press two special keys on your keyboard: F and J. Put one finger on the F key and one finger on the J key. You should feel a little bump on these two keys. So in this game, if you think the ball will land on the green grass, press F and keep pressing it. If you think it will land on the yellow flower garden, press J and keep pressing it. Let’s practice! 
+> To help Elmo, you’ll press two special keys on your keyboard: F and J. Put one finger on the F key and one finger on the J key. You should feel a little bump on these two keys. So in this game, if you think the ball will land on the green grassland, press F and keep pressing it. If you think it will land on the yellow flower garden, press J and keep pressing it. Let’s practice! 
 - practice keys (v3_practice_keys.mp3)
 > Now, press F and keep pressing it. See, the green grass lights up. Now, press J and keep pressing it. See, now the yellow flower garden lights up. Now switch to the green grassland by pressing the F key. Now switch to the yellow garden by pressing the J key. Now you can stop pressing keys. In the next pages, let's practice making guesses. 
 - Before Practice Switching (v3_before_practice_switching.mp3)
@@ -83,10 +83,10 @@
 | 2-5s    | Canvas: `T_v3_keys` | `v3_keyboard.png`       |
 | 5-12s   | Canvas: `T_v3_keys` | `v3_keyboard_hands.png` |
 | 12-15s  | Canvas: `T_v3_keys` | None                    |
-| 15-19s  | Canvas: `T_v3_keys` | `v3_keyboard_F.png`     |
-| 19-20s  | Canvas: `T_v3_keys` | None                    |
-| 20-25s  | Canvas: `T_v3_keys` | `v3_keyboard_J.png`     |
-| 25s-end | Canvas: `T_v3_keys` | None                    |
+| 15-20s  | Canvas: `T_v3_keys` | `v3_keyboard_F.png`     |
+| 20-21s  | Canvas: `T_v3_keys` | None                    |
+| 21-26s  | Canvas: `T_v3_keys` | `v3_keyboard_J.png`     |
+| 26s-end | Canvas: `T_v3_keys` | None                    |
 
 ### P13 (v3_before_test.mp3) - Before Easy Practice
 

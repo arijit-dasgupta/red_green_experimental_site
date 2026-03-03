@@ -99,10 +99,10 @@ const P1V3Page = ({ onComplete }) => {
         }, 500);
     };
 
-    // Handle skip (Shift+S)
+    // Handle skip (Shift+Control+S)
     useEffect(() => {
         const handleKeyDown = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
                 console.log('⏭️ P1V3Page: Skip key pressed');
                 if (onComplete) {
                     onComplete();

@@ -39,33 +39,26 @@ const P3V3Page = ({ onComplete }) => {
 
     const canvasSize = { width: 600, height: 600 };
 
-    // Load all textures
+    const [texturesLoaded, setTexturesLoaded] = useState(false);
+
+    // Load all textures, then set texturesLoaded so we don't render with fallback colors
     useEffect(() => {
-        if (config.ballTexturePath && config.ballTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.ballTexturePath;
-            img.onload = () => { ballTextureRef.current = img; };
-        }
-        if (config.barrierTexturePath && config.barrierTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.barrierTexturePath;
-            img.onload = () => { barrierTextureRef.current = img; };
-        }
-        if (config.redSensorTexturePath && config.redSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.redSensorTexturePath;
-            img.onload = () => { redSensorTextureRef.current = img; };
-        }
-        if (config.greenSensorTexturePath && config.greenSensorTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.greenSensorTexturePath;
-            img.onload = () => { greenSensorTextureRef.current = img; };
-        }
-        if (config.occluderTexturePath && config.occluderTexturePath.trim() !== '') {
-            const img = new Image();
-            img.src = config.occluderTexturePath;
-            img.onload = () => { occluderTextureRef.current = img; };
-        }
+        const promises = [];
+        const load = (path, ref) => {
+            if (!path || path.trim() === '') return;
+            promises.push(new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => { ref.current = img; resolve(); };
+                img.onerror = () => resolve();
+                img.src = path;
+            }));
+        };
+        load(config.ballTexturePath, ballTextureRef);
+        load(config.barrierTexturePath, barrierTextureRef);
+        load(config.redSensorTexturePath, redSensorTextureRef);
+        load(config.greenSensorTexturePath, greenSensorTextureRef);
+        load(config.occluderTexturePath, occluderTextureRef);
+        Promise.all(promises).then(() => setTexturesLoaded(true));
     }, []);
 
     // Helper to draw tiled textures
@@ -172,7 +165,7 @@ const P3V3Page = ({ onComplete }) => {
             if (redSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, redSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "red";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
         }
@@ -187,7 +180,7 @@ const P3V3Page = ({ onComplete }) => {
             if (greenSensorTextureRef.current?.complete) {
                 drawTiledTexture(ctx, greenSensorTextureRef.current, scaledX, scaledY, scaledWidth, scaledHeight);
             } else {
-                ctx.fillStyle = "green";
+                ctx.fillStyle = "#bbb";
                 ctx.fillRect(scaledX, scaledY, scaledWidth, scaledHeight);
             }
         }
@@ -258,7 +251,7 @@ const P3V3Page = ({ onComplete }) => {
             } else {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ballRadius, 0, 2 * Math.PI);
-                ctx.fillStyle = "blue";
+                ctx.fillStyle = "#999";
                 ctx.fill();
             }
         }
@@ -400,10 +393,10 @@ const P3V3Page = ({ onComplete }) => {
         }
     }, [resumeCounter, sceneData]);
 
-    // Auto-start when scene data loaded (do not depend on renderFrame to avoid re-running when isPlaying changes)
+    // Auto-start when scene data AND textures are loaded
     useEffect(() => {
-        if (!sceneData) return;
-        console.log('P3V3Page: Scene data loaded, starting audio');
+        if (!sceneData || !texturesLoaded) return;
+        console.log('P3V3Page: Scene data + textures loaded, starting audio');
         setIsPlaying(false);
         setCurrentFrame(0);
         currentFrameRef.current = 0;
@@ -438,7 +431,7 @@ const P3V3Page = ({ onComplete }) => {
                 clearTimeout(canvasDelayTimerRef.current);
             }
         };
-    }, [sceneData]);
+    }, [sceneData, texturesLoaded]);
 
     // Listen for audio end
     useEffect(() => {
@@ -465,10 +458,10 @@ const P3V3Page = ({ onComplete }) => {
         }
     }, [audioFinished, videoFinished, onComplete]);
 
-    // Skip shortcut
+    // Skip shortcut (Shift+Control+S)
     useEffect(() => {
         const handleKeyPress = (e) => {
-            if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+            if (e.shiftKey && e.ctrlKey && (e.key === 'S' || e.key === 's')) {
                 console.log("⏭️ P3V3Page: Skip pressed");
                 e.preventDefault();
                 if (onComplete) onComplete();
