@@ -78,7 +78,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 # Example URL with Prolific parameters for testing:
-# http://localhost:5000/?PROLIFIC_PID=sfdgsdfgsdfg&STUDY_ID=rg1&SESSION_ID=77
+# https://cb19-18-29-88-130.ngrok-free.app?PROLIFIC_PID=arijitprolificpid&STUDY_ID=rg1&SESSION_ID=77
 
 #=============================================================================
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
