@@ -99,6 +99,12 @@ PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CIF4
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
 PARTICIPANT_BUFFER = 20
+
+# If True, apply one of eight D4 symmetry transforms to each experimental trial
+# variant (grouped by prefix+number, e.g. T5A–T5D) to reduce carryover effects.
+# Requires all experimental scenes in the dataset to be strictly square
+# (scene_dims[0] == scene_dims[1]); this is asserted once at startup.
+SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS = False
 #=============================================================================
 
 # Calculate maximum participants (target + buffer)
@@ -202,6 +208,7 @@ class Trial(db.Model):
     completed = db.Column(db.Boolean, default=False)  # Whether trial finished successfully
     first_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of frame 0 (when ball starts moving)
     last_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of final frame
+    symmetry_transform = db.Column(db.Integer, nullable=True)  # Index (0-7) of applied D4 symmetry transform, if any
 
 class KeyState(db.Model):
     """
@@ -263,6 +270,20 @@ with app.app_context():
         if "already exists" not in str(e).lower():
             raise
 
+    # Lightweight migration: ensure Trial has symmetry_transform column in existing databases
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE trial ADD COLUMN symmetry_transform INTEGER"))
+            conn.commit()
+        print("Added symmetry_transform column to 'trial' table.")
+    except Exception as e:
+        # Ignore duplicate-column and missing-table style errors; log others
+        msg = str(e).lower()
+        if "duplicate column name" in msg or "no such table" in msg:
+            pass
+        else:
+            print(f"Warning: could not add symmetry_transform column: {e}")
+
     # Enable SQLite WAL mode for better concurrency
     try:
         with db.engine.connect() as conn:
@@ -276,6 +297,260 @@ with app.app_context():
 
     print("Database initialized.")
     print_active_sessions()
+
+#=============================================================================
+# SYMMETRY TRANSFORM HELPERS (D4 GROUP)
+#=============================================================================
+
+# Global state for symmetry mapping (per dataset)
+_SYMMETRY_VALIDATED = False
+_SYMMETRY_TRIAL_TRANSFORMS = {}  # trial_folder_name -> transform_index (0-7)
+
+def _get_d4_matrix(transform_index):
+    """
+    Return (a, b, c, d, swaps_axes) for the given D4 transform index.
+    The mapping is:
+      0: Identity
+      1: Rotation 90 degrees CCW
+      2: Rotation 180 degrees
+      3: Rotation 270 degrees CCW
+      4: Reflection across the vertical axis
+      5: Reflection across the horizontal axis
+      6: Reflection across the main diagonal
+      7: Reflection across the anti-diagonal
+    """
+    if transform_index == 0:
+        return 1, 0, 0, 1, False
+    elif transform_index == 1:
+        # x' = cx - (y - cy), y' = cy + (x - cx)
+        return 0, -1, 1, 0, True
+    elif transform_index == 2:
+        # x' = 2cx - x, y' = 2cy - y
+        return -1, 0, 0, -1, False
+    elif transform_index == 3:
+        # x' = cx + (y - cy), y' = cy - (x - cx)
+        return 0, 1, -1, 0, True
+    elif transform_index == 4:
+        # x' = 2cx - x, y' = y
+        return -1, 0, 0, 1, False
+    elif transform_index == 5:
+        # x' = x, y' = 2cy - y
+        return 1, 0, 0, -1, False
+    elif transform_index == 6:
+        # x' = cx + (y - cy), y' = cy + (x - cx)
+        return 0, 1, 1, 0, True
+    elif transform_index == 7:
+        # x' = cx - (y - cy), y' = cy - (x - cx)
+        return 0, -1, -1, 0, True
+    else:
+        raise ValueError(f"Invalid D4 transform index: {transform_index}")
+
+
+def transform_point(x, y, W, H, transform_index):
+    """Apply the specified D4 symmetry transform to a point (x, y)."""
+    cx = W / 2.0
+    cy = H / 2.0
+    a, b, c, d, _ = _get_d4_matrix(transform_index)
+    dx = x - cx
+    dy = y - cy
+    x_prime = cx + a * dx + b * dy
+    y_prime = cy + c * dx + d * dy
+    return x_prime, y_prime
+
+
+def transform_rect_bottom_left(x, y, width, height, W, H, transform_index):
+    """
+    Transform an axis-aligned rectangle specified by its bottom-left corner
+    and dimensions. The rectangle is represented internally by its center,
+    transformed via the D4 symmetry, and then reconstructed. For transforms
+    that swap axes, width/height are swapped.
+    """
+    cx_rect = x + width / 2.0
+    cy_rect = y + height / 2.0
+    a, b, c, d, swaps_axes = _get_d4_matrix(transform_index)
+    cx_world = W / 2.0
+    cy_world = H / 2.0
+    dx = cx_rect - cx_world
+    dy = cy_rect - cy_world
+    cx_prime = cx_world + a * dx + b * dy
+    cy_prime = cy_world + c * dx + d * dy
+
+    if swaps_axes:
+        width, height = height, width
+
+    new_x = cx_prime - width / 2.0
+    new_y = cy_prime - height / 2.0
+    return new_x, new_y, width, height
+
+
+def transform_ball_bottom_left(x, y, radius, W, H, transform_index):
+    """
+    Transform the bottom-left of a ball given its radius by transforming
+    the ball center and recomputing the bottom-left.
+    """
+    cx_ball = x + radius
+    cy_ball = y + radius
+    cx_prime, cy_prime = transform_point(cx_ball, cy_ball, W, H, transform_index)
+    return cx_prime - radius, cy_prime - radius
+
+
+def apply_symmetry_transform_to_trial(trial_dict, transform_index):
+    """
+    Apply the specified D4 symmetry transform to all relevant geometric
+    components of a parsed trial dict (barriers, occluders, sensors, step_data).
+    Mutates trial_dict in place and annotates it with 'symmetry_transform'.
+    """
+    W = trial_dict.get("worldWidth", 20)
+    H = trial_dict.get("worldHeight", 20)
+    radius = trial_dict.get("radius", 0)
+
+    # Barriers
+    new_barriers = []
+    for barrier in trial_dict.get("barriers", []):
+        bx = barrier.get("x", 0.0)
+        by = barrier.get("y", 0.0)
+        bw = barrier.get("width", 0.0)
+        bh = barrier.get("height", 0.0)
+        nx, ny, nw, nh = transform_rect_bottom_left(bx, by, bw, bh, W, H, transform_index)
+        updated = barrier.copy()
+        updated.update({"x": nx, "y": ny, "width": nw, "height": nh})
+        new_barriers.append(updated)
+    trial_dict["barriers"] = new_barriers
+
+    # Occluders
+    new_occluders = []
+    for occ in trial_dict.get("occluders", []):
+        ox = occ.get("x", 0.0)
+        oy = occ.get("y", 0.0)
+        ow = occ.get("width", 0.0)
+        oh = occ.get("height", 0.0)
+        nx, ny, nw, nh = transform_rect_bottom_left(ox, oy, ow, oh, W, H, transform_index)
+        updated = occ.copy()
+        updated.update({"x": nx, "y": ny, "width": nw, "height": nh})
+        new_occluders.append(updated)
+    trial_dict["occluders"] = new_occluders
+
+    # Sensors
+    for sensor_key in ["red_sensor", "green_sensor"]:
+        sensor = trial_dict.get(sensor_key)
+        if sensor:
+            sx = sensor.get("x", 0.0)
+            sy = sensor.get("y", 0.0)
+            sw = sensor.get("width", 0.0)
+            sh = sensor.get("height", 0.0)
+            nx, ny, nw, nh = transform_rect_bottom_left(sx, sy, sw, sh, W, H, transform_index)
+            new_sensor = sensor.copy()
+            new_sensor.update({"x": nx, "y": ny, "width": nw, "height": nh})
+            trial_dict[sensor_key] = new_sensor
+
+    # Step data (ball trajectory)
+    new_step_data = {}
+    for frame_idx, frame in trial_dict.get("step_data", {}).items():
+        bx = frame.get("x", 0.0)
+        by = frame.get("y", 0.0)
+        nx, ny = transform_ball_bottom_left(bx, by, radius, W, H, transform_index)
+        updated = frame.copy()
+        updated.update({"x": nx, "y": ny})
+        new_step_data[int(frame_idx)] = updated
+    trial_dict["step_data"] = new_step_data
+
+    trial_dict["symmetry_transform"] = transform_index
+
+
+def parse_experimental_trial_name(trial_folder_name):
+    """
+    Parse a trial folder name like 'T5A' into (base_key, variant_label), where
+    base_key is prefix+number (e.g. 'T5') and variant_label is the trailing
+    letter (e.g. 'A') or None if absent.
+    """
+    for prefix in EXP_TRIAL_PREFIXES:
+        if trial_folder_name.startswith(prefix):
+            rest = trial_folder_name[len(prefix):]
+            digits = ""
+            for ch in rest:
+                if ch.isdigit():
+                    digits += ch
+                else:
+                    break
+            variant = rest[len(digits):] or None
+            if variant is not None and len(variant) > 1:
+                # We only expect a single letter; keep the first for grouping
+                variant = variant[0]
+            base_key = f"{prefix}{digits}" if digits else trial_folder_name
+            return base_key, variant
+    # Fallback: treat the whole name as its own base with no variant
+    return trial_folder_name, None
+
+
+def initialize_symmetry_for_dataset(trial_paths, randomized_trial_order):
+    """
+    One-time initialization for symmetry transforms:
+      - Assert all experimental scenes are square (W == H > 0).
+      - Count variants per base_key and warn when count >= 8.
+      - Build a deterministic mapping from trial folder name to transform index.
+    """
+    global _SYMMETRY_VALIDATED, _SYMMETRY_TRIAL_TRANSFORMS
+
+    if _SYMMETRY_VALIDATED:
+        return
+
+    # Aspect ratio assertion and variant counting
+    base_counts = {}
+    for path in trial_paths:
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            raise AssertionError(f"Failed to load trial JSON at {path}: {e}")
+
+        scene_dims = data.get("scene_dims", [20, 20])
+        W = scene_dims[0] if len(scene_dims) > 0 else 20
+        H = scene_dims[1] if len(scene_dims) > 1 else 20
+        if not (W == H and W > 0):
+            folder_name = os.path.basename(os.path.dirname(path))
+            raise AssertionError(
+                f"SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS is True, but trial "
+                f"'{folder_name}' has non-square scene_dims={scene_dims}."
+            )
+
+        folder_name = os.path.basename(os.path.dirname(path))
+        base_key, _ = parse_experimental_trial_name(folder_name)
+        base_counts[base_key] = base_counts.get(base_key, 0) + 1
+
+    # Warn for large variant sets
+    for base_key, count in base_counts.items():
+        if count >= 8:
+            print(
+                f"\033[93m[SYMMETRY WARNING]\033[0m "
+                f"Base trial set '{base_key}' has {count} variants; "
+                f"symmetry transforms will be reused within this set."
+            )
+
+    # Deterministic assignment of transforms per base_key and variant
+    rng = random.Random(271828)
+    groups = {}
+    for folder_name in randomized_trial_order:
+        base_key, _ = parse_experimental_trial_name(folder_name)
+        groups.setdefault(base_key, set()).add(folder_name)
+
+    trial_transform_map = {}
+    base_transforms = list(range(8))
+
+    for base_key in sorted(groups.keys()):
+        variants = sorted(groups[base_key])
+        n = len(variants)
+        if n <= 8:
+            assigned = rng.sample(base_transforms, n)
+        else:
+            full_cycles = n // 8
+            remainder = n % 8
+            assigned = base_transforms * full_cycles + rng.sample(base_transforms, remainder)
+            rng.shuffle(assigned)
+        for variant_name, transform_index in zip(variants, assigned):
+            trial_transform_map[variant_name] = transform_index
+
+    _SYMMETRY_TRIAL_TRANSFORMS = trial_transform_map
+    _SYMMETRY_VALIDATED = True
 
 def get_all_trial_paths(directory_path, randomized_profile_id):
     """
@@ -395,6 +670,9 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     major_path = config["major_path"]
     ftrial_paths, trial_paths, randomized_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
 
+    if SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS and trial_paths:
+        initialize_symmetry_for_dataset(trial_paths, randomized_trial_order)
+
     def parse_json(file_path):
         """
         Parse a single JSON trial data file into frontend-compatible format.
@@ -442,9 +720,20 @@ def load_experiment_config(experiment_name, randomized_profile_id):
             "worldHeight": world_height,
         }
 
-    # Parse all trial data files for this participant
+    # Parse familiarization trials (no symmetry transforms applied)
     config["ftrial_datas"] = [parse_json(file_path) for file_path in ftrial_paths]
-    config["trial_datas"] = [parse_json(file_path) for file_path in trial_paths]
+
+    # Parse experimental trials, applying symmetry transforms if enabled
+    trial_datas = []
+    for idx, file_path in enumerate(trial_paths):
+        trial_dict = parse_json(file_path)
+        if SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
+            trial_name = randomized_trial_order[idx] if idx < len(randomized_trial_order) else None
+            if trial_name and trial_name in _SYMMETRY_TRIAL_TRANSFORMS:
+                transform_index = _SYMMETRY_TRIAL_TRANSFORMS[trial_name]
+                apply_symmetry_transform_to_trial(trial_dict, transform_index)
+        trial_datas.append(trial_dict)
+    config["trial_datas"] = trial_datas
     config["num_ftrials"] = len(ftrial_paths)
     config["num_trials"] = len(trial_paths)
 
@@ -742,6 +1031,13 @@ def load_next_scene():
             global_trial_name = session.randomized_trial_order[trial_index]
         else:
             global_trial_name = f"F{trial_index+1}"
+
+        # Determine symmetry transform index for this trial, if any
+        symmetry_transform_index = None
+        if is_trial and SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
+            # Look up transform index from the parsed trial data if present
+            if 0 <= trial_index < len(config["trial_datas"]):
+                symmetry_transform_index = config["trial_datas"][trial_index].get("symmetry_transform")
             
         # Create and save trial record
         trial = Trial(
@@ -749,7 +1045,8 @@ def load_next_scene():
             trial_type=trial_type, 
             trial_index=trial_index, 
             counterbalance=counterbalance,
-            global_trial_name=global_trial_name
+            global_trial_name=global_trial_name,
+            symmetry_transform=symmetry_transform_index
         )
         db.session.add(trial)
         db.session.commit()
@@ -801,6 +1098,11 @@ def load_next_scene():
     world_width = npz_data.get("worldWidth", 20)
     world_height = npz_data.get("worldHeight", 20)
     
+    # Determine symmetry transform index for this scene, if any
+    symmetry_transform_index = None
+    if is_trial and not (transition_to_exp_page or finish):
+        symmetry_transform_index = npz_data.get("symmetry_transform")
+
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": world_width,
@@ -816,7 +1118,8 @@ def load_next_scene():
         "finish": finish,
         "average_score": avg_score,
         "prolific_completion_url": PROLIFIC_COMPLETION_URL if finish else None,
-        "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id
+        "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id,
+        "symmetry_transform_index": symmetry_transform_index
     }
 
     return jsonify(scene_data)
