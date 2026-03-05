@@ -100,11 +100,21 @@ PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CIF4
 # This ensures we can still reach our target even if some participants don't complete
 PARTICIPANT_BUFFER = 20
 
+# If True, duplicate specific experimental trials according to repeat.csv
+# in the dataset folder (one row per trial name and number of extra
+# repetitions). Repeated trials are spaced out to reduce carryover.
+REPEAT_TRIALS = True
+
+# When REPEAT_TRIALS is True and symmetry transforms are enabled, this flag
+# controls whether repeated trial instances also receive D4 symmetry
+# transforms (as additional variants in their prefix+number group).
+APPLY_SYMMETRY_TO_REPEATED_TRIALS = False
+
 # If True, apply one of eight D4 symmetry transforms to each experimental trial
 # variant (grouped by prefix+number, e.g. T5A–T5D) to reduce carryover effects.
 # Requires all experimental scenes in the dataset to be strictly square
 # (scene_dims[0] == scene_dims[1]); this is asserted once at startup.
-SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS = False
+SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS = True
 #=============================================================================
 
 # Calculate maximum participants (target + buffer)
@@ -209,6 +219,9 @@ class Trial(db.Model):
     first_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of frame 0 (when ball starts moving)
     last_frame_utc = db.Column(db.DateTime, nullable=True)  # UTC timestamp of final frame
     symmetry_transform = db.Column(db.Integer, nullable=True)  # Index (0-7) of applied D4 symmetry transform, if any
+    # Repetition metadata (for trials generated via repeat.csv)
+    is_repeated = db.Column(db.Boolean, default=False)  # True if this is a repeated presentation of a trial name
+    repeat_instance_index = db.Column(db.Integer, nullable=True)  # 0 for original, 1..k for repeats within that trial name
 
 class KeyState(db.Model):
     """
@@ -270,19 +283,42 @@ with app.app_context():
         if "already exists" not in str(e).lower():
             raise
 
-    # Lightweight migration: ensure Trial has symmetry_transform column in existing databases
+    # Lightweight migrations for Trial table (existing SQLite databases)
     try:
         with db.engine.connect() as conn:
             conn.execute(text("ALTER TABLE trial ADD COLUMN symmetry_transform INTEGER"))
             conn.commit()
         print("Added symmetry_transform column to 'trial' table.")
     except Exception as e:
-        # Ignore duplicate-column and missing-table style errors; log others
         msg = str(e).lower()
         if "duplicate column name" in msg or "no such table" in msg:
             pass
         else:
             print(f"Warning: could not add symmetry_transform column: {e}")
+
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE trial ADD COLUMN is_repeated BOOLEAN DEFAULT 0"))
+            conn.commit()
+        print("Added is_repeated column to 'trial' table.")
+    except Exception as e:
+        msg = str(e).lower()
+        if "duplicate column name" in msg or "no such table" in msg:
+            pass
+        else:
+            print(f"Warning: could not add is_repeated column: {e}")
+
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE trial ADD COLUMN repeat_instance_index INTEGER"))
+            conn.commit()
+        print("Added repeat_instance_index column to 'trial' table.")
+    except Exception as e:
+        msg = str(e).lower()
+        if "duplicate column name" in msg or "no such table" in msg:
+            pass
+        else:
+            print(f"Warning: could not add repeat_instance_index column: {e}")
 
     # Enable SQLite WAL mode for better concurrency
     try:
@@ -304,7 +340,7 @@ with app.app_context():
 
 # Global state for symmetry mapping (per dataset)
 _SYMMETRY_VALIDATED = False
-_SYMMETRY_TRIAL_TRANSFORMS = {}  # trial_folder_name -> transform_index (0-7)
+_SYMMETRY_TRIAL_TRANSFORMS = {}  # trial_index (int in randomized order) -> transform_index (0-7)
 
 def _get_d4_matrix(transform_index):
     """
@@ -526,19 +562,37 @@ def initialize_symmetry_for_dataset(trial_paths, randomized_trial_order):
                 f"symmetry transforms will be reused within this set."
             )
 
-    # Deterministic assignment of transforms per base_key and variant
+    # Deterministic assignment of transforms per base_key and trial index
     rng = random.Random(271828)
-    groups = {}
-    for folder_name in randomized_trial_order:
+    # First, group trial indices by base_key
+    groups_by_base = {}
+    for idx, folder_name in enumerate(randomized_trial_order):
         base_key, _ = parse_experimental_trial_name(folder_name)
-        groups.setdefault(base_key, set()).add(folder_name)
+        groups_by_base.setdefault(base_key, []).append(idx)
+
+    # If we are repeating trials but not applying symmetry to repeats,
+    # restrict to the first occurrence of each folder name in each base group.
+    if REPEAT_TRIALS and not APPLY_SYMMETRY_TO_REPEATED_TRIALS:
+        filtered_groups = {}
+        for base_key, indices in groups_by_base.items():
+            seen_names = set()
+            filtered_indices = []
+            for idx in indices:
+                folder_name = randomized_trial_order[idx]
+                if folder_name not in seen_names:
+                    seen_names.add(folder_name)
+                    filtered_indices.append(idx)
+            filtered_groups[base_key] = filtered_indices
+        groups_by_base = filtered_groups
 
     trial_transform_map = {}
     base_transforms = list(range(8))
 
-    for base_key in sorted(groups.keys()):
-        variants = sorted(groups[base_key])
-        n = len(variants)
+    for base_key in sorted(groups_by_base.keys()):
+        indices = sorted(groups_by_base[base_key])
+        n = len(indices)
+        if n == 0:
+            continue
         if n <= 8:
             assigned = rng.sample(base_transforms, n)
         else:
@@ -546,11 +600,17 @@ def initialize_symmetry_for_dataset(trial_paths, randomized_trial_order):
             remainder = n % 8
             assigned = base_transforms * full_cycles + rng.sample(base_transforms, remainder)
             rng.shuffle(assigned)
-        for variant_name, transform_index in zip(variants, assigned):
-            trial_transform_map[variant_name] = transform_index
+        for idx, transform_index in zip(indices, assigned):
+            trial_transform_map[idx] = transform_index
 
     _SYMMETRY_TRIAL_TRANSFORMS = trial_transform_map
     _SYMMETRY_VALIDATED = True
+
+    # Log that symmetry-related sanity checks have passed (bold green)
+    print(
+        "\033[1;32m[SYMMETRY OK]\033[0m "
+        "All experimental trials have square scenes and D4 symmetry transforms have been assigned."
+    )
 
 def get_all_trial_paths(directory_path, randomized_profile_id):
     """
@@ -618,6 +678,64 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
             if round_trials:
                 random_.shuffle(round_trials)
                 e_folders_shuffled.extend(round_trials)
+
+        # Optionally repeat selected trials based on repeat.csv in the dataset folder
+        if REPEAT_TRIALS:
+            repeat_csv_path = os.path.join(absolute_directory_path, "repeat.csv")
+            repeat_counts = {}
+            if os.path.exists(repeat_csv_path):
+                try:
+                    with open(repeat_csv_path, "r") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith("#"):
+                                continue
+                            parts = [p.strip() for p in line.split(",")]
+                            if len(parts) != 2:
+                                continue
+                            trial_name, extra_str = parts
+                            try:
+                                extra = int(extra_str)
+                            except ValueError:
+                                continue
+                            if extra > 0:
+                                repeat_counts[trial_name] = repeat_counts.get(trial_name, 0) + extra
+                except Exception as e:
+                    print(f"Warning: failed to read repeat.csv at {repeat_csv_path}: {e}")
+
+            if repeat_counts:
+                # Spread repeated trials so that same trials are as far apart as possible
+                base_order = e_folders_shuffled[:]
+
+                def insert_farthest(ap_list, trial_name):
+                    """Insert trial_name into ap_list at the position maximizing distance to existing same-name trials."""
+                    # Current positions of this trial
+                    positions = [i for i, name in enumerate(ap_list) if name == trial_name]
+                    if not positions:
+                        # If the trial is not present (unexpected), append at end
+                            # but keep deterministic behavior
+                        ap_list.append(trial_name)
+                        return
+
+                    best_pos = 0
+                    best_min_dist = -1
+                    n = len(ap_list)
+                    for pos in range(n + 1):
+                        # Compute minimal distance to any existing occurrence of this trial
+                        min_dist = min(abs(pos - p) for p in positions)
+                        if min_dist > best_min_dist:
+                            best_min_dist = min_dist
+                            best_pos = pos
+                    ap_list.insert(best_pos, trial_name)
+
+                # Work on a mutable copy
+                spaced_order = base_order[:]
+                for trial_name in sorted(repeat_counts.keys()):
+                    extra = repeat_counts[trial_name]
+                    for _ in range(extra):
+                        insert_farthest(spaced_order, trial_name)
+
+                e_folders_shuffled = spaced_order
 
         # All participants get the same shuffled order
         f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
@@ -728,9 +846,8 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     for idx, file_path in enumerate(trial_paths):
         trial_dict = parse_json(file_path)
         if SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
-            trial_name = randomized_trial_order[idx] if idx < len(randomized_trial_order) else None
-            if trial_name and trial_name in _SYMMETRY_TRIAL_TRANSFORMS:
-                transform_index = _SYMMETRY_TRIAL_TRANSFORMS[trial_name]
+            transform_index = _SYMMETRY_TRIAL_TRANSFORMS.get(idx)
+            if transform_index is not None:
                 apply_symmetry_transform_to_trial(trial_dict, transform_index)
         trial_datas.append(trial_dict)
     config["trial_datas"] = trial_datas
@@ -1038,6 +1155,19 @@ def load_next_scene():
             # Look up transform index from the parsed trial data if present
             if 0 <= trial_index < len(config["trial_datas"]):
                 symmetry_transform_index = config["trial_datas"][trial_index].get("symmetry_transform")
+
+        # Determine repetition metadata for experimental trials
+        is_repeated = False
+        repeat_instance_index = None
+        if is_trial:
+            # Count how many times this trial name has appeared up to and including this index
+            occurrences = [
+                name for name in session.randomized_trial_order[: trial_index + 1]
+                if name == global_trial_name
+            ]
+            # Instance index: 0 for first occurrence, 1..k for repeats
+            repeat_instance_index = len(occurrences) - 1
+            is_repeated = repeat_instance_index > 0
             
         # Create and save trial record
         trial = Trial(
@@ -1046,7 +1176,9 @@ def load_next_scene():
             trial_index=trial_index, 
             counterbalance=counterbalance,
             global_trial_name=global_trial_name,
-            symmetry_transform=symmetry_transform_index
+            symmetry_transform=symmetry_transform_index,
+            is_repeated=is_repeated,
+            repeat_instance_index=repeat_instance_index
         )
         db.session.add(trial)
         db.session.commit()
@@ -1103,6 +1235,20 @@ def load_next_scene():
     if is_trial and not (transition_to_exp_page or finish):
         symmetry_transform_index = npz_data.get("symmetry_transform")
 
+    # Repetition metadata for the current scene (only for experimental trials)
+    scene_is_repeated = False
+    scene_repeat_instance_index = None
+    if is_trial and not (transition_to_exp_page or finish):
+        # Align with DB logic: infer from randomized_trial_order and trial_index
+        if 0 <= (trial_i - 1) < len(session.randomized_trial_order):
+            current_name = session.randomized_trial_order[trial_i - 1]
+            occurrences = [
+                name for name in session.randomized_trial_order[: trial_i]
+                if name == current_name
+            ]
+            scene_repeat_instance_index = len(occurrences) - 1
+            scene_is_repeated = scene_repeat_instance_index > 0
+
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": world_width,
@@ -1119,7 +1265,9 @@ def load_next_scene():
         "average_score": avg_score,
         "prolific_completion_url": PROLIFIC_COMPLETION_URL if finish else None,
         "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id,
-        "symmetry_transform_index": symmetry_transform_index
+        "symmetry_transform_index": symmetry_transform_index,
+        "is_repeated_trial": scene_is_repeated,
+        "repeat_instance_index": scene_repeat_instance_index
     }
 
     return jsonify(scene_data)
