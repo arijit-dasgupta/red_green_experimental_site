@@ -15,7 +15,7 @@ const parseUrlParams = () => {
 const WelcomePage = ({ setTrialInfo }) => {
 
     const { navigate } = useNavigation(); // Use the navigation context
-    const [timeoutMinutes, setTimeoutMinutes] = useState(60); // default fallback
+    const [timeoutMinutes, setTimeoutMinutes] = useState(45); // default fallback
 
     useEffect(() => {
       const params = parseUrlParams();

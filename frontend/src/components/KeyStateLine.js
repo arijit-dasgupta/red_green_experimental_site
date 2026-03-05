@@ -39,7 +39,6 @@ const KeyStateLine = ({ recordedKeyStates }) => {
                     style={{
                         width: `${redProportion}%`,
                         backgroundColor: 'red',
-                        transition: 'width 0.5s',
                     }}
                 />
                 {/* Uncertain segment */}
@@ -47,7 +46,6 @@ const KeyStateLine = ({ recordedKeyStates }) => {
                     style={{
                         width: `${uncertainProportion}%`,
                         backgroundColor: 'gray',
-                        transition: 'width 0.5s',
                         position: 'relative', // Enable positioning for the text
                         display: 'flex',
                         alignItems: 'center',
@@ -72,7 +70,6 @@ const KeyStateLine = ({ recordedKeyStates }) => {
                     style={{
                         width: `${greenProportion}%`,
                         backgroundColor: 'green',
-                        transition: 'width 0.5s',
                     }}
                 />
             </div>

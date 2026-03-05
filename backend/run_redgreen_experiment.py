@@ -84,7 +84,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'CandidateTrials_Mar04'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'CandidateTrials_Mar04_reduced'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
@@ -108,7 +108,7 @@ REPEAT_TRIALS = True
 # When REPEAT_TRIALS is True and symmetry transforms are enabled, this flag
 # controls whether repeated trial instances also receive D4 symmetry
 # transforms (as additional variants in their prefix+number group).
-APPLY_SYMMETRY_TO_REPEATED_TRIALS = False
+APPLY_SYMMETRY_TO_REPEATED_TRIALS = True
 
 # If True, apply one of eight D4 symmetry transforms to each experimental trial
 # variant (grouped by prefix+number, e.g. T5A–T5D) to reduce carryover effects.
@@ -764,6 +764,22 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
                         insert_farthest(spaced_order, trial_name)
 
                 e_folders_shuffled = spaced_order
+
+        # Spread trials with the same prefix+number (base_key) so they don't appear consecutively
+        groups_by_base = {}
+        for name in e_folders_shuffled:
+            base_key, _ = parse_experimental_trial_name(name)
+            groups_by_base.setdefault(base_key, []).append(name)
+        for base_key in groups_by_base:
+            random_.shuffle(groups_by_base[base_key])
+        group_keys = list(groups_by_base.keys())
+        spread_order = []
+        while any(groups_by_base[k] for k in group_keys):
+            keys_with_items = [k for k in group_keys if groups_by_base[k]]
+            random_.shuffle(keys_with_items)
+            for k in keys_with_items:
+                spread_order.append(groups_by_base[k].pop(0))
+        e_folders_shuffled = spread_order
 
         # All participants get the same shuffled order
         f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
