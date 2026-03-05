@@ -79,16 +79,15 @@ const PostExperimentFeedbackPage = ({ navigateToFinish }) => {
         </h1>
         <p style={{ fontSize: '1rem', color: '#4b5563', marginBottom: '16px' }}>
           We are interested in how people experienced the trials in this experiment.
-          In your specific condition, there{' '}
-          <strong>may or may not</strong> have been trials that were similar to or
-          the same as ones you saw before.
+          Depending on the specific set of trials you were assigned to, there{' '}
+          <strong>may or may not</strong> have been some trials that were repeated during the experiment (i.e., seeing the exact same trials with the same physical outcomes).
         </p>
         <p style={{ fontSize: '1rem', color: '#4b5563', marginBottom: '16px' }}>
-          Please briefly describe whether you felt that:
+          Please briefly describe, in your own words:
         </p>
         <ul style={{ fontSize: '0.95rem', color: '#4b5563', marginBottom: '16px', paddingLeft: '20px' }}>
-          <li>you were seeing any trials that reminded you of earlier ones, and/or</li>
-          <li>you were using what you learned from earlier trials to update your predictions.</li>
+          <li>whether you ever felt that you were seeing the exact same trial again, and</li>
+          <li>if you did feel that you were seeing repeated trials, whether you felt you were using what you learned on earlier trials to change how you predicted the outcome of the repeated trial.</li>
         </ul>
         <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '16px' }}>
           There are no right or wrong answers here – we are just interested in your
