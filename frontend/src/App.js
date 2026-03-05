@@ -6,6 +6,7 @@ import WelcomePage from './pages/Welcome';
 import InstructionsPage from './pages/Instructions';
 import ExperimentPage from './pages/Experiment';
 import FinishPage from './pages/Finish';
+import PostExperimentFeedbackPage from './pages/PostExperimentFeedback';
 import TimeoutPage from './pages/Timeout';
 import Header from './components/Header';
 import { useNavigation } from './contexts/NavigationContext';
@@ -203,7 +204,7 @@ const App = () => {
 
   // use several hooks
   useSessionTimeout(navigate, currentPage);
-  usePreventNavigation(!["finish", "welcome", "timeout"].includes(currentPage));
+  usePreventNavigation(!["finish", "post_feedback", "welcome", "timeout"].includes(currentPage));
   useUpdateKeyStates(keyStates, setKeyStates);
   useCancelAnimation(animationRef);
   useSyncKeyStatesRef(keyStates, keyStatesRef);
@@ -243,6 +244,8 @@ const renderCurrentPage = () => {
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
       />;
+    case 'post_feedback':
+      return <PostExperimentFeedbackPage navigateToFinish={() => navigate('finish')} />;
     case 'timeout': // Add timeout case
       return <TimeoutPage />;
     case 'finish':
@@ -278,7 +281,7 @@ const renderCurrentPage = () => {
         setFinished(false);
         setAverageScore(data.average_score);
         setProlificCompletionUrl(data.prolific_completion_url || null);
-        navigate('finish');
+        navigate('post_feedback');
         return;
       }
   

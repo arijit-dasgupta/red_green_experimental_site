@@ -199,6 +199,9 @@ class REDGREEN_Session(db.Model):
     has_timed_out = db.Column(db.Boolean, default=False)  # Whether session exceeded time limit
     end_time = db.Column(db.DateTime, nullable=True)  # When session completed
     experiment_name = db.Column(db.String(100))  # Which experiment variant was run
+    # Post-experiment free-text feedback on perceived repetition/learning
+    post_experiment_feedback = db.Column(db.Text, nullable=True)
+    post_experiment_feedback_submitted = db.Column(db.Boolean, default=False)
 
 class Trial(db.Model):
     """
@@ -319,6 +322,31 @@ with app.app_context():
             pass
         else:
             print(f"Warning: could not add repeat_instance_index column: {e}")
+
+    # Lightweight migrations for REDGREEN_Session table (post-experiment feedback)
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE redgreen_session ADD COLUMN post_experiment_feedback TEXT"))
+            conn.commit()
+        print("Added post_experiment_feedback column to 'redgreen_session' table.")
+    except Exception as e:
+        msg = str(e).lower()
+        if "duplicate column name" in msg or "no such table" in msg:
+            pass
+        else:
+            print(f"Warning: could not add post_experiment_feedback column: {e}")
+
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text("ALTER TABLE redgreen_session ADD COLUMN post_experiment_feedback_submitted BOOLEAN DEFAULT 0"))
+            conn.commit()
+        print("Added post_experiment_feedback_submitted column to 'redgreen_session' table.")
+    except Exception as e:
+        msg = str(e).lower()
+        if "duplicate column name" in msg or "no such table" in msg:
+            pass
+        else:
+            print(f"Warning: could not add post_experiment_feedback_submitted column: {e}")
 
     # Enable SQLite WAL mode for better concurrency
     try:
@@ -1530,6 +1558,29 @@ def sessions():
         })
 
     return jsonify(result)
+
+
+@app.route('/save_post_experiment_feedback', methods=['POST'])
+def save_post_experiment_feedback():
+    """
+    Save an open-ended post-experiment feedback response about perceived
+    repetition/learning for a session.
+    """
+    session_id = request.json.get('session_id')
+    feedback_text = request.json.get('feedback_text', '')
+
+    if not session_id:
+        return jsonify({"error": "Session ID not provided"}), 400
+
+    session = db.session.get(REDGREEN_Session, session_id)
+    if not session:
+        return jsonify({"error": "Session not found in database"}), 404
+
+    session.post_experiment_feedback = feedback_text
+    session.post_experiment_feedback_submitted = True
+    db.session.commit()
+
+    return jsonify({"status": "success"}), 200
 
 #=============================================================================
 # DATA EXPORT FUNCTIONS
