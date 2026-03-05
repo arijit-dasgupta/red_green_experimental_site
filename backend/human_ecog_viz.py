@@ -642,7 +642,7 @@ def draw_stimulus_image_with_decision_markers(
 def plot_human_only_trial(trial_dir, output_path):
     """Create one plot for a single trial_dir and save to output_path."""
     sim_path = os.path.join(trial_dir, "simulation_data.json")
-    human_path = os.path.join(trial_dir, "human_data.csv")
+    human_path = os.path.join(trial_dir, "ecog_data.csv")
     trial_name = os.path.basename(trial_dir.rstrip("/"))
 
     if not os.path.exists(sim_path) or not os.path.exists(human_path):

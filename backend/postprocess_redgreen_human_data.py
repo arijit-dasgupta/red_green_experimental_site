@@ -215,7 +215,7 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     return session_df, trial_df, keystate_df, rgplot_df, valid_trial_ids, global_trial_names
 
 
-def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
+def save_ecog_data_by_trial(trial_df, keystate_df, path_to_data):
     """
     Save human keystate data as separate CSV files for each trial.
     
@@ -296,15 +296,18 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
     # Create a dictionary of dataframes, one for each global_trial_name
     keystate_by_trial = {}
     for trial_name in keystate_with_session['global_trial_name'].unique():
-        keystate_by_trial[trial_name] = keystate_with_session[keystate_with_session['global_trial_name'] == trial_name].copy()
+        trial_data_full = keystate_with_session[keystate_with_session['global_trial_name'] == trial_name].copy()
+        # Remove session_id and trial_id before saving to CSV (keep only columns needed for visualization)
+        trial_data_to_save = trial_data_full[['frame', 'red', 'green', 'uncertain', 'rg_outcome', 'global_trial_name']].copy()
+        keystate_by_trial[trial_name] = trial_data_to_save
 
     # Save each trial as a separate CSV file in path_to_data
     for trial_name, trial_data in keystate_by_trial.items():
-        csv_filename = "human_data.csv"
+        csv_filename = "ecog_data.csv"
         csv_filepath = os.path.join(path_to_data, trial_name, csv_filename)
         trial_data.to_csv(csv_filepath, index=False)
     
-    print(f"Saved human data as CSV files in {path_to_data}")
+    print(f"Saved ecog data as CSV files in {path_to_data}")
     
     return keystate_by_trial
 
