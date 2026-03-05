@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState';
 
+const INSTR_ASSET_BASE_URL = 'https://redgreenplayground.s3.us-east-2.amazonaws.com/experiment_site_assets';
+
 const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
     const { navigate } = useNavigation();
     const [currentPage, setCurrentPage] = useState(1);
@@ -103,7 +105,7 @@ const InstructionPage1 = ({ handleNext }) => (
         The blue object moves with correct <b>frictionless</b> and <b>elastic</b> physical motion & can bounce off walls and black rectangular barriers.
         </p>
         <video
-            src="/instruc1.webm"
+            src={`${INSTR_ASSET_BASE_URL}/instruc1.webm`}
             autoPlay
             loop
             muted
@@ -144,7 +146,7 @@ const InstructionPage2 = ({ handleNext, handleBack }) => (
         >
             <div style={{ textAlign: "center", flex: "1 1 calc(50% - 10px)" }}>
                 <img
-                    src="/occ_no_hide_barrier.png"
+                    src={`${INSTR_ASSET_BASE_URL}/occ_no_hide_barrier.png`}
                     alt="Occluder Example"
                     style={{
                         width: "100%",
@@ -159,7 +161,7 @@ const InstructionPage2 = ({ handleNext, handleBack }) => (
             </div>
             <div style={{ textAlign: "center", flex: "1 1 calc(50% - 10px)" }}>
                 <video
-                    src="/instruc2.webm"
+                    src={`${INSTR_ASSET_BASE_URL}/instruc2.webm`}
                     autoPlay
                     loop
                     muted
@@ -198,7 +200,7 @@ const InstructionPage3 = ({ handleNext, handleBack }) => (
          whether the moving object will hit the <span style={{ color: "red" }}><strong> red </strong></span> region or the <span style={{ color: "green" }}><strong> green </strong></span> region first. 
          The trial will end once the ball will hit one of the 2 regions, <span style={{ color: "red" }}><strong> red </strong></span> or <span style={{ color: "green" }}><strong> green </strong></span>.</p>
         <video
-            src="/instruc3.webm"
+            src={`${INSTR_ASSET_BASE_URL}/instruc3.webm`}
             autoPlay
             loop
             muted

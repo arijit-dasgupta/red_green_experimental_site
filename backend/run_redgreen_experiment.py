@@ -84,16 +84,17 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'ecog_stimuli_v6'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'CandidateTrials_Mar04'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
-EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'pilot_dec15_2025'  # Version identifier for this experiment run
-COUNTERBALANCE_OUTCOMES = False # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
-TIMEOUT_PERIOD = timedelta(minutes=60)  # Maximum time before session expires
+# EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
+EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
+EXPERIMENT_RUN_VERSION = 'red_green_2026_pilot_v0'  # Version identifier for this experiment run
+COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
+TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
-NUM_PARTICIPANTS = 20  # Target number of participants to recruit
+NUM_PARTICIPANTS = 15  # Target number of participants to recruit
 # PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
-PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=C3RXSHXW'  # URL for participants to complete study on Prolific
+PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CIF4CGOI'  # URL for participants to complete study on Prolific
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -112,8 +113,12 @@ app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 # Enable CORS for frontend-backend communication, with ngrok compatibility
 CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
-# Database configuration using SQLite with experiment-specific filename
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db'
+# Database directory at project root; create if missing
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HUMAN_RAW_DATA_DIR = os.path.join(_PROJECT_ROOT, 'human_raw_data')
+os.makedirs(HUMAN_RAW_DATA_DIR, exist_ok=True)
+_db_path = os.path.join(HUMAN_RAW_DATA_DIR, f'{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.abspath(_db_path).replace('\\', '/')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'mysecretkey_redgreen_##$563456#$%^')
 app.config['ADMIN_EMAIL'] = 'arijitdg@mit.edu'
@@ -250,7 +255,13 @@ def print_active_sessions():
 
 # Initialize database tables, enable WAL, and print session status
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except OperationalError as e:
+        # Multiple gunicorn workers may run this concurrently; one creates tables,
+        # others get "table X already exists". Treat as success and continue.
+        if "already exists" not in str(e).lower():
+            raise
 
     # Enable SQLite WAL mode for better concurrency
     try:

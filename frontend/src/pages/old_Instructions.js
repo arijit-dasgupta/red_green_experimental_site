@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import renderKeyState from '../components/renderKeyState';
 
+const INSTR_ASSET_BASE_URL = 'https://redgreenplayground.s3.us-east-2.amazonaws.com/experiment_site_assets';
+
 
 const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
 
@@ -75,7 +77,7 @@ const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
                             }}
                         >
                             <img
-                                src="/instruc1.png"
+                                src={`${INSTR_ASSET_BASE_URL}/instruc1.png`}
                                 alt="Example 1"
                                 style={{
                                     width: "60%",
@@ -101,7 +103,7 @@ const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
                             }}
                         >
                             <img
-                                src="/instruc2.gif"
+                                src={`${INSTR_ASSET_BASE_URL}/instruc2.gif`}
                                 alt="Example 2"
                                 style={{
                                     width: "70%",
@@ -127,7 +129,7 @@ const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
                             }}
                         >
                             <img
-                                src="/instruc3.png"
+                                src={`${INSTR_ASSET_BASE_URL}/instruc3.png`}
                                 alt="Example 3"
                                 style={{
                                     width: "60%",
@@ -153,7 +155,7 @@ const InstructionsPage = ({ trialInfo, keyStates, canvasSize }) => {
                             }}
                         >
                             <img
-                                src="/instruc4.gif"
+                                src={`${INSTR_ASSET_BASE_URL}/instruc4.gif`}
                                 alt="Example 4"
                                 style={{
                                     width: "70%",
