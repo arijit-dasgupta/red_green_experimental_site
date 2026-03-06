@@ -50,6 +50,7 @@ const App = () => {
   const [countdown, setCountdown] = useState(null);
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState(-1);
+  const [savingStatus, setSavingStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
   const [trialInfo, setTrialInfo] = useState({ 
     ftrial_i: 0, 
     trial_i: 0, 
@@ -238,6 +239,7 @@ const renderCurrentPage = () => {
         countdown={countdown}
         finished={finished}
         score={score}
+        savingStatus={savingStatus}
         canvasSize={canvasSize}
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
@@ -279,6 +281,7 @@ const renderCurrentPage = () => {
   
       if (data.finish) {
         setFinished(false);
+        setSavingStatus(null);
         setAverageScore(data.average_score);
         setProlificCompletionUrl(data.prolific_completion_url || null);
         navigate('post_feedback');
@@ -287,6 +290,7 @@ const renderCurrentPage = () => {
   
       if (data.fam_to_exp_page) {
         setFinished(false); // to disable spacebar pressing
+        setSavingStatus(null);
         setIsTransitionPage(true);
         return;
       }
@@ -312,6 +316,7 @@ const renderCurrentPage = () => {
       setCurrentFrame(0);
       recordedKeyStates.current = [];
       setFinished(false);
+      setSavingStatus(null);
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
   
@@ -366,6 +371,7 @@ const animate = (timestamp) => {
           setIsPlaying(false);
 
           animate.dataSaved = true;
+          setSavingStatus('saving');
 
           setTimeout(async () => {
             try {
@@ -398,10 +404,12 @@ const animate = (timestamp) => {
             }
               const trialResult = await response.json();
               setScore(trialResult.score);
+              setSavingStatus('saved');
               setFinished(true);
             } catch (error) {
               console.error("Error saving data or fetching score:", error);
               setScore(0);
+              setSavingStatus('error');
               setFinished(true);
             }
           }, 500);

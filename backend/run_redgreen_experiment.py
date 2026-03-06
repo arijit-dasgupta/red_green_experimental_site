@@ -78,7 +78,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 # Example URL with Prolific parameters for testing:
-# https://cb19-18-29-88-130.ngrok-free.app?PROLIFIC_PID=arijitprolificpid&STUDY_ID=rg1&SESSION_ID=77
+# https://b90e-18-29-88-130.ngrok-free.app?PROLIFIC_PID=arijitprolificpid&STUDY_ID=rg1&SESSION_ID=77
 
 #=============================================================================
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
@@ -1159,10 +1159,8 @@ def load_next_scene():
         # In experimental phase
         transition_to_exp_page = False
         npz_data = config["trial_datas"][trial_i]
-        old_trial_i = trial_i
         print(f"EXP PHASE DEBUG: Loading trial_datas[{trial_i}] (1-based trial {trial_i + 1})")
-        trial_i += 1
-        print(f"EXP PHASE DEBUG: After increment, trial_i={trial_i} (will be sent to frontend)")
+        # Increment only after we ensure we are not reusing an existing trial (idempotency)
         is_trial = True
         finish = False
         # Clear resume mode flag when we start experimental trials
@@ -1177,76 +1175,95 @@ def load_next_scene():
 
     # Determine trial metadata for database record
     trial_type = 'ftrial' if is_ftrial else 'trial'
-    trial_index = ftrial_i - 1 if is_ftrial else trial_i - 1
-    
+    # For exp we have not incremented trial_i yet; for ftrial we already incremented ftrial_i
+    trial_index = (ftrial_i - 1) if is_ftrial else trial_i
+    existing_trial = None  # defined so transition/finish path can check it; set below when we might reuse
+
     # Create trial record if this is an actual trial (not transition/finish screen)
     if (not transition_to_exp_page) and (not finish):
-        # Randomly assign counterbalancing (swaps F/J key meanings)
-        if COUNTERBALANCE_OUTCOMES:
-            counterbalance = random.choice([True, False])
+        # Idempotency: reuse existing trial if one already exists for this (session, trial_index).
+        # Prevents duplicate trials when load_next_scene is called twice (e.g. double-click, two tabs).
+        existing_trial = Trial.query.filter_by(
+            session_id=session.id, trial_index=trial_index, trial_type=trial_type
+        ).first()
+        if existing_trial:
+            trial = existing_trial
+            counterbalance = trial.counterbalance
+            if is_trial:
+                pass  # do not increment trial_i; config will stay at current trial
+            else:
+                ftrial_i -= 1  # revert so next request will retry this ftrial
+            print(f"--- Load Next Scene (reused existing trial) ---")
+            print(f"Session ID: {session.id} | trial_index: {trial_index} | trial_id: {trial.id}")
+            print(f"-------------------------------")
         else:
-            counterbalance = False
-        
-        # Determine global trial name for tracking
-        if is_trial:
-            global_trial_name = session.randomized_trial_order[trial_index]
-        else:
-            global_trial_name = f"F{trial_index+1}"
+            # Randomly assign counterbalancing (swaps F/J key meanings)
+            if COUNTERBALANCE_OUTCOMES:
+                counterbalance = random.choice([True, False])
+            else:
+                counterbalance = False
 
-        # Determine symmetry transform index for this trial, if any
-        symmetry_transform_index = None
-        if is_trial and SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
-            # Look up transform index from the parsed trial data if present
-            if 0 <= trial_index < len(config["trial_datas"]):
-                symmetry_transform_index = config["trial_datas"][trial_index].get("symmetry_transform")
+            # Determine global trial name for tracking
+            if is_trial:
+                global_trial_name = session.randomized_trial_order[trial_index]
+            else:
+                global_trial_name = f"F{trial_index+1}"
 
-        # Determine repetition metadata for experimental trials
-        is_repeated = False
-        repeat_instance_index = None
-        if is_trial:
-            # Count how many times this trial name has appeared up to and including this index
-            occurrences = [
-                name for name in session.randomized_trial_order[: trial_index + 1]
-                if name == global_trial_name
-            ]
-            # Instance index: 0 for first occurrence, 1..k for repeats
-            repeat_instance_index = len(occurrences) - 1
-            is_repeated = repeat_instance_index > 0
-            
-        # Create and save trial record
-        trial = Trial(
-            session_id=session.id, 
-            trial_type=trial_type, 
-            trial_index=trial_index, 
-            counterbalance=counterbalance,
-            global_trial_name=global_trial_name,
-            symmetry_transform=symmetry_transform_index,
-            is_repeated=is_repeated,
-            repeat_instance_index=repeat_instance_index
-        )
-        db.session.add(trial)
+            # Determine symmetry transform index for this trial, if any
+            symmetry_transform_index = None
+            if is_trial and SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
+                if 0 <= trial_index < len(config["trial_datas"]):
+                    symmetry_transform_index = config["trial_datas"][trial_index].get("symmetry_transform")
+
+            # Determine repetition metadata for experimental trials
+            is_repeated = False
+            repeat_instance_index = None
+            if is_trial:
+                occurrences = [
+                    name for name in session.randomized_trial_order[: trial_index + 1]
+                    if name == global_trial_name
+                ]
+                repeat_instance_index = len(occurrences) - 1
+                is_repeated = repeat_instance_index > 0
+
+            trial = Trial(
+                session_id=session.id,
+                trial_type=trial_type,
+                trial_index=trial_index,
+                counterbalance=counterbalance,
+                global_trial_name=global_trial_name,
+                symmetry_transform=symmetry_transform_index,
+                is_repeated=is_repeated,
+                repeat_instance_index=repeat_instance_index
+            )
+            db.session.add(trial)
+            db.session.commit()
+            if is_trial:
+                trial_i += 1
+            # else ftrial_i was already incremented earlier
+
+            print(f"--- Load Next Scene Request ---")
+            print(f"Prolific PID: {session.prolific_pid} | Profile ID: {session.randomized_profile_id} | Session ID: {session.id}")
+            if is_ftrial:
+                print(f"Fam Trial Progress: {ftrial_i}/{config['num_ftrials']}")
+            else:
+                print(f"Exp Trial Progress: {trial_i}/{config['num_trials']}")
+            print(f"-------------------------------")
+
+    # Update configuration only when we did NOT reuse an existing trial.
+    # When we reuse, we must not overwrite config progress (trial_i/ftrial_i), or we roll back
+    # the increment from the request that created the trial and the participant gets stuck.
+    if not existing_trial:
+        config.update({
+            'trial_i': trial_i,
+            'ftrial_i': ftrial_i,
+            'is_ftrial': is_ftrial,
+            'is_trial': is_trial,
+            'transition_to_exp_page': transition_to_exp_page
+        })
+        config_entry.config_data = config
+        flag_modified(config_entry, "config_data")  # Mark as dirty for SQLAlchemy
         db.session.commit()
-        
-        # Log trial progress
-        print(f"--- Load Next Scene Request ---")
-        print(f"Prolific PID: {session.prolific_pid} | Profile ID: {session.randomized_profile_id} | Session ID: {session.id}")
-        if is_ftrial:
-            print(f"Fam Trial Progress: {ftrial_i}/{config['num_ftrials']}")
-        else:
-            print(f"Exp Trial Progress: {trial_i}/{config['num_trials']}")
-        print(f"-------------------------------")
-
-    # Update configuration with new progress state
-    config.update({
-        'trial_i': trial_i,
-        'ftrial_i': ftrial_i,
-        'is_ftrial': is_ftrial,
-        'is_trial': is_trial,
-        'transition_to_exp_page': transition_to_exp_page
-    })
-    config_entry.config_data = config
-    flag_modified(config_entry, "config_data")  # Mark as dirty for SQLAlchemy
-    db.session.commit()
 
     # Handle experiment completion
     if finish:
@@ -1283,11 +1300,11 @@ def load_next_scene():
     scene_is_repeated = False
     scene_repeat_instance_index = None
     if is_trial and not (transition_to_exp_page or finish):
-        # Align with DB logic: infer from randomized_trial_order and trial_index
-        if 0 <= (trial_i - 1) < len(session.randomized_trial_order):
-            current_name = session.randomized_trial_order[trial_i - 1]
+        # Align with DB logic: use trial_index (current scene index)
+        if 0 <= trial_index < len(session.randomized_trial_order):
+            current_name = session.randomized_trial_order[trial_index]
             occurrences = [
-                name for name in session.randomized_trial_order[: trial_i]
+                name for name in session.randomized_trial_order[: trial_index + 1]
                 if name == current_name
             ]
             scene_repeat_instance_index = len(occurrences) - 1
@@ -1423,9 +1440,9 @@ def save_data():
             return jsonify({"error": "Experiment configuration not found"}), 500
         config = config_entry.config_data
 
-        # Get the correct trial data based on current phase
-        npz_data = config["ftrial_datas"][config['ftrial_i'] - 1] if config['is_ftrial'] else \
-                   config["trial_datas"][config['trial_i'] - 1]
+        # Get the correct trial data: use the trial's own trial_index (idempotent with load_next_scene reuse)
+        npz_data = config["ftrial_datas"][trial.trial_index] if config['is_ftrial'] else \
+                   config["trial_datas"][trial.trial_index]
         
         rg_outcome = npz_data.get("rg_outcome")  # Ground truth: 'red' or 'green'
 

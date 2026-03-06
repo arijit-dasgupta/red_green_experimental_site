@@ -15,6 +15,7 @@ const ExperimentPage = ({
     countdown,
     finished,
     score,
+    savingStatus,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
@@ -80,7 +81,7 @@ const ExperimentPage = ({
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
     
         const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && finished && !isTransitionPage && !showScoringInstruc) {
+            if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving' && !isTransitionPage && !showScoringInstruc) {
                 // console.log("Spacebar pressed. Fetching next scene...");
                 isSpacePressed = false; // Set flag to true when Spacebar is pressed
                 fetchNextScene(setdisableCountdownTrigger);
@@ -100,7 +101,7 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [fetchNextScene, finished, isTransitionPage, showScoringInstruc]);
+    }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc]);
     
     if (showScoringInstruc) {
         return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
@@ -154,6 +155,30 @@ const ExperimentPage = ({
                 </p>
             </div>
 
+            {savingStatus === 'saving' && (
+                <div style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: "rgba(255, 255, 255, 0.9)",
+                    backdropFilter: "blur(5px)",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    zIndex: 20,
+                }}>
+                    <h1 style={{ fontSize: "2rem", color: "#333", marginBottom: "12px" }}>
+                        Saving…
+                    </h1>
+                    <p style={{ fontSize: "1rem", color: "#666", margin: 0 }}>
+                        Please wait. Do not close this tab.
+                    </p>
+                </div>
+            )}
+
             {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{
                     position: "absolute",
@@ -169,9 +194,14 @@ const ExperimentPage = ({
                     alignItems: "center",
                     zIndex: 20,
                 }}>
-                    <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "20px" }}>
-                        Finished. You scored {score.toFixed(0)}
+                    <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>
+                        {savingStatus === 'saved' ? 'Saved.' : ''} You scored {score.toFixed(0)}
                     </h1>
+                    {savingStatus === 'error' && (
+                        <p style={{ fontSize: "0.9rem", color: "#c62828", marginBottom: "12px" }}>
+                            (Data may not have been saved. You can still continue.)
+                        </p>
+                    )}
 
                     <div style={{
                         display: "flex",

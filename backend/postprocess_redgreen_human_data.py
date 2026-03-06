@@ -15,6 +15,36 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Rectangle
 
 
+def _load_allowed_repeat_trial_names(path_to_data):
+    """
+    Load set of global_trial_names that are allowed to repeat (from repeat.csv in path_to_data).
+    Returns set of names that have repeat count > 0. Returns empty set if repeat.csv missing or unreadable.
+    """
+    allowed = set()
+    repeat_csv_path = os.path.join(path_to_data, "repeat.csv")
+    if not os.path.exists(repeat_csv_path):
+        return allowed
+    try:
+        with open(repeat_csv_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) != 2:
+                    continue
+                trial_name, extra_str = parts
+                try:
+                    extra = int(extra_str)
+                except ValueError:
+                    continue
+                if extra > 0:
+                    allowed.add(trial_name)
+    except Exception as e:
+        print(f"Warning: could not read repeat.csv at {repeat_csv_path}: {e}")
+    return allowed
+
+
 def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial_prefixes=None, 
                        allow_incomplete_sessions=False, session_ids=None): 
     """
@@ -40,6 +70,10 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     # Step 1: Connect to the database
     engine = create_engine(f"sqlite:///{db_path}")  # Assuming SQLite
 
+    # Load which trials are allowed to repeat (from repeat.csv)
+    allowed_repeat_trial_names = _load_allowed_repeat_trial_names(path_to_data)
+    if allowed_repeat_trial_names:
+        print(f"Trials allowed to repeat (from repeat.csv): {sorted(allowed_repeat_trial_names)}")
 
     # Step 2: Load session data with optional filtering
     if allow_incomplete_sessions:
@@ -71,19 +105,45 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
         session_ids_list = session_df['session_id'].tolist()
         session_ids_str = ','.join(map(str, session_ids_list))
         trial_query = f"""
-            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
+            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score,
+                   repeat_instance_index, symmetry_transform, is_repeated
             FROM trial
             WHERE trial_type != 'ftrial' AND completed = 1 AND session_id IN ({session_ids_str})
         """
     else:
         # No sessions, so no trials
         trial_query = """
-            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
+            SELECT id AS trial_id, session_id, trial_index, global_trial_name, score,
+                   repeat_instance_index, symmetry_transform, is_repeated
             FROM trial
             WHERE 1=0
         """
     
-    trial_df = pd.read_sql(trial_query, engine)
+    try:
+        trial_df = pd.read_sql(trial_query, engine)
+    except Exception as e:
+        if "no such column" in str(e).lower() or "repeat_instance_index" in str(e):
+            # Legacy DB without repeat/symmetry columns
+            if len(session_df) > 0:
+                session_ids_str = ','.join(map(str, session_df['session_id'].tolist()))
+                trial_query_legacy = f"""
+                    SELECT id AS trial_id, session_id, trial_index, global_trial_name, score
+                    FROM trial
+                    WHERE trial_type != 'ftrial' AND completed = 1 AND session_id IN ({session_ids_str})
+                """
+            else:
+                trial_query_legacy = "SELECT id AS trial_id, session_id, trial_index, global_trial_name, score FROM trial WHERE 1=0"
+            trial_df = pd.read_sql(trial_query_legacy, engine)
+            trial_df["repeat_instance_index"] = 0
+            trial_df["symmetry_transform"] = None
+            trial_df["is_repeated"] = False
+        else:
+            raise
+    # Normalize repeat_instance_index: None -> 0 (non-repeated or legacy DB)
+    if "repeat_instance_index" in trial_df.columns:
+        trial_df["repeat_instance_index"] = trial_df["repeat_instance_index"].fillna(0).astype(int)
+    else:
+        trial_df["repeat_instance_index"] = 0
     print(f"Found {len(trial_df)} completed experimental trials from selected sessions")
     if len(trial_df) > 0:
         print(f"Sample trial names from database: {trial_df['global_trial_name'].head(5).tolist()}")
@@ -95,17 +155,36 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     dup_mask = trial_df.duplicated(subset=['session_id', 'global_trial_name'], keep=False)
     if dup_mask.any():
         dup_rows = trial_df[dup_mask].sort_values(['session_id', 'global_trial_name', 'trial_id'])
-        # For each (session_id, global_trial_name), see if scores are identical
+        # For each (session_id, global_trial_name), either keep all rows (allowed repeats) or resolve to one
         def _resolve_trial_group(g):
+            name = g['global_trial_name'].iloc[0]
+            if name in allowed_repeat_trial_names:
+                # Allowed repeats: keep one row per (session_id, global_trial_name, repeat_instance_index).
+                # Error only on score discrepancy (different scores). Otherwise pick one: prefer the row with a score if exactly one has it, else pick any.
+                def _keep_one_instance(h):
+                    with_score = h[h['score'].notna()]
+                    scores = h['score'].dropna()
+                    if scores.nunique() > 1:
+                        raise ValueError(
+                            "Duplicate trials for the same (session, global_trial_name, repeat_instance_index) "
+                            "have different scores (score discrepancy). This must be resolved manually.\n"
+                            f"Offending rows:\n{h}"
+                        )
+                    if len(with_score) == 1:
+                        return with_score.iloc[[0]]
+                    return h.sort_values('trial_id').iloc[[-1]]
+                return (
+                    g.groupby('repeat_instance_index', as_index=False, group_keys=False)
+                    .apply(_keep_one_instance)
+                )
             scores = g['score'].astype(float)
             if scores.nunique() > 1:
-                # Conflicting scores -> hard failure
                 raise ValueError(
-                    "Duplicate trials found with the same global_trial_name within a session "
-                    "but with different scores. This must be resolved manually.\n"
+                    f"Duplicate trials found for global_trial_name={name!r} within a session "
+                    "but with different scores, and this trial is not in repeat.csv. "
+                    "Either add it to repeat.csv if repeats are intended, or resolve manually.\n"
                     f"Offending rows:\n{g}"
                 )
-            # Scores identical: keep a single representative row (e.g., max trial_id)
             return g.sort_values('trial_id').iloc[[-1]]
 
         resolved = (
@@ -113,7 +192,6 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
             .groupby(['session_id', 'global_trial_name'], as_index=False, group_keys=False)
             .apply(_resolve_trial_group)
         )
-        # Drop all original duplicates from trial_df and append the resolved singletons
         trial_df = pd.concat(
             [
                 trial_df[~dup_mask],
@@ -121,6 +199,21 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
             ],
             ignore_index=True
         )
+
+    # Symmetry check: for each (global_trial_name, repeat_instance_index), symmetry_transform must be the same for all participants
+    if "symmetry_transform" in trial_df.columns:
+        sym_check = (
+            trial_df.groupby(["global_trial_name", "repeat_instance_index"])["symmetry_transform"]
+            .agg(lambda x: x.dropna().nunique())
+            .reset_index()
+        )
+        bad = sym_check[sym_check["symmetry_transform"] > 1]
+        if not bad.empty:
+            raise ValueError(
+                "Symmetry transform must be the same for all participants for each (global_trial_name, repeat_instance_index). "
+                "Different values indicate inconsistent trial ordering across participants.\n"
+                f"Offending (global_trial_name, repeat_instance_index):\n{bad}"
+            )
 
     # Step 5: Load keystate data and filter for valid trials
     valid_trial_ids = trial_df["trial_id"].dropna().tolist()
@@ -172,12 +265,20 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
                 ignore_index=True
             )
 
-    # Merge keystate data with global_trial_name
+    # Merge keystate data with global_trial_name and repeat_instance_index
+    merge_cols = ["trial_id", "global_trial_name", "repeat_instance_index"]
     if not keystate_df.empty and not trial_df.empty:
-        keystate_df = pd.merge(keystate_df, trial_df[["trial_id", "global_trial_name"]], on="trial_id", how="left")
+        keystate_df = pd.merge(
+            keystate_df,
+            trial_df[[c for c in merge_cols if c in trial_df.columns]],
+            on="trial_id",
+            how="left",
+        )
     else:
         if not keystate_df.empty:
             keystate_df['global_trial_name'] = None
+    if not keystate_df.empty and 'repeat_instance_index' not in keystate_df.columns:
+        keystate_df['repeat_instance_index'] = 0
 
     # Step 6: Process the data
     if keystate_df.empty:
@@ -263,26 +364,31 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
 def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
     """
     Save human keystate data as separate CSV files for each trial.
-    
+    For trials with repeats (multiple instances per participant), saves one CSV per instance:
+    - Instance 0 (first occurrence): human_data.csv
+    - Instance 1, 2, ...: human_data_rep1.csv, human_data_rep2.csv, ...
+
     Args:
-        trial_df: DataFrame containing trial information with trial_id and session_id
+        trial_df: DataFrame containing trial information with trial_id, session_id, global_trial_name, and optionally repeat_instance_index
         keystate_df: DataFrame containing keystate data with trial_id
         path_to_data: Path to the directory containing trial folders
-    
+
     Returns:
-        dict: Dictionary of dataframes, one for each global_trial_name
+        dict: Dictionary keyed by (global_trial_name, repeat_instance_index) of dataframes
     """
     if trial_df.empty or keystate_df.empty:
         print("No trial or keystate data to save.")
         return {}
 
-    # Join keystate_df with trial_df to add session_id and global_trial_name
     required_cols = ['trial_id', 'session_id', 'global_trial_name', 'rg_outcome']
+    if 'repeat_instance_index' not in trial_df.columns:
+        trial_df = trial_df.copy()
+        trial_df['repeat_instance_index'] = 0
+    export_cols = required_cols + ['repeat_instance_index']
     missing_in_trial = [c for c in required_cols if c not in trial_df.columns]
     if missing_in_trial:
         raise ValueError(f"Missing columns in trial_df needed for export: {missing_in_trial}")
 
-    # Ensure trial_df has no empty global_trial_name before merge
     empty_trial_names = trial_df['global_trial_name'].isna() | (trial_df['global_trial_name'] == '')
     if empty_trial_names.any():
         raise ValueError(
@@ -290,31 +396,29 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
             f"Offending trial_ids: {trial_df.loc[empty_trial_names, 'trial_id'].tolist()}"
         )
 
-    # Remove any pre-existing global_trial_name in keystate_df to avoid suffix conflicts;
-    # we treat trial_df as the single source of truth for names.
-    kstate_no_name = keystate_df.drop(columns=['global_trial_name'], errors='ignore')
+    kstate_no_name = keystate_df.drop(columns=['global_trial_name', 'repeat_instance_index'], errors='ignore')
 
     merged = kstate_no_name.merge(
-        trial_df[required_cols],
+        trial_df[export_cols],
         on='trial_id',
-        how='inner',   # require match; do not allow unmatched keystate rows
+        how='inner',
         validate='many_to_one',
         suffixes=('', '_trial')
     )
 
-    # Normalize column names in case suffixes were introduced unexpectedly
-    for col in ['global_trial_name', 'rg_outcome', 'session_id']:
+    for col in ['global_trial_name', 'rg_outcome', 'session_id', 'repeat_instance_index']:
         if col not in merged.columns:
             alt = [c for c in merged.columns if c.startswith(col)]
             if alt:
                 merged[col] = merged[alt[0]]
+            elif col == 'repeat_instance_index':
+                merged['repeat_instance_index'] = 0
             else:
                 raise ValueError(
                     f"Column '{col}' missing after merge. "
                     f"Available columns: {merged.columns.tolist()}"
                 )
 
-    # Check for missing names after merge (should not happen with inner join)
     missing_names = merged['global_trial_name'].isna() | (merged['global_trial_name'] == '')
     if missing_names.any():
         bad_ids = merged.loc[missing_names, 'trial_id'].unique().tolist()
@@ -323,34 +427,39 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
             f"Trial_ids with missing names: {bad_ids}"
         )
 
-    keystate_with_session = merged[['frame', 'red', 'green', 'uncertain', 'session_id', 'rg_outcome', 'trial_id', 'global_trial_name']]\
-        .sort_values(['global_trial_name', 'session_id'])
+    merged['repeat_instance_index'] = merged['repeat_instance_index'].fillna(0).astype(int)
+    keystate_with_session = merged[
+        ['frame', 'red', 'green', 'uncertain', 'session_id', 'rg_outcome', 'trial_id', 'global_trial_name', 'repeat_instance_index']
+    ].sort_values(['global_trial_name', 'repeat_instance_index', 'session_id'])
 
-    # If duplicates exist, surface them clearly (do NOT drop silently)
-    dup_mask = keystate_with_session.duplicated(subset=['frame', 'global_trial_name', 'session_id'], keep=False)
+    # Uniqueness: (frame, global_trial_name, session_id, repeat_instance_index) must be unique
+    dup_mask = keystate_with_session.duplicated(
+        subset=['frame', 'global_trial_name', 'session_id', 'repeat_instance_index'], keep=False
+    )
     if dup_mask.any():
         dup_rows = keystate_with_session[dup_mask].copy()
-        dup_rows = dup_rows.sort_values(['global_trial_name', 'session_id', 'frame'])
+        dup_rows = dup_rows.sort_values(['global_trial_name', 'repeat_instance_index', 'session_id', 'frame'])
         raise ValueError(
-            "Duplicate rows detected with same frame/global_trial_name/session_id. "
-            "This indicates duplicate trials or duplicated keystate logging for the same trial. "
+            "Duplicate rows detected with same frame/global_trial_name/session_id/repeat_instance_index. "
             "Details (first 20 rows):\n"
             f"{dup_rows.head(20)}"
         )
 
-    # Create a dictionary of dataframes, one for each global_trial_name
+    # One dataframe per (global_trial_name, repeat_instance_index)
     keystate_by_trial = {}
-    for trial_name in keystate_with_session['global_trial_name'].unique():
-        keystate_by_trial[trial_name] = keystate_with_session[keystate_with_session['global_trial_name'] == trial_name].copy()
+    for (trial_name, rep_idx), group in keystate_with_session.groupby(['global_trial_name', 'repeat_instance_index']):
+        keystate_by_trial[(trial_name, rep_idx)] = group.drop(columns=['repeat_instance_index'], errors='ignore').copy()
 
-    # Save each trial as a separate CSV file in path_to_data
-    for trial_name, trial_data in keystate_by_trial.items():
-        csv_filename = "human_data.csv"
+    # Save: instance 0 -> human_data.csv, instance k -> human_data_rep{k}.csv
+    for (trial_name, rep_idx), trial_data in keystate_by_trial.items():
+        if rep_idx == 0:
+            csv_filename = "human_data.csv"
+        else:
+            csv_filename = f"human_data_rep{rep_idx}.csv"
         csv_filepath = os.path.join(path_to_data, trial_name, csv_filename)
         trial_data.to_csv(csv_filepath, index=False)
-    
+
     print(f"Saved human data as CSV files in {path_to_data}")
-    
     return keystate_by_trial
 
 
