@@ -54,6 +54,16 @@ const ExperimentPage = ({
         }
     }, [trialInfo]);
 
+    // Fix 1: when entering click phase, clear mouse position so ball is not shown until user hovers over the scene
+    const wasClickAwaitingRef = useRef(false);
+    const isEnteringClickPhase = pauseState === 'awaiting_click';
+    useEffect(() => {
+        if (isEnteringClickPhase && !wasClickAwaitingRef.current) {
+            setMousePos(null);
+        }
+        wasClickAwaitingRef.current = isEnteringClickPhase;
+    }, [isEnteringClickPhase]);
+
     const handleProceed = () => {
         setShowScoringInstruc(false); // Hide explanation page
     };
@@ -547,7 +557,9 @@ const ExperimentPage = ({
                             width: "100%",
                         }}>
                             <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
-                                Please place the ball where you think it is located in the scene (with your mouse/cursor).
+                                {mousePos
+                                    ? "Click to place the ball where you think it is located in the scene."
+                                    : "Hover over the scene to show the ball, then click to place it where you think it is located."}
                             </p>
                             {clickInvalidReason && (
                                 <p style={{ margin: 0, color: "#c62828", fontSize: "0.95rem" }}>
