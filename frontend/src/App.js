@@ -51,6 +51,9 @@ const App = () => {
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState(-1);
   const [savingStatus, setSavingStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
+  const [pauseState, setPauseState] = useState(null); // null | 'awaiting_click' | 'click_placed' (click-point variant)
+  const [clickPlacement, setClickPlacement] = useState(null); // { worldX, worldY } after valid click for blue circle
+  const [clickInvalidReason, setClickInvalidReason] = useState(null); // 'Outside scene bounds' | 'Overlapping a barrier' | null
   const [trialInfo, setTrialInfo] = useState({ 
     ftrial_i: 0, 
     trial_i: 0, 
@@ -63,6 +66,7 @@ const App = () => {
   const [isTransitionPage, setIsTransitionPage] = useState(false);
   const [averageScore, setAverageScore] = useState(null);
   const [prolificCompletionUrl, setProlificCompletionUrl] = useState(null);
+  const [clickTrialResult, setClickTrialResult] = useState(null); // { isClickTrial: true, diametersAway: number } when trial had click task
   // const [currentPage, setCurrentPage] = useState('welcome');
 
   const animationRef = useRef(null);
@@ -71,6 +75,8 @@ const App = () => {
   const recordedKeyStates = useRef([]);
   const currentFrameRef = useRef(0);
   const keyStatesRef = useRef({ f: false, j: false });
+  const observationOnlyPhaseRef = useRef(false); // true after resume from click until trial end
+  const clickPlacementRef = useRef(null); // always current for animation loop
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -146,12 +152,23 @@ const App = () => {
               ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
           }
 
-          // Draw target
-          if (step_data[frameIndex]) {
-              ctx.fillStyle = "blue";
+          // Draw target (ball) — Fix 5: hide ball when paused awaiting click; it reappears only when they click (drawn on top later)
+          const pauseFrameNum = sceneData.pause_at_frame != null ? Number(sceneData.pause_at_frame) : null;
+          const hidingBallWhileAwaitingClick = sceneData.has_click_trials && pauseFrameNum !== null && frameIndex === pauseFrameNum && !clickPlacementRef.current;
+          const inObservationPhase = clickPlacementRef.current && pauseFrameNum !== null && frameIndex >= pauseFrameNum;
+          const ballOverOccluder = inObservationPhase && occluders && occluders.length > 0 && step_data[frameIndex] && occluders.some(({ x: ox, y: oy, width: w, height: h }) => {
+              const worldX = step_data[frameIndex].x + radius;
+              const worldY = step_data[frameIndex].y + radius;
+              return worldX >= ox && worldX <= ox + w && worldY >= oy && worldY <= oy + h;
+          });
+          // When ball is behind occluder in observation phase we draw it after occluders (Fix 4), so skip here
+          if (step_data[frameIndex] && !hidingBallWhileAwaitingClick && !ballOverOccluder) {
               const { x, y } = step_data[frameIndex];
+              const ballCenterX = (x + radius) * scale;
+              const ballCenterY = (y + radius) * scale;
+              ctx.fillStyle = "blue";
               ctx.beginPath();
-              ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
+              ctx.arc(ballCenterX, ballCenterY, scale * radius, 0, 2 * Math.PI);
               ctx.fill();
           }
 
@@ -160,6 +177,17 @@ const App = () => {
           occluders.forEach(({ x, y, width, height }) => {
               ctx.fillRect(x * scale, y * scale, width * scale, height * scale);
           });
+
+          // Fix 4: in observation phase, when ball is behind an occluder, draw it on top (translucent) so it's visible through the occluder
+          if (ballOverOccluder && step_data[frameIndex]) {
+              const { x, y } = step_data[frameIndex];
+              ctx.globalAlpha = 0.5;
+              ctx.fillStyle = "blue";
+              ctx.beginPath();
+              ctx.arc((x + radius) * scale, (y + radius) * scale, scale * radius, 0, 2 * Math.PI);
+              ctx.fill();
+              ctx.globalAlpha = 1;
+          }
         }
 
         if (frameIndex ===0) { 
@@ -200,6 +228,33 @@ const App = () => {
         console.error("Error rendering frame:", error);
     }
 
+    // Click-point variant: draw darker dotted blue circle at placement (stays visible during 1s wait and observation; use ref so animation loop sees it)
+    const placement = clickPlacementRef.current;
+    const pauseFrame = sceneData.pause_at_frame != null ? Number(sceneData.pause_at_frame) : null;
+    if (sceneData.has_click_trials && pauseFrame !== null && placement && frameIndex >= pauseFrame) {
+        const { worldX, worldY } = placement;
+        const r = sceneData.radius || 0.5;
+        ctx.strokeStyle = "#001080";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.arc(worldX * scale, worldY * scale, scale * r, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    // Fix 3: during the 1-second after click, draw the REAL ball on top so it "pops" into view (visible even if it was behind an occluder)
+    if (sceneData.has_click_trials && pauseFrame !== null && placement && frameIndex === pauseFrame && sceneData.step_data && sceneData.step_data[pauseFrame]) {
+        const { x, y } = sceneData.step_data[pauseFrame];
+        const ballR = sceneData.radius || 0.5;
+        const ballCenterX = (x + ballR) * scale;
+        const ballCenterY = (y + ballR) * scale;
+        ctx.fillStyle = "blue";
+        ctx.beginPath();
+        ctx.arc(ballCenterX, ballCenterY, scale * ballR, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
     ctx.restore();
 };
 
@@ -215,7 +270,18 @@ const App = () => {
       renderFrame(currentFrame);
     }
   }, [countdown, currentFrame]);
-  
+
+  // Keep ref in sync so animation loop always sees current placement when drawing blue circle
+  useEffect(() => {
+    clickPlacementRef.current = clickPlacement;
+  }, [clickPlacement]);
+
+  // Click-point: when placement is set (during 1s wait or after), redraw so blue circle appears (animation is stopped so no other redraws)
+  useEffect(() => {
+    if (clickPlacement && sceneData?.pause_at_frame != null && sceneData?.has_click_trials && canvasRef.current) {
+      renderFrame(currentFrameRef.current);
+    }
+  }, [clickPlacement, sceneData?.pause_at_frame, sceneData?.has_click_trials]);
 
  // Render current page based on state instead of routes
 const renderCurrentPage = () => {
@@ -240,6 +306,12 @@ const renderCurrentPage = () => {
         finished={finished}
         score={score}
         savingStatus={savingStatus}
+        clickTrialResult={clickTrialResult}
+        pauseState={pauseState}
+        clickPlacement={clickPlacement}
+        clickInvalidReason={clickInvalidReason}
+        onValidPlacement={onValidPlacement}
+        setClickInvalidReason={setClickInvalidReason}
         canvasSize={canvasSize}
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
@@ -282,6 +354,11 @@ const renderCurrentPage = () => {
       if (data.finish) {
         setFinished(false);
         setSavingStatus(null);
+        setPauseState(null);
+        setClickPlacement(null);
+        setClickInvalidReason(null);
+        setClickTrialResult(null);
+        observationOnlyPhaseRef.current = false;
         setAverageScore(data.average_score);
         setProlificCompletionUrl(data.prolific_completion_url || null);
         navigate('post_feedback');
@@ -291,6 +368,11 @@ const renderCurrentPage = () => {
       if (data.fam_to_exp_page) {
         setFinished(false); // to disable spacebar pressing
         setSavingStatus(null);
+        setPauseState(null);
+        setClickPlacement(null);
+        setClickInvalidReason(null);
+        setClickTrialResult(null);
+        observationOnlyPhaseRef.current = false;
         setIsTransitionPage(true);
         return;
       }
@@ -317,6 +399,11 @@ const renderCurrentPage = () => {
       recordedKeyStates.current = [];
       setFinished(false);
       setSavingStatus(null);
+      setPauseState(null);
+      setClickPlacement(null);
+      setClickInvalidReason(null);
+      setClickTrialResult(null);
+      observationOnlyPhaseRef.current = false;
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
   
@@ -354,18 +441,32 @@ const animate = (timestamp) => {
   // console.log('calling animate')
 
   if (timeElapsed >= frameDuration * 0.98) {
-    recordedKeyStates.current.push({
-      frame: currentFrameRef.current,
-      keys: { ...keyStatesRef.current },
-    });
-    // console.log("Recorded key states:", keyStatesRef.current);
-    // console.log('recording the states of keys')
-    // setCurrentFrame((prevFrame) => {
-      // const nextFrame = prevFrame + 1;
-      const nextFrame = currentFrameRef.current + 1;
-      // currentFrameRef.current = nextFrame;
+    const nextFrame = currentFrameRef.current + 1;
 
-      if (nextFrame >= totalFrames) {
+    // Only record key states when not in observation-only phase (after click resume)
+    if (!observationOnlyPhaseRef.current) {
+      recordedKeyStates.current.push({
+        frame: currentFrameRef.current,
+        keys: { ...keyStatesRef.current },
+      });
+    }
+
+    // Click-point variant: when we reach the pause frame, advance to it, render, then stop
+    const pauseAtFrame = sceneData.pause_at_frame;
+    const hasClickTrials = sceneData.has_click_trials === true;
+    if (hasClickTrials && pauseAtFrame != null && nextFrame === pauseAtFrame) {
+      currentFrameRef.current = nextFrame;
+      setCurrentFrame(nextFrame);
+      renderFrame(nextFrame);
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      setPauseState('awaiting_click');
+      setClickInvalidReason(null);
+      animate.lastTimestamp = timestamp;
+      return;
+    }
+
+    if (nextFrame >= totalFrames) {
         if (!animate.dataSaved) {
           isPlayingRef.current = false;
           setIsPlaying(false);
@@ -405,10 +506,25 @@ const animate = (timestamp) => {
               const trialResult = await response.json();
               setScore(trialResult.score);
               setSavingStatus('saved');
+              // For click-point trials: compute distance in diameters (no score shown)
+              if (sceneData.has_click_trials && sceneData.pause_at_frame != null && clickPlacementRef.current && sceneData.step_data && sceneData.step_data[sceneData.pause_at_frame]) {
+                const ball = sceneData.step_data[sceneData.pause_at_frame];
+                const r = sceneData.radius != null ? Number(sceneData.radius) : 0.5;
+                const ballCx = (ball.x != null ? Number(ball.x) : 0) + r;
+                const ballCy = (ball.y != null ? Number(ball.y) : 0) + r;
+                const dx = clickPlacementRef.current.worldX - ballCx;
+                const dy = clickPlacementRef.current.worldY - ballCy;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const diametersAway = dist / (2 * r);
+                setClickTrialResult({ isClickTrial: true, diametersAway });
+              } else {
+                setClickTrialResult(null);
+              }
               setFinished(true);
             } catch (error) {
               console.error("Error saving data or fetching score:", error);
               setScore(0);
+              setClickTrialResult(null);
               setSavingStatus('error');
               setFinished(true);
             }
@@ -453,6 +569,19 @@ const animate = (timestamp) => {
     }, 750);
   };
 
+  // Click-point variant: after valid placement, show blue circle and resume animation after 1s
+  const onValidPlacement = (worldX, worldY) => {
+    setClickPlacement({ worldX, worldY });
+    setPauseState('click_placed');
+    setClickInvalidReason(null);
+    setTimeout(() => {
+      setPauseState(null);
+      observationOnlyPhaseRef.current = true;
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+      animationRef.current = requestAnimationFrame(animate);
+    }, 1000);
+  };
 
   return (
     <div className="app" style={{ position: "relative" }}>

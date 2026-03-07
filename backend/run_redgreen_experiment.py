@@ -84,11 +84,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'CandidateTrials_Mar04'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'CandidateTrials_Mar04_reduced'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'red_green_2026_pilot_v0'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'red_green_2026_clickpilot_v0'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
 check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
@@ -241,6 +241,25 @@ class KeyState(db.Model):
     session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False) # foreign key to the session record
     relative_time_ms = db.Column(db.Float, nullable=True)  # Time in milliseconds relative to frame 0 of the trial
 
+
+class TrialPauseClick(db.Model):
+    """
+    Stores participant click response when a trial pauses at a specified frame
+    (click-point variant). All positions are stored as bottom-left in world coords.
+    One row per trial that had a pause.
+    """
+    __tablename__ = 'trial_pause_click'
+    id = db.Column(db.Integer, primary_key=True)
+    trial_id = db.Column(db.Integer, db.ForeignKey('trial.id'), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False)
+    pause_frame = db.Column(db.Integer, nullable=False)  # Frame at which the trial was paused
+    click_bottom_left_x = db.Column(db.Float, nullable=False)  # Participant click as ball bottom-left x (world coords)
+    click_bottom_left_y = db.Column(db.Float, nullable=False)  # Participant click as ball bottom-left y (world coords)
+    ball_x = db.Column(db.Float, nullable=True)  # Actual ball bottom-left x at pause frame (world coords)
+    ball_y = db.Column(db.Float, nullable=True)  # Actual ball bottom-left y at pause frame (world coords)
+    diameters_away = db.Column(db.Float, nullable=True)  # Distance from click center to ball center in diameters
+
+
 #=============================================================================
 # UTILITY FUNCTIONS
 #=============================================================================
@@ -347,6 +366,34 @@ with app.app_context():
             pass
         else:
             print(f"Warning: could not add post_experiment_feedback_submitted column: {e}")
+
+    # Lightweight migrations for trial_pause_click (ball position and diameters_away)
+    for col, col_type in [("ball_x", "REAL"), ("ball_y", "REAL"), ("diameters_away", "REAL")]:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE trial_pause_click ADD COLUMN {col} {col_type}"))
+                conn.commit()
+            print(f"Added {col} column to 'trial_pause_click' table.")
+        except Exception as e:
+            msg = str(e).lower()
+            if "duplicate column name" in msg or "no such table" in msg:
+                pass
+            else:
+                print(f"Warning: could not add {col} column to trial_pause_click: {e}")
+
+    # Store only bottom-left: drop redundant click_x, click_y (SQLite 3.35+)
+    for col in ["click_x", "click_y"]:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE trial_pause_click DROP COLUMN {col}"))
+                conn.commit()
+            print(f"Dropped {col} from 'trial_pause_click' (single position form: bottom-left only).")
+        except Exception as e:
+            msg = str(e).lower()
+            if "no such column" in msg or "syntax error" in msg or "unsupported" in msg:
+                pass
+            else:
+                print(f"Warning: could not drop {col} from trial_pause_click: {e}")
 
     # Enable SQLite WAL mode for better concurrency
     try:
@@ -797,6 +844,41 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
 # EXPERIMENT CONFIGURATION LOADING
 #=============================================================================
 
+def _load_click_pause_frames(major_path):
+    """
+    Load click_points.csv from major_path if it exists and is non-empty.
+    CSV format: trial_name, repeat_instance_index, frame (three columns).
+    major_path can be relative; it is resolved relative to this script's directory (same as get_all_trial_paths).
+    Returns (has_click_trials: bool, click_pause_frames: dict keyed by (trial_name, repeat_instance_index) -> frame).
+    """
+    click_pause_frames = {}
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    absolute_major_path = os.path.join(script_dir, major_path)
+    csv_path = os.path.join(absolute_major_path, "click_points.csv")
+    if not os.path.exists(csv_path):
+        return False, click_pause_frames
+    try:
+        with open(csv_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) < 3:
+                    continue
+                trial_name, rep_str, frame_str = parts[0], parts[1], parts[2]
+                try:
+                    rep_idx = int(rep_str)
+                    frame = int(frame_str)
+                except ValueError:
+                    continue
+                click_pause_frames[(trial_name, rep_idx)] = frame
+        return bool(click_pause_frames), click_pause_frames
+    except Exception as e:
+        print(f"Warning: could not read click_points.csv at {csv_path}: {e}")
+        return False, {}
+
+
 # Global experiment configuration - defines available experiments and their data sources
 EXPERIMENTS = {
     "redgreen": {
@@ -884,6 +966,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
 
     # Parse familiarization trials (no symmetry transforms applied)
     config["ftrial_datas"] = [parse_json(file_path) for file_path in ftrial_paths]
+    config["ftrial_names"] = [os.path.basename(os.path.dirname(p)) for p in ftrial_paths]
 
     # Parse experimental trials, applying symmetry transforms if enabled
     trial_datas = []
@@ -897,6 +980,13 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     config["trial_datas"] = trial_datas
     config["num_ftrials"] = len(ftrial_paths)
     config["num_trials"] = len(trial_paths)
+
+    # Click-point variant: if click_points.csv exists and has rows, enable click trials
+    has_click_trials, click_pause_frames = _load_click_pause_frames(major_path)
+    config["has_click_trials"] = has_click_trials
+    config["click_pause_frames"] = click_pause_frames
+    if has_click_trials:
+        print(f"Click-point variant enabled: {len(click_pause_frames)} trial instance(s) with pause")
 
     return config, randomized_trial_order
 
@@ -1310,6 +1400,44 @@ def load_next_scene():
             scene_repeat_instance_index = len(occurrences) - 1
             scene_is_repeated = scene_repeat_instance_index > 0
 
+    # Click-point variant: pause_at_frame for this (trial_name, repeat_instance_index) if configured
+    pause_at_frame = None
+    has_click_trials = config.get("has_click_trials", False)
+    if has_click_trials and not (transition_to_exp_page or finish):
+        if is_trial and 0 <= trial_index < len(session.randomized_trial_order):
+            current_name = session.randomized_trial_order[trial_index]
+            rep_idx = scene_repeat_instance_index if scene_repeat_instance_index is not None else 0
+            pause_at_frame = config.get("click_pause_frames", {}).get((current_name, rep_idx))
+        elif is_ftrial:
+            ftrial_names = config.get("ftrial_names", [])
+            if 0 <= trial_index < len(ftrial_names):
+                current_name = ftrial_names[trial_index]
+                pause_at_frame = config.get("click_pause_frames", {}).get((current_name, 0))
+
+    # Whether the ball is ever behind an occluder during the trial (for "occluded object made visible" message)
+    ball_ever_occluded = False
+    if not (transition_to_exp_page or finish):
+        step_data = npz_data.get("step_data") or {}
+        occluders = npz_data.get("occluders") or []
+        radius = float(npz_data.get("radius", 0.5))
+        if occluders and step_data:
+            for frame_key, pos in step_data.items():
+                try:
+                    bx, by = float(pos.get("x", 0)), float(pos.get("y", 0))
+                except (TypeError, ValueError):
+                    continue
+                cx, cy = bx + radius, by + radius
+                for occ in occluders:
+                    ox = float(occ.get("x", 0))
+                    oy = float(occ.get("y", 0))
+                    w = float(occ.get("width", 0))
+                    h = float(occ.get("height", 0))
+                    if ox <= cx <= ox + w and oy <= cy <= oy + h:
+                        ball_ever_occluded = True
+                        break
+                if ball_ever_occluded:
+                    break
+
     scene_data = {
         **npz_data,  # Include all trial data (barriers, sensors, etc.)
         "worldWidth": world_width,
@@ -1328,7 +1456,10 @@ def load_next_scene():
         "unique_trial_id": -1 if (transition_to_exp_page or finish) else trial.id,
         "symmetry_transform_index": symmetry_transform_index,
         "is_repeated_trial": scene_is_repeated,
-        "repeat_instance_index": scene_repeat_instance_index
+        "repeat_instance_index": scene_repeat_instance_index,
+        "has_click_trials": has_click_trials,
+        "pause_at_frame": pause_at_frame,
+        "ball_ever_occluded": ball_ever_occluded,
     }
 
     return jsonify(scene_data)
@@ -1474,6 +1605,69 @@ def save_data():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 555
+
+
+@app.route('/save_pause_click', methods=['POST'])
+def save_pause_click():
+    """
+    Save participant's click position when a trial pauses at a click-point frame.
+    Request body: session_id, trial_id, pause_frame, click_x, click_y (world coords, ball center),
+    radius (to convert to bottom-left). Optionally ball_x, ball_y (ball bottom-left), diameters_away.
+    Stores only bottom-left positions in the DB.
+    """
+    try:
+        session_id = request.json.get('session_id')
+        if not session_id:
+            return jsonify({"error": "Session ID not provided"}), 401
+        trial_id = request.json.get('trial_id')
+        if trial_id is None:
+            return jsonify({"error": "Trial ID not provided"}), 401
+        pause_frame = request.json.get('pause_frame')
+        if pause_frame is None:
+            return jsonify({"error": "pause_frame not provided"}), 400
+        click_x = request.json.get('click_x')
+        click_y = request.json.get('click_y')
+        if click_x is None or click_y is None:
+            return jsonify({"error": "click_x and click_y required"}), 400
+        radius = float(request.json.get('radius') or 0.0)
+
+        session = db.session.get(REDGREEN_Session, session_id)
+        if not session:
+            return jsonify({"error": "Session not found"}), 402
+        trial = db.session.get(Trial, trial_id)
+        if not trial or trial.session_id != int(session_id):
+            return jsonify({"error": "Trial not found for the current session"}), 405
+
+        # Store only bottom-left (one form) for the click
+        click_bottom_left_x = float(click_x) - radius
+        click_bottom_left_y = float(click_y) - radius
+
+        ball_x = request.json.get('ball_x')
+        ball_y = request.json.get('ball_y')
+        diameters_away = request.json.get('diameters_away')
+        if ball_x is not None:
+            ball_x = float(ball_x)
+        if ball_y is not None:
+            ball_y = float(ball_y)
+        if diameters_away is not None:
+            diameters_away = float(diameters_away)
+
+        row = TrialPauseClick(
+            trial_id=int(trial_id),
+            session_id=int(session_id),
+            pause_frame=int(pause_frame),
+            click_bottom_left_x=click_bottom_left_x,
+            click_bottom_left_y=click_bottom_left_y,
+            ball_x=ball_x,
+            ball_y=ball_y,
+            diameters_away=diameters_away,
+        )
+        db.session.add(row)
+        db.session.commit()
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/end_session', methods=['POST'])
 def end_session():

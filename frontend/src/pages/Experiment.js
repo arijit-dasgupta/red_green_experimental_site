@@ -16,6 +16,12 @@ const ExperimentPage = ({
     finished,
     score,
     savingStatus,
+    clickTrialResult,
+    pauseState,
+    clickPlacement,
+    clickInvalidReason,
+    onValidPlacement,
+    setClickInvalidReason,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
@@ -28,6 +34,8 @@ const ExperimentPage = ({
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
+    const [mousePos, setMousePos] = useState(null); // { x, y } in canvas pixel coords when awaiting click
+    const canvasWrapperRef = useRef(null);
 
     useEffect(() => {
         strictModeRenderCount.current += 1;
@@ -102,6 +110,102 @@ const ExperimentPage = ({
             window.removeEventListener('keyup', handleKeyUp);
         };
     }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc]);
+
+    const handleCanvasMouseMove = (e) => {
+        if (pauseState !== 'awaiting_click' || !canvasRef.current || !sceneData) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    };
+    const handleCanvasMouseLeave = () => setMousePos(null);
+    const handleCanvasClick = async (e) => {
+        if (pauseState !== 'awaiting_click' || !canvasRef.current || !sceneData || !onValidPlacement) return;
+        setClickInvalidReason(null);
+        const rect = canvasRef.current.getBoundingClientRect();
+        const canvasX = e.clientX - rect.left;
+        const canvasY = e.clientY - rect.top;
+        const scale = Math.min(
+            canvasRef.current.width / (sceneData.worldWidth || 20),
+            canvasRef.current.height / (sceneData.worldHeight || 20)
+        );
+        const worldX = canvasX / scale;
+        const worldY = (canvasRef.current.height - canvasY) / scale;
+        const r = sceneData.radius || 0.5;
+        const worldWidth = sceneData.worldWidth || 20;
+        const worldHeight = sceneData.worldHeight || 20;
+        const barriers = sceneData.barriers || [];
+        if (worldX - r < 0 || worldX + r > worldWidth || worldY - r < 0 || worldY + r > worldHeight) {
+            setClickInvalidReason('Outside scene bounds');
+            return;
+        }
+        const overBarrier = barriers.some(({ x: bx, y: by, width: bw, height: bh }) => {
+            const closestX = Math.max(bx, Math.min(worldX, bx + bw));
+            const closestY = Math.max(by, Math.min(worldY, by + bh));
+            return (worldX - closestX) ** 2 + (worldY - closestY) ** 2 < r * r;
+        });
+        if (overBarrier) {
+            setClickInvalidReason('Overlapping a barrier');
+            return;
+        }
+        let ball_x = null;
+        let ball_y = null;
+        let diameters_away = null;
+        const stepAtPause = sceneData.step_data && sceneData.step_data[sceneData.pause_at_frame];
+        if (stepAtPause != null) {
+            ball_x = stepAtPause.x != null ? Number(stepAtPause.x) : null;
+            ball_y = stepAtPause.y != null ? Number(stepAtPause.y) : null;
+            if (ball_x != null && ball_y != null && r > 0) {
+                const ballCx = ball_x + r;
+                const ballCy = ball_y + r;
+                const dx = worldX - ballCx;
+                const dy = worldY - ballCy;
+                diameters_away = Math.sqrt(dx * dx + dy * dy) / (2 * r);
+            }
+        }
+        try {
+            const sessionId = sessionStorage.getItem('sessionId');
+            if (!sessionId) throw new Error('Session ID not found');
+            const res = await fetch('/save_pause_click', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'React-Experiment-App' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    trial_id: sceneData.unique_trial_id,
+                    pause_frame: sceneData.pause_at_frame,
+                    click_x: worldX,
+                    click_y: worldY,
+                    radius: r,
+                    ball_x,
+                    ball_y,
+                    diameters_away,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Failed to save click');
+            }
+            onValidPlacement(worldX, worldY);
+        } catch (err) {
+            console.error(err);
+            setClickInvalidReason(err.message || 'Failed to save');
+        }
+    };
+
+    const isClickAwaiting = pauseState === 'awaiting_click';
+    const isClickPlaced = pauseState === 'click_placed';
+    const isObservationOnly = clickPlacement && sceneData?.pause_at_frame != null && !finished && !isClickAwaiting && !isClickPlaced;
+    const showRedGreenPanel = !isClickAwaiting && !isClickPlaced && !isObservationOnly;
+    const scale = sceneData && canvasRef.current ? Math.min(
+        canvasRef.current.width / (sceneData.worldWidth || 20),
+        canvasRef.current.height / (sceneData.worldHeight || 20)
+    ) : 20;
+    const ballRadiusPx = sceneData ? scale * (sceneData.radius || 0.5) : 10;
+    const overOccluder = mousePos && sceneData?.occluders?.length && (() => {
+        const worldX = mousePos.x / scale;
+        const worldY = ((canvasRef.current?.height || 400) - mousePos.y) / scale;
+        return sceneData.occluders.some(({ x: ox, y: oy, width: w, height: h }) =>
+            worldX >= ox && worldX <= ox + w && worldY >= oy && worldY <= oy + h
+        );
+    })();
     
     if (showScoringInstruc) {
         return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
@@ -155,30 +259,6 @@ const ExperimentPage = ({
                 </p>
             </div>
 
-            {savingStatus === 'saving' && (
-                <div style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: "100%",
-                    backgroundColor: "rgba(255, 255, 255, 0.9)",
-                    backdropFilter: "blur(5px)",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    zIndex: 20,
-                }}>
-                    <h1 style={{ fontSize: "2rem", color: "#333", marginBottom: "12px" }}>
-                        Saving…
-                    </h1>
-                    <p style={{ fontSize: "1rem", color: "#666", margin: 0 }}>
-                        Please wait. Do not close this tab.
-                    </p>
-                </div>
-            )}
-
             {finished && !(trialInfo.is_ftrial && trialInfo.ftrial_i === 1) && (
                 <div style={{
                     position: "absolute",
@@ -194,65 +274,82 @@ const ExperimentPage = ({
                     alignItems: "center",
                     zIndex: 20,
                 }}>
-                    <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>
-                        {savingStatus === 'saved' ? 'Saved.' : ''} You scored {score.toFixed(0)}
-                    </h1>
-                    {savingStatus === 'error' && (
-                        <p style={{ fontSize: "0.9rem", color: "#c62828", marginBottom: "12px" }}>
-                            (Data may not have been saved. You can still continue.)
-                        </p>
-                    )}
-
-                    <div style={{
-                        display: "flex",
-                        alignItems: "center",
-                        width: "80%",
-                        marginTop: "20px",
-                    }}>
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginRight: "10px",
-                            color: "#333"
-                        }}>
-                            -80
-                        </span>
-
-                        <div style={{
-                            flexGrow: 1,
-                            height: "30px",
-                            backgroundColor: "#e0e0e0",
-                            borderRadius: "15px",
-                            overflow: "hidden",
-                            position: "relative",
-                            boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
-                        }}>
-                            <div style={{
-                                width: `${((score + 80) / 200) * 100}%`,
-                                height: "100%",
-                                backgroundColor: (() => {
-                                    const normalizedScore = (score + 80) / 200;
-                                    if (normalizedScore <= 1 / 3) {
-                                        return "#f44336";
-                                    } else if (normalizedScore <= 2 / 3) {
-                                        return "#ffeb3b";
-                                    } else {
-                                        return "#4caf50";
-                                    }
+                    {clickTrialResult?.isClickTrial ? (
+                        <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>
+                            Your placement was{" "}
+                            <span style={{
+                                color: (() => {
+                                    const d = clickTrialResult.diametersAway;
+                                    if (d < 1) return "#2e7d32";
+                                    if (d <= 3) return "#ef6c00";
+                                    return "#c62828";
                                 })(),
-                                transition: "width 0.5s ease-in-out, background-color 0.5s ease-in-out",
-                            }} />
-                        </div>
+                                fontWeight: "bold",
+                            }}>
+                                {clickTrialResult.diametersAway < 0.05
+                                    ? "0.0"
+                                    : clickTrialResult.diametersAway.toFixed(1)}
+                            </span>{" "}
+                            diameter{clickTrialResult.diametersAway === 1 ? "" : "s"} from the ball.
+                        </h1>
+                    ) : (
+                        <>
+                            <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>
+                                You scored {score.toFixed(0)}
+                            </h1>
 
-                        <span style={{
-                            fontSize: "1rem",
-                            fontWeight: "bold",
-                            marginLeft: "10px",
-                            color: "#333"
-                        }}>
-                            120
-                        </span>
-                    </div>
+                            <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                width: "80%",
+                                marginTop: "20px",
+                            }}>
+                                <span style={{
+                                    fontSize: "1rem",
+                                    fontWeight: "bold",
+                                    marginRight: "10px",
+                                    color: "#333"
+                                }}>
+                                    -80
+                                </span>
+
+                                <div style={{
+                                    flexGrow: 1,
+                                    height: "30px",
+                                    backgroundColor: "#e0e0e0",
+                                    borderRadius: "15px",
+                                    overflow: "hidden",
+                                    position: "relative",
+                                    boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+                                }}>
+                                    <div style={{
+                                        width: `${((score + 80) / 200) * 100}%`,
+                                        height: "100%",
+                                        backgroundColor: (() => {
+                                            const normalizedScore = (score + 80) / 200;
+                                            if (normalizedScore <= 1 / 3) {
+                                                return "#f44336";
+                                            } else if (normalizedScore <= 2 / 3) {
+                                                return "#ffeb3b";
+                                            } else {
+                                                return "#4caf50";
+                                            }
+                                        })(),
+                                        transition: "width 0.5s ease-in-out, background-color 0.5s ease-in-out",
+                                    }} />
+                                </div>
+
+                                <span style={{
+                                    fontSize: "1rem",
+                                    fontWeight: "bold",
+                                    marginLeft: "10px",
+                                    color: "#333"
+                                }}>
+                                    120
+                                </span>
+                            </div>
+                        </>
+                    )}
 
                     <div>
                         <p style={{
@@ -335,19 +432,52 @@ const ExperimentPage = ({
                         </p>
                     </div>
 
-                    <canvas
-                        ref={canvasRef}
-                        width={canvasSize.width}
-                        height={canvasSize.height}
-                        style={{
-                            border: "1px solid black",
-                            backgroundColor: "white",
-                            width: `${canvasSize.width}px`,
-                            height: `${canvasSize.height}px`,
-                        }}
-                    />
-
-                    {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
+                    <div style={{ position: "relative", display: "inline-block" }}>
+                        <canvas
+                            ref={canvasRef}
+                            width={canvasSize.width}
+                            height={canvasSize.height}
+                            style={{
+                                border: "1px solid black",
+                                backgroundColor: "white",
+                                width: `${canvasSize.width}px`,
+                                height: `${canvasSize.height}px`,
+                                display: "block",
+                            }}
+                        />
+                        {isClickAwaiting && (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    width: canvasSize.width,
+                                    height: canvasSize.height,
+                                    cursor: "none",
+                                    zIndex: 5,
+                                }}
+                                onMouseMove={handleCanvasMouseMove}
+                                onMouseLeave={handleCanvasMouseLeave}
+                                onClick={handleCanvasClick}
+                            >
+                                {mousePos && (
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            left: mousePos.x - ballRadiusPx,
+                                            top: mousePos.y - ballRadiusPx,
+                                            width: ballRadiusPx * 2,
+                                            height: ballRadiusPx * 2,
+                                            borderRadius: "50%",
+                                            backgroundColor: "blue",
+                                            opacity: overOccluder ? 0.5 : 1,
+                                            pointerEvents: "none",
+                                        }}
+                                    />
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div style={{
@@ -359,61 +489,102 @@ const ExperimentPage = ({
                     minWidth: "200px",
                     marginTop: "20vh",
                 }}>
-                    {/* Key State Indicators */}
-                    <div style={{
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.1}px`,
-                        padding: `${canvasSize.width * 0.02}px`,
-                        border: "1px solid #ddd",
-                        borderRadius: "8px",
-                        backgroundColor: "#f9f9f9",
-                        width: "100%",
-                        justifyContent: "center",
-                    }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>F</h2>
+                    {showRedGreenPanel && (
+                        <>
                             <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "red",
-                                borderRadius: "50%",
-                            }} />
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
-                            <h2 style={{ margin: 0, fontWeight: "bold" }}>J</h2>
+                                display: "flex",
+                                gap: `${canvasSize.width * 0.1}px`,
+                                padding: `${canvasSize.width * 0.02}px`,
+                                border: "1px solid #ddd",
+                                borderRadius: "8px",
+                                backgroundColor: "#f9f9f9",
+                                width: "100%",
+                                justifyContent: "center",
+                            }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
+                                    <h2 style={{ margin: 0, fontWeight: "bold" }}>F</h2>
+                                    <div style={{
+                                        width: `${canvasSize.width * 0.04}px`,
+                                        height: `${canvasSize.width * 0.04}px`,
+                                        backgroundColor: "red",
+                                        borderRadius: "50%",
+                                    }} />
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: `${canvasSize.width * 0.01}px` }}>
+                                    <h2 style={{ margin: 0, fontWeight: "bold" }}>J</h2>
+                                    <div style={{
+                                        width: `${canvasSize.width * 0.04}px`,
+                                        height: `${canvasSize.width * 0.04}px`,
+                                        backgroundColor: "green",
+                                        borderRadius: "50%",
+                                    }} />
+                                </div>
+                            </div>
                             <div style={{
-                                width: `${canvasSize.width * 0.04}px`,
-                                height: `${canvasSize.width * 0.04}px`,
-                                backgroundColor: "green",
-                                borderRadius: "50%",
-                            }} />
+                                position: "absolute",
+                                top: `${canvasSize.width * 0.15}px`,
+                                display: "flex",
+                                gap: `${canvasSize.width * 0.03}px`,
+                                justifyContent: "center",
+                                width: "100%",
+                            }}>
+                                {renderKeyState("f", "red", keyStates, canvasSize)}
+                                {renderKeyState("j", "green", keyStates, canvasSize)}
+                                {renderEmptyKeyState(keyStates, canvasSize)}
+                            </div>
+                            <div style={{ marginTop: `${canvasSize.height * 0.3}px`, width: "100%" }}>
+                                <p>Proportions so far ↓</p>
+                                <KeyStateLine recordedKeyStates={recordedKeyStates} />
+                            </div>
+                        </>
+                    )}
+                    {isClickAwaiting && (
+                        <div style={{
+                            padding: "16px",
+                            border: "1px solid #ddd",
+                            borderRadius: "8px",
+                            backgroundColor: "#f9f9f9",
+                            width: "100%",
+                        }}>
+                            <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#333" }}>
+                                Please place the ball where you think it is located in the scene (with your mouse/cursor).
+                            </p>
+                            {clickInvalidReason && (
+                                <p style={{ margin: 0, color: "#c62828", fontSize: "0.95rem" }}>
+                                    Invalid position: {clickInvalidReason}
+                                </p>
+                            )}
                         </div>
-                    </div>
-
-                    {/* Render Key States */}
-                    <div style={{
-                        position: "absolute",
-                        top: `${canvasSize.width * 0.15}px`,
-                        display: "flex",
-                        gap: `${canvasSize.width * 0.03}px`,
-                        justifyContent: "center",
-                        width: "100%",
-                    }}>
-                        {renderKeyState("f", "red", keyStates, canvasSize)}
-                        {renderKeyState("j", "green", keyStates, canvasSize)}
-                        {renderEmptyKeyState(keyStates, canvasSize)}
-                    </div>
-
-                    {/* Add a Spacer to Separate the KeyStateLine */}
-                    <div style={{
-                        marginTop: `${canvasSize.height * 0.3}px`, // Add space between renderKeyState and KeyStateLine
-                        width: "100%",
-                    }}>
-                        {/* Render KeyStateLine */}
-                        {/* <p>Current Frame: <strong>{currentFrame}</strong></p> */}
-                        <p>Proportions so far ↓</p>
-                        <KeyStateLine recordedKeyStates={recordedKeyStates} />
-                    </div>
+                    )}
+                    {isClickPlaced && (
+                        <div style={{
+                            padding: "16px",
+                            border: "1px solid #4caf50",
+                            borderRadius: "8px",
+                            backgroundColor: "#e8f5e9",
+                            width: "100%",
+                        }}>
+                            <p style={{ margin: 0, fontWeight: "bold", color: "#2e7d32" }}>
+                                Placement recorded. Resuming in 1 second…
+                            </p>
+                        </div>
+                    )}
+                    {isObservationOnly && (
+                        <div style={{
+                            padding: "16px",
+                            border: "1px solid #ddd",
+                            borderRadius: "8px",
+                            backgroundColor: "#f5f5f5",
+                            width: "100%",
+                        }}>
+                            <p style={{ margin: 0, color: "#666" }}>Observe the path until the end of the trial.</p>
+                            {sceneData?.ball_ever_occluded && (
+                                <p style={{ margin: "8px 0 0 0", color: "#666", fontSize: "0.95rem" }}>
+                                    Occluded object is made visible so you can see the path.
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

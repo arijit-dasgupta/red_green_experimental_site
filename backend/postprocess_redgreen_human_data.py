@@ -463,6 +463,56 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
     return keystate_by_trial
 
 
+def load_click_data(db_path):
+    """
+    Load click-point data from trial_pause_click table (if it exists).
+    Joins with trial to get global_trial_name and repeat_instance_index.
+    Returns a DataFrame with columns session_id, trial_id, global_trial_name, repeat_instance_index,
+    pause_frame, click_bottom_left_x, click_bottom_left_y, ball_x, ball_y, diameters_away
+    (all positions as bottom-left in world coords), or empty DataFrame.
+    """
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        result = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='trial_pause_click'"
+        )
+        if result.fetchone() is None:
+            return pd.DataFrame()
+    query = """
+        SELECT c.id, c.trial_id, c.session_id, t.global_trial_name, t.repeat_instance_index,
+               c.pause_frame, c.click_bottom_left_x, c.click_bottom_left_y,
+               c.ball_x, c.ball_y, c.diameters_away
+        FROM trial_pause_click c
+        JOIN trial t ON c.trial_id = t.id
+        ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id
+    """
+    click_df = pd.read_sql(query, engine)
+    return click_df
+
+
+def save_click_data_by_trial(click_df, path_to_data):
+    """
+    Save click data as separate CSV files per (global_trial_name, repeat_instance_index).
+    - Instance 0: click_data.csv
+    - Instance 1, 2, ...: click_data_rep1.csv, click_data_rep2.csv, ...
+    Does nothing if click_df is empty.
+    """
+    if click_df is None or click_df.empty:
+        return
+    click_df = click_df.copy()
+    click_df["repeat_instance_index"] = click_df["repeat_instance_index"].fillna(0).astype(int)
+    for (trial_name, rep_idx), group in click_df.groupby(["global_trial_name", "repeat_instance_index"]):
+        trial_dir = os.path.join(path_to_data, str(trial_name))
+        os.makedirs(trial_dir, exist_ok=True)
+        if rep_idx == 0:
+            csv_filename = "click_data.csv"
+        else:
+            csv_filename = f"click_data_rep{rep_idx}.csv"
+        csv_filepath = os.path.join(trial_dir, csv_filename)
+        group.to_csv(csv_filepath, index=False)
+    print(f"Saved click data as CSV files in {path_to_data}")
+
+
 def find_duplicate_completed_trials(trial_df):
     """
     Checks for duplicate completed trials within each session where the global trial name
