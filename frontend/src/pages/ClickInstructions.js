@@ -1,6 +1,14 @@
 import React from 'react';
 
-const ScoringInstrucPage = ({ handleProceed, trialInfo }) => {
+/**
+ * Shown only when the experiment has click-point trials (has_click_trials).
+ * Appears after F2 and before the click familiarization trial (F3).
+ * Explains that placement happens on random trials at random moments, and sometimes the full path is shown.
+ */
+const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
+    // Next trial is at ftrial_i (e.g. F3 → ftrial_i 3); after it, num_ftrials - ftrial_i remain
+    const remainingAfterThis = Math.max(0, (trialInfo.num_ftrials || 0) - (trialInfo.ftrial_i || 0));
+
     return (
         <div
             style={{
@@ -26,78 +34,60 @@ const ScoringInstrucPage = ({ handleProceed, trialInfo }) => {
             >
                 <h1
                     style={{
-                        fontSize: '2.5rem',
+                        fontSize: '2rem',
                         color: '#333',
                         marginBottom: '20px',
                         fontWeight: 'bold',
                     }}
                 >
-                    Scoring instructions
+                    Placement task (some trials)
                 </h1>
                 <p
                     style={{
-                        fontSize: '1.2rem',
+                        fontSize: '1.15rem',
                         color: '#555',
-                        marginBottom: '20px',
+                        marginBottom: '16px',
                         lineHeight: '1.6',
                     }}
                 >
-                    Great job on finishing your first familiarization trial! In this experiment, 
-                    you will be given a <b>score</b> for <strong> how accurately, quickly (and for how long) you responded to the stimuli. 
-                    The faster and longer you hold down on the correct key, the better your score.</strong> 
+                    On <strong>some trials</strong>, the animation will pause at a <strong>random moment</strong>.
+                    You will be asked to <strong>click where you think the ball is</strong> in the scene.
+                    After you place it, the trial continues so you can see the rest of the path.
                 </p>
                 <p
                     style={{
-                        fontSize: '1.2rem',
-                        color: '#555',
-                        marginBottom: '20px',
+                        fontSize: '1.15rem',
+                        color: '#333',
+                        marginBottom: '16px',
                         lineHeight: '1.6',
+                        fontWeight: '600',
                     }}
                 >
-                    It is calculated as follows:
-                </p>
-                <div
-                    style={{
-                        backgroundColor: '#f1f1f1',
-                        padding: '20px',
-                        borderRadius: '10px',
-                        marginBottom: '20px',
-                        textAlign: 'center',
-                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.1)',
-                    }}
-                >
-                    <p style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>
-                        Score = 20 + 100 × (
-                        Correct Percentage - 
-                         Wrong Percentage
-                        )
-                    </p>
-                </div>
-                <p
-                    style={{
-                        fontSize: '1.2rem',
-                        color: '#555',
-                        marginBottom: '20px',
-                        lineHeight: '1.6',
-                    }}
-                >
-                    Holding down the <b>correct</b> guess for a longer duration increases your score, while holding down a <b>wrong</b> guess for a longer duration 
-                    reduces it. 
-                    Being uncertain for a longer duration will keep your score towards the middle (score = 20).
-                    If you are uncertain, holding down on a random button may lower your score as an incorrect guess incurs a penalty. 
-                    However, making a correct guess will improve your score more than remaining uncertain.
+                    The ball will <strong>disappear</strong> the moment the trial pauses—whether or not it was visible at that time.
                 </p>
                 <p
                     style={{
-                        fontSize: '1.2rem',
+                        fontSize: '1.15rem',
                         color: '#555',
-                        marginBottom: '20px',
+                        marginBottom: '16px',
                         lineHeight: '1.6',
                     }}
                 >
-                    You will have <b>{trialInfo.num_ftrials - 1}</b> more familiarization trials, to get used to this scoring system.
-                    Your scores for the familiarization trials do not contribute to your final score of the experiment,
-                    but the main experiment scores will count. Press the button below to continue.
+                    On other trials, the animation will run <strong>all the way to the end</strong> with no placement—just respond with the keys as usual.
+                    Which trials include a placement step, and when they pause, is random.
+                </p>
+                <p
+                    style={{
+                        fontSize: '1.15rem',
+                        color: '#555',
+                        marginBottom: '24px',
+                        lineHeight: '1.6',
+                    }}
+                >
+                    The <strong>next</strong> familiarization trial will include a placement task.
+                    {remainingAfterThis === 0
+                        ? ' After it, you will complete the familiarization phase and move on to the main experiment.'
+                        : ` After it, you will have ${remainingAfterThis} more familiarization trial${remainingAfterThis !== 1 ? 's' : ''} before the main experiment.`}
                 </p>
                 <button
                     onClick={handleProceed}
@@ -117,11 +107,11 @@ const ScoringInstrucPage = ({ handleProceed, trialInfo }) => {
                     onMouseDown={(e) => (e.target.style.transform = 'scale(0.95)')}
                     onMouseUp={(e) => (e.target.style.transform = 'scale(1)')}
                 >
-                    Continue with the Next Familiarization Trial
+                    Continue to placement trial
                 </button>
             </div>
         </div>
     );
 };
 
-export default ScoringInstrucPage;
+export default ClickInstructionsPage;

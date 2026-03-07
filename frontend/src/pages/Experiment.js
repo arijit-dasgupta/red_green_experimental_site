@@ -3,6 +3,7 @@ import {renderKeyState, renderEmptyKeyState} from '../components/renderKeyState'
 import KeyStateLine from '../components/KeyStateLine'; 
 import TransitionPage from './Transition';
 import ScoringInstrucPage from './ScoringInstruc';
+import ClickInstructionsPage from './ClickInstructions';
 
 const ExperimentPage = ({
     sceneData,
@@ -34,6 +35,7 @@ const ExperimentPage = ({
     const strictModeRenderCount = useRef(0);
     const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
+    const [showClickInstructions, setShowClickInstructions] = useState(false);
     const [mousePos, setMousePos] = useState(null); // { x, y } in canvas pixel coords when awaiting click
     const canvasWrapperRef = useRef(null);
 
@@ -50,9 +52,23 @@ const ExperimentPage = ({
     useEffect(() => {
         if (trialInfo.is_ftrial && trialInfo.ftrial_i === 2 && !activatedScoringInstruc.current) {
             activatedScoringInstruc.current = true;
-            setShowScoringInstruc(true); // Show explanation page after first familiarization trial
+            setShowScoringInstruc(true); // After F1: show scoring instructions before F2
         }
     }, [trialInfo]);
+
+    // After F2: show click instructions before F3 (when this experiment has click trials and we have a third fam trial)
+    const shownClickInstrucForF3Ref = useRef(false);
+    useEffect(() => {
+        if (
+            trialInfo.is_ftrial &&
+            trialInfo.ftrial_i === 3 &&
+            sceneData?.has_click_trials &&
+            !shownClickInstrucForF3Ref.current
+        ) {
+            shownClickInstrucForF3Ref.current = true;
+            setShowClickInstructions(true);
+        }
+    }, [trialInfo.is_ftrial, trialInfo.ftrial_i, sceneData?.has_click_trials]);
 
     // Fix 1: when entering click phase, clear mouse position so ball is not shown until user hovers over the scene
     const wasClickAwaitingRef = useRef(false);
@@ -65,7 +81,7 @@ const ExperimentPage = ({
     }, [isEnteringClickPhase]);
 
     const handleProceed = () => {
-        setShowScoringInstruc(false); // Hide explanation page
+        setShowScoringInstruc(false);
     };
 
     useEffect(() => {
@@ -99,9 +115,8 @@ const ExperimentPage = ({
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
     
         const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving' && !isTransitionPage && !showScoringInstruc) {
-                // console.log("Spacebar pressed. Fetching next scene...");
-                isSpacePressed = false; // Set flag to true when Spacebar is pressed
+            if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving' && !isTransitionPage && !showScoringInstruc && !showClickInstructions) {
+                isSpacePressed = false;
                 fetchNextScene(setdisableCountdownTrigger);
             }
         };
@@ -119,7 +134,7 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc]);
+    }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc, showClickInstructions]);
 
     const handleCanvasMouseMove = (e) => {
         if (pauseState !== 'awaiting_click' || !canvasRef.current || !sceneData) return;
@@ -218,7 +233,11 @@ const ExperimentPage = ({
     })();
     
     if (showScoringInstruc) {
-        return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo}/>;
+        return <ScoringInstrucPage handleProceed={handleProceed} trialInfo={trialInfo} />;
+    }
+
+    if (showClickInstructions) {
+        return <ClickInstructionsPage handleProceed={() => setShowClickInstructions(false)} trialInfo={trialInfo} />;
     }
 
     if (isTransitionPage) {
@@ -290,8 +309,8 @@ const ExperimentPage = ({
                             <span style={{
                                 color: (() => {
                                     const d = clickTrialResult.diametersAway;
-                                    if (d < 1) return "#2e7d32";
-                                    if (d <= 3) return "#ef6c00";
+                                    if (d <= 1.5) return "#2e7d32";
+                                    if (d <= 3.5) return "#ef6c00";
                                     return "#c62828";
                                 })(),
                                 fontWeight: "bold",
