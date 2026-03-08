@@ -61,8 +61,8 @@ Open **http://127.0.0.1:5000** in your browser.
 
 - One Postgres database per app. All sessions (all runs) live in the same DB.
 - Sessions are tagged with `dataset_name` and `experiment_run_version` so you can filter by run.
-- **Size:** `heroku pg:info -a YOUR_APP`
-- **Reset (wipe all data):** `heroku pg:reset DATABASE_URL -a YOUR_APP` (confirm when prompted). Redeploying does **not** reset the database.
+- **Size:** `heroku pg:info -a redgreen-exp`
+- **Reset (wipe all data):** `heroku pg:reset DATABASE_URL -a redgreen-exp` (confirm when prompted). Redeploying does **not** reset the database.
 
 ### Exporting Heroku Postgres to a SQLite file
 
@@ -86,7 +86,7 @@ python scripts/export_postgres_to_sqlite.py
 ### Prerequisites
 
 - Heroku account and [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
-- App created and Heroku Postgres add-on attached (e.g. Essential-0)
+- App `redgreen-exp` created and Heroku Postgres add-on attached (e.g. Essential-0)
 - Buildpacks: **Node.js** first, then **Python** (Settings → Buildpacks)
 
 ### Config vars (Settings → Config Vars)
@@ -109,7 +109,7 @@ For a new experiment run you can change only the path prefix, Prolific URL, and 
 
 ### Deploy
 
-From the repo (with the `heroku` remote added, e.g. `heroku git:remote -a YOUR_APP`):
+From the repo (with the `heroku` remote added: `heroku git:remote -a redgreen-exp`):
 
 ```bash
 git push heroku heroku:main
@@ -117,7 +117,7 @@ git push heroku heroku:main
 
 (or push your default branch: `git push heroku main` if that branch has the deployment code).
 
-App URL with path prefix: **https://YOUR_APP.herokuapp.com/BASE_PATH** (e.g. `https://redgreen-exp.herokuapp.com/march2026v0`).
+App URL with path prefix: **https://redgreen-exp.herokuapp.com/BASE_PATH** (e.g. `https://redgreen-exp.herokuapp.com/march2026v0`).
 
 ### Root files required for Heroku
 
@@ -130,7 +130,7 @@ App URL with path prefix: **https://YOUR_APP.herokuapp.com/BASE_PATH** (e.g. `ht
 
 - **Trial data:** Stored under `backend/trial_data`. The active dataset is set by `DATASET_NAME` in `backend/run_redgreen_experiment.py`. Familiarization trials use the `FAM_TRIAL_PREFIXES` (e.g. `['F']` → F1, F2, …); experimental trials use `EXP_TRIAL_PREFIXES` (e.g. `['T']` or `['E']`).
 - **Prolific completion URL and timeout:** On Heroku, set `PROLIFIC_COMPLETION_URL` and `TIMEOUT_PERIOD_MINUTES` in Config Vars. Locally, edit `PROLIFIC_COMPLETION_URL` and the timeout defaults at the top of `backend/run_redgreen_experiment.py` (or set env vars).
-- **Monitoring:** You can run `backend/experiment_monitoring_dashboard.py` locally (stability not guaranteed). On Heroku, use **More → View logs** or `heroku logs --tail -a YOUR_APP`.
+- **Monitoring:** You can run `backend/experiment_monitoring_dashboard.py` locally (stability not guaranteed). On Heroku, use **More → View logs** or `heroku logs --tail -a redgreen-exp`.
 
 ---
 
