@@ -84,7 +84,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'March072026_PointClick'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'March072026_PointClick_reduced'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
@@ -103,7 +103,7 @@ PROLIFIC_COMPLETION_URL = os.environ.get(
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
-PARTICIPANT_BUFFER = 20
+PARTICIPANT_BUFFER = 2000
 
 # If True, duplicate specific experimental trials according to repeat.csv
 # in the dataset folder (one row per trial name and number of extra
