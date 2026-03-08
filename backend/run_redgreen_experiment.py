@@ -59,7 +59,7 @@ DEPLOYMENT NOTES:
 - Prolific integration for participant management
 """
 
-from flask import send_from_directory, Flask, request, jsonify, has_request_context
+from flask import send_from_directory, Flask, request, jsonify, has_request_context, Blueprint
 from flask_cors import CORS
 import json
 from datetime import datetime, timedelta
@@ -129,18 +129,30 @@ app = Flask(__name__, static_folder=os.path.join(REACT_BUILD_DIR, "static"))
 # Enable CORS for frontend-backend communication, with ngrok compatibility
 CORS(app, headers=['Content-Type', 'ngrok-skip-browser-warning'])
 
-# Database directory at project root; create if missing
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HUMAN_RAW_DATA_DIR = os.path.join(_PROJECT_ROOT, 'human_raw_data')
-os.makedirs(HUMAN_RAW_DATA_DIR, exist_ok=True)
-_db_path = os.path.join(HUMAN_RAW_DATA_DIR, f'{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.abspath(_db_path).replace('\\', '/')
+# Database: use DATABASE_URL (Postgres) when set (e.g. Heroku), else SQLite
+_database_url = os.environ.get('DATABASE_URL')
+if _database_url:
+    if _database_url.startswith('postgres://'):
+        _database_url = _database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _database_url
+else:
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    HUMAN_RAW_DATA_DIR = os.path.join(_PROJECT_ROOT, 'human_raw_data')
+    os.makedirs(HUMAN_RAW_DATA_DIR, exist_ok=True)
+    _db_path = os.path.join(HUMAN_RAW_DATA_DIR, f'{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.abspath(_db_path).replace('\\', '/')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'mysecretkey_redgreen_##$563456#$%^')
 app.config['ADMIN_EMAIL'] = 'arijitdg@mit.edu'
 
 # Initialize SQLAlchemy database object
 db = SQLAlchemy(app)
+
+# Path prefix for deployment (e.g. /march2026v0); empty when unset for local root
+_base_path = (os.environ.get('BASE_PATH') or '').strip().rstrip('/')
+if _base_path and not _base_path.startswith('/'):
+    _base_path = '/' + _base_path
+bp = Blueprint('app', __name__, url_prefix=_base_path)
 
 @app.after_request
 def add_ngrok_header(response):
@@ -149,8 +161,8 @@ def add_ngrok_header(response):
     return response
 
 # Serve React static files for all routes (SPA routing)
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
+@bp.route("/", defaults={"path": ""})
+@bp.route("/<path:path>")
 def serve_react(path):
     """
     Serve React build files for the frontend application.
@@ -395,16 +407,16 @@ with app.app_context():
             else:
                 print(f"Warning: could not drop {col} from trial_pause_click: {e}")
 
-    # Enable SQLite WAL mode for better concurrency
-    try:
-        with db.engine.connect() as conn:
-            conn.execute(text("PRAGMA journal_mode=WAL;"))
-            conn.execute(text("PRAGMA synchronous=NORMAL;"))
-            conn.commit()
-        print("SQLite PRAGMA journal_mode=WAL and synchronous=NORMAL applied.")
-    except Exception as e:
-        # Don't crash app startup if PRAGMA fails; just log it.
-        print(f"Warning: failed to set WAL mode: {e}")
+    # Enable SQLite WAL mode for better concurrency (Postgres does not use PRAGMA)
+    if db.engine.dialect.name == 'sqlite':
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text("PRAGMA journal_mode=WAL;"))
+                conn.execute(text("PRAGMA synchronous=NORMAL;"))
+                conn.commit()
+            print("SQLite PRAGMA journal_mode=WAL and synchronous=NORMAL applied.")
+        except Exception as e:
+            print(f"Warning: failed to set WAL mode: {e}")
 
     print("Database initialized.")
     print_active_sessions()
@@ -994,7 +1006,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
 # API ENDPOINTS
 #=============================================================================
 
-@app.route('/start_experiment/<experiment_name>', methods=['POST'])
+@bp.route('/start_experiment/<experiment_name>', methods=['POST'])
 def start_experiment(experiment_name):
     """
     Initialize a new experiment session for a participant.
@@ -1141,7 +1153,7 @@ def start_experiment(experiment_name):
         "start_time_utc": new_session.start_time.isoformat(),
     }), 200
 
-@app.route("/load_next_scene", methods=["POST"])
+@bp.route("/load_next_scene", methods=["POST"])
 def load_next_scene():
     """
     Load the next trial scene for a participant session.
@@ -1464,7 +1476,7 @@ def load_next_scene():
 
     return jsonify(scene_data)
 
-@app.route('/save_data', methods=['POST'])
+@bp.route('/save_data', methods=['POST'])
 def save_data():
     """
     Save participant response data for a completed trial.
@@ -1607,7 +1619,7 @@ def save_data():
         return jsonify({"error": str(e)}), 555
 
 
-@app.route('/save_pause_click', methods=['POST'])
+@bp.route('/save_pause_click', methods=['POST'])
 def save_pause_click():
     """
     Save participant's click position when a trial pauses at a click-point frame.
@@ -1669,7 +1681,7 @@ def save_pause_click():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route('/end_session', methods=['POST'])
+@bp.route('/end_session', methods=['POST'])
 def end_session():
     """
     Handle premature session ending (browser close, refresh, etc.).
@@ -1696,7 +1708,7 @@ def end_session():
 
     return jsonify({"message": "Session ended and configuration deleted successfully."}), 200
 
-@app.route('/check_timeout', methods=['POST'])
+@bp.route('/check_timeout', methods=['POST'])
 def check_timeout():
     """
     Check if a session has exceeded the timeout period.
@@ -1731,7 +1743,7 @@ def check_timeout():
 
     return jsonify({"status": "active"}), 200
 
-@app.route('/sessions', methods=['GET'])
+@bp.route('/sessions', methods=['GET'])
 def sessions():
     """
     Return summary data for all sessions (for monitoring/analysis) for experiment_monitoring_dashboard.py.
@@ -1787,7 +1799,7 @@ def sessions():
     return jsonify(result)
 
 
-@app.route('/save_post_experiment_feedback', methods=['POST'])
+@bp.route('/save_post_experiment_feedback', methods=['POST'])
 def save_post_experiment_feedback():
     """
     Save an open-ended post-experiment feedback response about perceived
@@ -1808,6 +1820,8 @@ def save_post_experiment_feedback():
     db.session.commit()
 
     return jsonify({"status": "success"}), 200
+
+app.register_blueprint(bp)
 
 #=============================================================================
 # DATA EXPORT FUNCTIONS

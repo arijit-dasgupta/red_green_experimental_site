@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { getApiBase } from "../api";
 
 const useSessionTimeout = (navigate, currentPage) => {
     useEffect(() => {
@@ -17,7 +18,7 @@ const useSessionTimeout = (navigate, currentPage) => {
 
         const checkTimeout = async () => {
             try {
-                const response = await fetch("/check_timeout", {
+                const response = await fetch(getApiBase() + "/check_timeout", {
                     method: "POST",
                     headers: { "Content-Type": "application/json",
                         'ngrok-skip-browser-warning': 'true',

@@ -17,6 +17,7 @@ import useUpdateKeyStates from './hooks/useUpdateKeyStates';
 import useCancelAnimation from './hooks/useCancelAnimation';
 import useSyncKeyStatesRef from './hooks/useSyncKeyStatesRef';
 import useSessionTimeout from './hooks/useSessionTimeout';
+import { getApiBase } from './api';
 
 
 const App = () => {
@@ -338,7 +339,7 @@ const renderCurrentPage = () => {
         throw new Error('Session ID not found. Please start the experiment again.');
       }
   
-      const response = await fetch('/load_next_scene', {
+      const response = await fetch(getApiBase() + '/load_next_scene', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json',
                   'ngrok-skip-browser-warning': 'true', // Add this header to skip the browser warning
@@ -480,7 +481,7 @@ const animate = (timestamp) => {
               const sessionId = sessionStorage.getItem('sessionId');
               if (!sessionId) throw new Error('Session ID not found.');
 
-              const response = await fetch('/save_data', {
+              const response = await fetch(getApiBase() + '/save_data', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json',
                   'ngrok-skip-browser-warning': 'true',

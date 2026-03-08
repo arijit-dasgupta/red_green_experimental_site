@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
+import { getApiBase } from '../api';
 
 
 const parseUrlParams = () => {
@@ -37,7 +38,7 @@ const WelcomePage = ({ setTrialInfo }) => {
             const prolific_session_id = sessionStorage.getItem("prolific_session_id");
 
             const response = await fetch(
-                `/start_experiment/redgreen?PROLIFIC_PID=${prolific_pid}&STUDY_ID=${study_id}&SESSION_ID=${prolific_session_id}`,
+                getApiBase() + `/start_experiment/redgreen?PROLIFIC_PID=${prolific_pid}&STUDY_ID=${study_id}&SESSION_ID=${prolific_session_id}`,
                 { method: "POST", 
                     headers: { 
                         // "Content-Type": "application/json",

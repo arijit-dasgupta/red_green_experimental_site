@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getApiBase } from '../api';
 
 const PostExperimentFeedbackPage = ({ navigateToFinish }) => {
   const [feedback, setFeedback] = useState('');
@@ -24,7 +25,7 @@ const PostExperimentFeedbackPage = ({ navigateToFinish }) => {
         throw new Error('Session ID not found. Please contact the experimenter.');
       }
 
-      const response = await fetch('/save_post_experiment_feedback', {
+      const response = await fetch(getApiBase() + '/save_post_experiment_feedback', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

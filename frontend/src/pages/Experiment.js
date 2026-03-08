@@ -4,6 +4,7 @@ import KeyStateLine from '../components/KeyStateLine';
 import TransitionPage from './Transition';
 import ScoringInstrucPage from './ScoringInstruc';
 import ClickInstructionsPage from './ClickInstructions';
+import { getApiBase } from '../api';
 
 const ExperimentPage = ({
     sceneData,
@@ -189,7 +190,7 @@ const ExperimentPage = ({
         try {
             const sessionId = sessionStorage.getItem('sessionId');
             if (!sessionId) throw new Error('Session ID not found');
-            const res = await fetch('/save_pause_click', {
+            const res = await fetch(getApiBase() + '/save_pause_click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'React-Experiment-App' },
                 body: JSON.stringify({
