@@ -90,11 +90,16 @@ FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
 EXPERIMENT_RUN_VERSION = 'red_green_2026_clickpilot_v0'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
-TIMEOUT_PERIOD = timedelta(minutes=45)  # Maximum time before session expires
-check_TIMEOUT_interval = timedelta(minutes=5)  # How often to check for timeouts
+# Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
+_timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '45'))
+TIMEOUT_PERIOD = timedelta(minutes=_timeout_min)  # Maximum time before session expires
+_check_min = int(os.environ.get('CHECK_TIMEOUT_INTERVAL_MINUTES', '5'))
+check_TIMEOUT_interval = timedelta(minutes=_check_min)  # How often to check for timeouts
 NUM_PARTICIPANTS = 15  # Target number of participants to recruit
-# PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CYBX6B9B'  # URL for participants to complete study on Prolific
-PROLIFIC_COMPLETION_URL = 'https://app.prolific.com/submissions/complete?cc=CIF4CGOI'  # URL for participants to complete study on Prolific
+PROLIFIC_COMPLETION_URL = os.environ.get(
+    'PROLIFIC_COMPLETION_URL',
+    'https://app.prolific.com/submissions/complete?cc=CIF4CGOI'
+)  # URL for participants to complete study on Prolific (set in Config Vars per run)
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
@@ -211,6 +216,8 @@ class REDGREEN_Session(db.Model):
     has_timed_out = db.Column(db.Boolean, default=False)  # Whether session exceeded time limit
     end_time = db.Column(db.DateTime, nullable=True)  # When session completed
     experiment_name = db.Column(db.String(100))  # Which experiment variant was run
+    dataset_name = db.Column(db.String(200), nullable=True)  # DATASET_NAME at session creation (e.g. March072026_PointClick)
+    experiment_run_version = db.Column(db.String(200), nullable=True)  # EXPERIMENT_RUN_VERSION at session creation (e.g. red_green_2026_clickpilot_v0)
     # Post-experiment free-text feedback on perceived repetition/learning
     post_experiment_feedback = db.Column(db.Text, nullable=True)
     post_experiment_feedback_submitted = db.Column(db.Boolean, default=False)
@@ -378,6 +385,20 @@ with app.app_context():
             pass
         else:
             print(f"Warning: could not add post_experiment_feedback_submitted column: {e}")
+
+    # Lightweight migrations for redgreen_session (dataset + run version for export filtering)
+    for col, col_type in [("dataset_name", "VARCHAR(200)"), ("experiment_run_version", "VARCHAR(200)")]:
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text(f"ALTER TABLE redgreen_session ADD COLUMN {col} {col_type}"))
+                conn.commit()
+            print(f"Added {col} column to 'redgreen_session' table.")
+        except Exception as e:
+            msg = str(e).lower()
+            if "duplicate column name" in msg or "already exists" in msg or "no such table" in msg:
+                pass
+            else:
+                print(f"Warning: could not add {col} column to redgreen_session: {e}")
 
     # Lightweight migrations for trial_pause_click (ball position and diameters_away)
     for col, col_type in [("ball_x", "REAL"), ("ball_y", "REAL"), ("diameters_away", "REAL")]:
@@ -1006,6 +1027,14 @@ def load_experiment_config(experiment_name, randomized_profile_id):
 # API ENDPOINTS
 #=============================================================================
 
+@bp.route('/experiment_config', methods=['GET'])
+def experiment_config():
+    """Public config for the welcome page (timeout display, etc.) so it can show env-based values before the user starts."""
+    return jsonify({
+        "timeout_period_minutes": int(TIMEOUT_PERIOD.total_seconds() / 60),
+    }), 200
+
+
 @bp.route('/start_experiment/<experiment_name>', methods=['POST'])
 def start_experiment(experiment_name):
     """
@@ -1076,9 +1105,11 @@ def start_experiment(experiment_name):
     if not config:
         return jsonify({"error": f"Experiment '{experiment_name}' not found"}), 404
     
-    # Create new session record
+    # Create new session record (dataset_name and experiment_run_version identify which run this session belongs to)
     new_session = REDGREEN_Session(
         experiment_name=experiment_name,
+        dataset_name=DATASET_NAME,
+        experiment_run_version=EXPERIMENT_RUN_VERSION,
         prolific_pid=prolific_pid,
         study_id=study_id,
         prolific_session_id=prolific_session_id,

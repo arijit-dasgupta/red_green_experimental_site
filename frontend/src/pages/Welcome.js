@@ -23,11 +23,20 @@ const WelcomePage = ({ setTrialInfo }) => {
       sessionStorage.setItem("prolific_pid", params.prolific_pid);
       sessionStorage.setItem("study_id", params.study_id);
       sessionStorage.setItem("prolific_session_id", params.prolific_session_id);
-      
-      // Get timeout from previous session if available
+
+      // Prefer stored value from a previous start; else fetch from backend (env-based)
       const storedTimeout = sessionStorage.getItem("timeoutPeriod");
       if (storedTimeout) {
         setTimeoutMinutes(Math.floor(storedTimeout / 60));
+      } else {
+        fetch(getApiBase() + "/experiment_config", { method: "GET" })
+          .then((res) => res.ok ? res.json() : null)
+          .then((data) => {
+            if (data && typeof data.timeout_period_minutes === "number") {
+              setTimeoutMinutes(data.timeout_period_minutes);
+            }
+          })
+          .catch(() => {});
       }
   }, []);
 
