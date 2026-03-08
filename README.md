@@ -1,85 +1,139 @@
-# Code to run the Red-Green Experiment Locally
+# Red-Green Experiment
 
-Requirements:
-- Desktop/Laptop
+Run the Red-Green experiment locally or deploy to Heroku for online data collection (e.g. Prolific).
+
+## Requirements
+
+- Desktop/laptop
 - Conda
 - Git
+- Node.js and npm (for frontend build)
 
-Step 1: First clone the repo (use https cloning if no ssh key) and enter the directory
+---
+
+## Local development
+
+### 1. Clone and set up Python
+
 ```bash
-git clone git@github.com:arijit-dasgupta/red_green_experimental_site.git
+git clone https://github.com/arijit-dasgupta/red_green_experimental_site.git
 cd red_green_experimental_site
-```
 
-Then install the python requirements in conda
-
-```bash
 conda create -n redgreen_exp python=3.11
 conda activate redgreen_exp
 pip install -r requirements.txt
 ```
 
-
-Step 2: Install Node.js and npm (if not already installed)
-
-My `npm` version is `10.9.0` and Node.js version is `v23.3.0`. To be safe, please install these versions
-
-**For Windows:**
-- Download and install Node.js from https://nodejs.org/
-- This will automatically include npm
-
-**For macOS:**
-- Using Homebrew: `brew install node`
-- Or download from https://nodejs.org/
-
-**For Linux (Ubuntu/Debian):**
-- Update your package index: `sudo apt update`
-- Install Node.js and npm: `sudo apt install nodejs npm`
-
-Step 3: Build the frontend (ignore the barrage of deprecation warnings)
+### 2. Build the frontend
 
 ```bash
 npm --prefix frontend install
 npm --prefix frontend run build
 ```
 
-Step 4: Run the experiment and go to the localhost link shown in the terminal (default is http://127.0.0.1:5000)
+(You can ignore deprecation warnings.)
+
+### 3. Run the backend
 
 ```bash
 python backend/run_redgreen_experiment.py
 ```
-The data will be automatically saved in a SQLite database `.db` in a folder named `instance` from the folder where the experiment python file is run (in the example above, it will be in the root folder).
 
-## Broadcasting to Internet for Prolific
+Open **http://127.0.0.1:5000** in your browser.
 
-**REMINDER: Update prolific completion URL, dataset name, exp name and verify shuffling/counterbalance logic is correct**
+**Local database:** With no `DATABASE_URL` set, the app uses SQLite. The file is created at:
 
-Tools used: gunicorn (to handle python side traffic handling -- builds on top of Flask) and ngrok (broadcasting to the internet using either a temorary one-time domain, or a fixed domain on the paid version). Refer to `DEPLOYMENT.md` for more instructions.
+`human_raw_data/{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db`
 
-### Step 1: Gunicorn
+(e.g. `human_raw_data/March072026_PointClick_red_green_2026_clickpilot_v0_redgreen.db`). You can open it in [DB Browser for SQLite](https://sqlitebrowser.org/).
 
-After building via `npm`, run the following in one terminal:
+---
+
+## Database
+
+### Local (SQLite)
+
+- **Path:** `human_raw_data/{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db`
+- **Naming:** `DATASET_NAME` and `EXPERIMENT_RUN_VERSION` are set in `backend/run_redgreen_experiment.py`. Changing them creates a new file on next run.
+- **Inspection:** Use DB Browser for SQLite or any SQLite client.
+
+### Heroku (Postgres)
+
+- One Postgres database per app. All sessions (all runs) live in the same DB.
+- Sessions are tagged with `dataset_name` and `experiment_run_version` so you can filter by run.
+- **Size:** `heroku pg:info -a YOUR_APP`
+- **Reset (wipe all data):** `heroku pg:reset DATABASE_URL -a YOUR_APP` (confirm when prompted). Redeploying does **not** reset the database.
+
+### Exporting Heroku Postgres to a SQLite file
+
+To get a single `.db` file for DB Browser (e.g. for analysis):
 
 ```bash
-gunicorn -c gunicorn_config.py run_redgreen_experiment:app
+conda activate redgreen_exp
+python scripts/export_postgres_to_sqlite.py
 ```
 
-This uses the settings defined by `gunicorn_config.py`
+- Fetches `DATABASE_URL` from Heroku (requires Heroku CLI and `heroku login`).
+- By default exports only sessions for the current run (matching `DATASET_NAME` and `EXPERIMENT_RUN_VERSION` from the backend).
+- Output: `human_raw_data/{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db` (or `..._redgreen_1.db`, etc. if that file already exists—no overwrite).
+- **Export everything:** `python scripts/export_postgres_to_sqlite.py --all`
+- **From local Postgres (e.g. after pg:pull):** `python scripts/export_postgres_to_sqlite.py --url "postgresql://localhost/mylocaldb"`
 
-### Step 2: Ngrok
+---
 
-Broadcast to internet (after authenticating ngrok on terminal) on a separate terminal:
+## Deploying to Heroku
+
+### Prerequisites
+
+- Heroku account and [Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
+- App created and Heroku Postgres add-on attached (e.g. Essential-0)
+- Buildpacks: **Node.js** first, then **Python** (Settings → Buildpacks)
+
+### Config vars (Settings → Config Vars)
+
+Set these for your app:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `BASE_PATH` | URL path prefix for the app | `/march2026v0` |
+| `REACT_APP_BASE_PATH` | Same as `BASE_PATH` (for frontend API calls) | `/march2026v0` |
+| `PUBLIC_URL` | Same as `BASE_PATH` (for React asset paths) | `/march2026v0` |
+| `SECRET_KEY` | Flask secret (random string) | e.g. `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `DATABASE_URL` | Set automatically by Heroku Postgres add-on | — |
+| `PROLIFIC_COMPLETION_URL` | Prolific completion link (finish page) | `https://app.prolific.com/submissions/complete?cc=YOUR_CC` |
+| `TIMEOUT_PERIOD_MINUTES` | Session timeout in minutes | `45` |
+| `CHECK_TIMEOUT_INTERVAL_MINUTES` | How often the frontend checks timeout (minutes) | `5` |
+| `NPM_CONFIG_PRODUCTION` | Must be `false` so the Node build installs devDependencies (e.g. react-scripts) | `false` |
+
+For a new experiment run you can change only the path prefix, Prolific URL, and timeout via Config Vars; no code change required.
+
+### Deploy
+
+From the repo (with the `heroku` remote added, e.g. `heroku git:remote -a YOUR_APP`):
 
 ```bash
-ngrok http 8000
+git push heroku heroku:main
 ```
 
-## Notes on running experiment (from Arijit)
+(or push your default branch: `git push heroku main` if that branch has the deployment code).
 
-The `backend/trial_data` stores all the datasets. The dataset present here is named `pilot_final` which was used for CogSci 2025's JTAP experiments. in the dataset folder has all the familiarization stimuli and experiment trial stimuli. Fam trials start with 'F' and an integer starting from 1 until the max number of trials (So F1, F2 etc.). The same is the case for the main experiment trials (E1, E2, E3 etc.) which start with an 'E'. The trial folder prefixes are configurable via `FAM_TRIAL_PREFIXES` and `EXP_TRIAL_PREFIXES` variables in `backend/run_redgreen_experiment.py` (defaulting to `['F']` and `['E']` respectively).
+App URL with path prefix: **https://YOUR_APP.herokuapp.com/BASE_PATH** (e.g. `https://redgreen-exp.herokuapp.com/march2026v0`).
 
-This experiment creates an SQL database using `flask_sqlalchemy` in the backend and handles trial randomization, assignment, counterbalancing, and fine-grained keystroke-per-frame data recording. To configure the experiment, edit the start of `backend/run_redgreen_experiment.py`. You can monitor the experiment using `backend/experiment_monitoring_dashboard.py`, though stability is not guaranteed. For database inspection during the experiment, I usually open the database file in a GUI such as [DB Browser for SQLite](https://sqlitebrowser.org/).
+### Root files required for Heroku
 
-To postprocess the database file. Run through the `backend/postprocess.ipynb` notebook and configure the values in the first cell. Then run through the cells to save a `.pkl` file. Optionally, you can write your own postprocessing code, but I highly recommend you to re-use the `extract_human_data` function from `backend/postprocess_redgreen_human_data.py`, so that you don't have to deal with SQLAlchemy, you simply get the data in pandas dataframes. The demographics csv file is the one from Prolific. If you do not have it, you can comment out that section.
+- **Procfile:** `web: gunicorn backend.run_redgreen_experiment:app --bind 0.0.0.0:$PORT`
+- **package.json** (repo root): scripts for Node buildpack to install and build the frontend.
 
-Keep in mind that the Prolific completion URL for participants is configured in `backend/run_redgreen_experiment.py` via the `PROLIFIC_COMPLETION_URL` variable. If you are using Prolific, you *MUST* update this variable with your study's completion URL. The URL is automatically passed to the finish page, so no frontend code changes are needed.
+---
+
+## Experiment configuration
+
+- **Trial data:** Stored under `backend/trial_data`. The active dataset is set by `DATASET_NAME` in `backend/run_redgreen_experiment.py`. Familiarization trials use the `FAM_TRIAL_PREFIXES` (e.g. `['F']` → F1, F2, …); experimental trials use `EXP_TRIAL_PREFIXES` (e.g. `['T']` or `['E']`).
+- **Prolific completion URL and timeout:** On Heroku, set `PROLIFIC_COMPLETION_URL` and `TIMEOUT_PERIOD_MINUTES` in Config Vars. Locally, edit `PROLIFIC_COMPLETION_URL` and the timeout defaults at the top of `backend/run_redgreen_experiment.py` (or set env vars).
+- **Monitoring:** You can run `backend/experiment_monitoring_dashboard.py` locally (stability not guaranteed). On Heroku, use **More → View logs** or `heroku logs --tail -a YOUR_APP`.
+
+---
+
+## Postprocessing
+
+Use `backend/postprocess.ipynb`: set the paths/config in the first cell, then run the notebook to produce a `.pkl` file. For custom code, reuse `extract_human_data` from `backend/postprocess_redgreen_human_data.py` to get pandas dataframes from the database without touching SQLAlchemy directly. Demographics CSV is from Prolific; you can comment out that part if you don’t have it.
