@@ -3,7 +3,7 @@ import React from 'react';
 const Header = () => {
   const prolificPid = sessionStorage.getItem("prolific_pid") || 
     new URLSearchParams(window.location.search).get("PROLIFIC_PID") || 
-    "default_pid";
+    "anonymous";
 
   return (
     <div

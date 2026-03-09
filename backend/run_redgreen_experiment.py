@@ -1059,7 +1059,7 @@ def start_experiment(experiment_name):
     current_time = datetime.utcnow()
     
     # Extract Prolific parameters from URL (with defaults for testing)
-    prolific_pid = request.args.get('PROLIFIC_PID', 'default_pid')
+    prolific_pid = request.args.get('PROLIFIC_PID', 'anonymous')
     study_id = request.args.get('STUDY_ID', 'debug_study')
     prolific_session_id = request.args.get('SESSION_ID', 'debug_session')
 
@@ -1085,7 +1085,7 @@ def start_experiment(experiment_name):
     )
     
     # Validate participant hasn't already participated (prevent double participation)
-    if prolific_pid != 'default_pid':
+    if prolific_pid != 'anonymous':
         existing_session = db.session.query(REDGREEN_Session).filter_by(prolific_pid=prolific_pid).first()
         if existing_session:
             return jsonify({

@@ -6,7 +6,7 @@ import { getApiBase } from '../api';
 const parseUrlParams = () => {
   const queryParams = new URLSearchParams(window.location.search);
   return {
-      prolific_pid: queryParams.get("PROLIFIC_PID") || "default_pid",
+      prolific_pid: queryParams.get("PROLIFIC_PID") || "anonymous",
       study_id: queryParams.get("STUDY_ID") || "debug_study",
       prolific_session_id: queryParams.get("SESSION_ID") || "debug_session",
   };
