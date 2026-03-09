@@ -305,23 +305,29 @@ const ExperimentPage = ({
                     zIndex: 20,
                 }}>
                     {clickTrialResult?.isClickTrial ? (
-                        <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>
-                            Your placement was{" "}
-                            <span style={{
-                                color: (() => {
-                                    const d = clickTrialResult.diametersAway;
-                                    if (d <= 1.5) return "#2e7d32";
-                                    if (d <= 3.5) return "#ef6c00";
-                                    return "#c62828";
-                                })(),
-                                fontWeight: "bold",
-                            }}>
-                                {clickTrialResult.diametersAway < 0.05
-                                    ? "0.0"
-                                    : clickTrialResult.diametersAway.toFixed(1)}
-                            </span>{" "}
-                            diameter{clickTrialResult.diametersAway === 1 ? "" : "s"} from the ball.
-                        </h1>
+                        <>
+                            {clickTrialResult.diametersAway < 0.5 ? (
+                                <h1 style={{ fontSize: "3rem", color: "#2e7d32", marginBottom: "8px", textAlign: "center" }}>
+                                    You placed the ball in the right location!
+                                </h1>
+                            ) : (
+                                <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px", textAlign: "center" }}>
+                                    You were{" "}
+                                    <span style={{
+                                        color: (() => {
+                                            const d = clickTrialResult.diametersAway;
+                                            if (d <= 1.5) return "#2e7d32";
+                                            if (d <= 3.5) return "#ef6c00";
+                                            return "#c62828";
+                                        })(),
+                                        fontWeight: "bold",
+                                    }}>
+                                        {clickTrialResult.diametersAway.toFixed(1)}
+                                    </span>{" "}
+                                    balls away from the correct location.
+                                </h1>
+                            )}
+                        </>
                     ) : (
                         <>
                             <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px" }}>

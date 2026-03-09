@@ -40,42 +40,42 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                         fontWeight: 'bold',
                     }}
                 >
-                    Placement task (some trials)
+                    Another task: predict where the ball is <em>now</em>
                 </h1>
-                <p
+                <div
                     style={{
                         fontSize: '1.15rem',
                         color: '#555',
                         marginBottom: '16px',
                         lineHeight: '1.6',
+                        textAlign: 'left',
+                        display: 'inline-block',
                     }}
                 >
-                    On <strong>some trials</strong>, the animation will pause at a <strong>random moment</strong>.
-                    You will be asked to <strong>click where you think the ball is</strong> in the scene.
-                    After you place it, the trial continues so you can see the rest of the path.
-                </p>
-                <p
-                    style={{
-                        fontSize: '1.15rem',
-                        color: '#333',
-                        marginBottom: '16px',
-                        lineHeight: '1.6',
-                        fontWeight: '600',
-                    }}
-                >
-                    The ball will <strong>disappear</strong> the moment the trial pauses—whether or not it was visible at that time.
-                </p>
-                <p
-                    style={{
-                        fontSize: '1.15rem',
-                        color: '#555',
-                        marginBottom: '16px',
-                        lineHeight: '1.6',
-                    }}
-                >
-                    On other trials, the animation will run <strong>all the way to the end</strong> with no placement—just respond with the keys as usual.
-                    Which trials include a placement step, and when they pause, is random.
-                </p>
+                    <ul style={{ paddingLeft: 24, marginTop: 0, marginBottom: 0, listStyle: 'disc' }}>
+                        <li style={{ marginBottom: 10 }}>
+                            On <strong>some trials</strong>, the animation will pause at a <strong>random moment</strong>.
+                        </li>
+                        <li style={{ marginBottom: 10 }}>
+                            You will be asked to <strong>click where you think the ball is</strong> in the scene.
+                        </li>
+                        <li style={{ marginBottom: 10 }}>
+                            <strong>The ball will disappear</strong> the moment the trial pauses, whether or not it was visible at that time.
+                        </li>
+                        <li style={{ marginBottom: 10 }}>
+                            After you indicate where you think the ball is, you are <strong>finished predicting for that trial</strong>.
+                        </li>
+                        <li>
+                            Afterward, you'll see <strong>where the ball was</strong> and <strong>which goal it ends up in</strong>.
+                        </li>
+                    </ul>
+                    <div style={{ marginTop: 18 }}>
+                        <em>
+                            This will only happen on a portion of the trials.
+                            For <strong>most of the trials</strong>, you will just predict which of the two goals the ball will end in (without being asked about the ball's current position).
+                        </em>
+                    </div>
+                </div>
                 <p
                     style={{
                         fontSize: '1.15rem',
