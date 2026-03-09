@@ -63,6 +63,10 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             <strong>The ball will disappear</strong> the moment the trial pauses, whether or not it was visible at that time.
                         </li>
                         <li style={{ marginBottom: 10 }}>
+                            When this happens, the scene will be highlighted with a{" "}
+                            <strong style={{ color: '#FFC107' }}>gold border</strong> to catch your attention.
+                        </li>
+                        <li style={{ marginBottom: 10 }}>
                             After you indicate where you think the ball is, you are <strong>finished predicting for that trial</strong>.
                         </li>
                         <li>
@@ -107,7 +111,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                     onMouseDown={(e) => (e.target.style.transform = 'scale(0.95)')}
                     onMouseUp={(e) => (e.target.style.transform = 'scale(1)')}
                 >
-                    Continue to placement trial
+                    Continue to an example placement trial
                 </button>
             </div>
         </div>

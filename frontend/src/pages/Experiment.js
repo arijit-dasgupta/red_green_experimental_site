@@ -164,9 +164,36 @@ const ExperimentPage = ({
             return;
         }
         const overBarrier = barriers.some(({ x: bx, y: by, width: bw, height: bh }) => {
-            const closestX = Math.max(bx, Math.min(worldX, bx + bw));
-            const closestY = Math.max(by, Math.min(worldY, by + bh));
-            return (worldX - closestX) ** 2 + (worldY - closestY) ** 2 < r * r;
+            // Axis-aligned rectangle [bx, bx + bw] x [by, by + bh]
+            const cx = worldX;
+            const cy = worldY;
+
+            const insideX = cx >= bx && cx <= bx + bw;
+            const insideY = cy >= by && cy <= by + bh;
+
+            // Center inside rectangle → definite overlap
+            if (insideX && insideY) {
+                return true;
+            }
+
+            // Overlap with horizontal edges when horizontally aligned with rectangle
+            if (insideX) {
+                const distY = Math.min(Math.abs(cy - by), Math.abs(cy - (by + bh)));
+                return distY < r;
+            }
+
+            // Overlap with vertical edges when vertically aligned with rectangle
+            if (insideY) {
+                const distX = Math.min(Math.abs(cx - bx), Math.abs(cx - (bx + bw)));
+                return distX < r;
+            }
+
+            // Corner case: distance to nearest corner
+            const cornerX = cx < bx ? bx : bx + bw;
+            const cornerY = cy < by ? by : by + bh;
+            const dx = cx - cornerX;
+            const dy = cy - cornerY;
+            return dx * dx + dy * dy < r * r;
         });
         if (overBarrier) {
             setClickInvalidReason('Overlapping a barrier');
@@ -468,7 +495,15 @@ const ExperimentPage = ({
                         </p>
                     </div>
 
-                    <div style={{ position: "relative", display: "inline-block" }}>
+                    <div
+                        style={{
+                            position: "relative",
+                            display: "inline-block",
+                            outline: isClickAwaiting ? "4px solid #FFC107" : "none",
+                            outlineOffset: "4px",
+                            boxShadow: isClickAwaiting ? "0 0 20px rgba(255, 193, 7, 0.9)" : "none",
+                        }}
+                    >
                         <canvas
                             ref={canvasRef}
                             width={canvasSize.width}
