@@ -68,6 +68,7 @@ const App = () => {
   const [averageScore, setAverageScore] = useState(null);
   const [prolificCompletionUrl, setProlificCompletionUrl] = useState(null);
   const [clickTrialResult, setClickTrialResult] = useState(null); // { isClickTrial: true, diametersAway: number } when trial had click task
+  const [statusMessage, setStatusMessage] = useState(null); // short UI hints (e.g., scene loading)
   // const [currentPage, setCurrentPage] = useState('welcome');
 
   const animationRef = useRef(null);
@@ -332,7 +333,8 @@ const renderCurrentPage = () => {
 
 
   const fetchNextScene = async (setdisableCountdownTrigger) => {
-    
+    const t0 = performance.now();
+    console.log("fetchNextScene: requesting next scene...");
     try {
       const sessionId = sessionStorage.getItem('sessionId');
       if (!sessionId) {
@@ -351,6 +353,12 @@ const renderCurrentPage = () => {
       if (!response.ok) throw new Error('Backend Failed to load next scene');
   
       const data = await response.json();
+      const t1 = performance.now();
+      console.log(
+        "fetchNextScene: scene payload received in",
+        (t1 - t0).toFixed(0),
+        "ms"
+      );
   
       if (data.finish) {
         setFinished(false);
@@ -377,6 +385,9 @@ const renderCurrentPage = () => {
         setIsTransitionPage(true);
         return;
       }
+
+      // Clear any \"loading\" status once a real scene payload arrives
+      setStatusMessage(null);
 
       // Clear the canvas to prevent showing the previous scene
       const canvas = canvasRef.current;
@@ -550,6 +561,12 @@ const animate = (timestamp) => {
 };
 
   const handlePlayPause = (setdisableCountdownTrigger) => {
+    // Do not start countdown if a scene hasn't been loaded yet
+    if (!sceneData || !canvasRef.current) {
+      console.error("Cannot start countdown: scene data or canvas not ready", { sceneData, canvasRef });
+      setStatusMessage("Loading the next scene... please wait a moment, then press space.");
+      return;
+    }
     if (isPlayingRef.current) return;
 
     let countdownValue = 3;
@@ -587,6 +604,26 @@ const animate = (timestamp) => {
   return (
     <div className="app" style={{ position: "relative" }}>
       <Header />
+      {statusMessage && (
+        <div
+          style={{
+            position: "absolute",
+            top: 60,
+            left: "50%",
+            transform: "translateX(-50%)",
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            color: "white",
+            padding: "8px 12px",
+            borderRadius: "6px",
+            fontSize: "0.9rem",
+            zIndex: 200,
+            maxWidth: "80%",
+            textAlign: "center",
+          }}
+        >
+          {statusMessage}
+        </div>
+      )}
       {renderCurrentPage()}
     </div>
   );

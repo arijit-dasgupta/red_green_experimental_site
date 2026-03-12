@@ -34,7 +34,8 @@ const ExperimentPage = ({
     const isInitializedRef = useRef(false);
     const activatedScoringInstruc = useRef(false);
     const strictModeRenderCount = useRef(0);
-    const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(false);
+    // Start with countdown disabled until the first scene is successfully loaded
+    const [disableCountdownTrigger, setdisableCountdownTrigger] = useState(true);
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
     const [showClickInstructions, setShowClickInstructions] = useState(false);
     const [mousePos, setMousePos] = useState(null); // { x, y } in canvas pixel coords when awaiting click
