@@ -69,6 +69,7 @@ const App = () => {
   const [prolificCompletionUrl, setProlificCompletionUrl] = useState(null);
   const [clickTrialResult, setClickTrialResult] = useState(null); // { isClickTrial: true, diametersAway: number } when trial had click task
   const [statusMessage, setStatusMessage] = useState(null); // short UI hints (e.g., scene loading)
+  const [showEarlyPressHint, setShowEarlyPressHint] = useState(false); // true after pressing space before scene is ready
   // const [currentPage, setCurrentPage] = useState('welcome');
 
   const animationRef = useRef(null);
@@ -285,8 +286,8 @@ const App = () => {
     }
   }, [clickPlacement, sceneData?.pause_at_frame, sceneData?.has_click_trials]);
 
- // Render current page based on state instead of routes
-const renderCurrentPage = () => {
+// Render current page based on state instead of routes
+const renderCurrentPage = (showEarlyPressHint) => {
 
   switch (currentPage) {
     case 'welcome':
@@ -319,6 +320,7 @@ const renderCurrentPage = () => {
         fetchNextScene={fetchNextScene}
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
+        showEarlyPressHint={showEarlyPressHint}
       />;
     case 'post_feedback':
       return <PostExperimentFeedbackPage navigateToFinish={() => navigate('finish')} />;
@@ -388,6 +390,7 @@ const renderCurrentPage = () => {
 
       // Clear any \"loading\" status once a real scene payload arrives
       setStatusMessage(null);
+      setShowEarlyPressHint(false);
 
       // Clear the canvas to prevent showing the previous scene
       const canvas = canvasRef.current;
@@ -565,6 +568,7 @@ const animate = (timestamp) => {
     if (!sceneData || !canvasRef.current) {
       console.error("Cannot start countdown: scene data or canvas not ready", { sceneData, canvasRef });
       setStatusMessage("Loading the next scene... please wait a moment, then press space.");
+      setShowEarlyPressHint(true);
       return;
     }
     if (isPlayingRef.current) return;
@@ -624,7 +628,7 @@ const animate = (timestamp) => {
           {statusMessage}
         </div>
       )}
-      {renderCurrentPage()}
+      {renderCurrentPage(showEarlyPressHint)}
     </div>
   );
 };

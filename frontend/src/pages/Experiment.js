@@ -28,7 +28,8 @@ const ExperimentPage = ({
     handlePlayPause,
     fetchNextScene,
     canvasRef,
-    isStrictMode
+    isStrictMode,
+    showEarlyPressHint
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -492,7 +493,10 @@ const ExperimentPage = ({
                             marginTop: "10px",
                             textAlign: "center"
                         }}>
-                            Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.
+                            {showEarlyPressHint
+                              ? <>Loading the next scene... please wait, then press the <span style={{ color: "blue" }}>Spacebar</span> to begin.</>
+                              : <>Press the <span style={{ color: "blue" }}>Spacebar</span> to begin the trial.</>
+                            }
                         </p>
                     </div>
 
