@@ -84,11 +84,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'March072026_PointClick'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'March102026_PointClick'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'red_green_2026_clickpilot_testingv1'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'clickpilot_testingv1'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
 _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '45'))
