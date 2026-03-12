@@ -333,9 +333,9 @@ const ExperimentPage = ({
                 }}>
                     {clickTrialResult?.isClickTrial ? (
                         <>
-                            {clickTrialResult.diametersAway < 0.5 ? (
+                            {clickTrialResult.diametersAway < 1.0 ? (
                                 <h1 style={{ fontSize: "3rem", color: "#2e7d32", marginBottom: "8px", textAlign: "center" }}>
-                                    You placed the ball in the right location!
+                                    You placed the ball near the correct location!
                                 </h1>
                             ) : (
                                 <h1 style={{ fontSize: "3rem", color: "black", marginBottom: "8px", textAlign: "center" }}>
@@ -343,7 +343,7 @@ const ExperimentPage = ({
                                     <span style={{
                                         color: (() => {
                                             const d = clickTrialResult.diametersAway;
-                                            if (d <= 1.5) return "#2e7d32";
+                                            if (d <= 2.0) return "#2e7d32";
                                             if (d <= 3.5) return "#ef6c00";
                                             return "#c62828";
                                         })(),

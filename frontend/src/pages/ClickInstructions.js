@@ -67,7 +67,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             <strong style={{ color: '#FFC107' }}>gold border</strong> to catch your attention.
                         </li>
                         <li style={{ marginBottom: 10 }}>
-                            After you indicate where you think the ball is, you are <strong>finished predicting for that trial</strong>.
+                            After you indicate where you think the ball is, you no longer need to predict where the ball will end up for that trial.
                         </li>
                         <li>
                             Afterward, you'll see <strong>where the ball was</strong> and <strong>which goal it ends up in</strong>.
