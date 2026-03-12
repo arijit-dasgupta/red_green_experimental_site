@@ -88,7 +88,7 @@ DATASET_NAME = 'March102026_PointClick'  # Specific dataset folder name within P
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'clickpilot_testingv4'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'clickpilot_testingv5'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
 _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '45'))
@@ -218,6 +218,8 @@ class REDGREEN_Session(db.Model):
     experiment_name = db.Column(db.String(100))  # Which experiment variant was run
     dataset_name = db.Column(db.String(200), nullable=True)  # DATASET_NAME at session creation (e.g. March072026_PointClick)
     experiment_run_version = db.Column(db.String(200), nullable=True)  # EXPERIMENT_RUN_VERSION at session creation (e.g. red_green_2026_clickpilot_v0)
+    # Number of completed experimental trials (not counting familiarization). Updated in /save_data.
+    trials_completed = db.Column(db.Integer, nullable=False, default=0)
     # Post-experiment free-text feedback on perceived repetition/learning
     post_experiment_feedback = db.Column(db.Text, nullable=True)
     post_experiment_feedback_submitted = db.Column(db.Boolean, default=False)
@@ -277,6 +279,8 @@ class TrialPauseClick(db.Model):
     ball_x = db.Column(db.Float, nullable=True)  # Actual ball bottom-left x at pause frame (world coords)
     ball_y = db.Column(db.Float, nullable=True)  # Actual ball bottom-left y at pause frame (world coords)
     diameters_away = db.Column(db.Float, nullable=True)  # Distance from click center to ball center in diameters
+    # Reaction time (ms) from pause onset to valid click placement.
+    reaction_time_ms = db.Column(db.Float, nullable=True)
 
 
 #=============================================================================
@@ -386,8 +390,12 @@ with app.app_context():
         else:
             print(f"Warning: could not add post_experiment_feedback_submitted column: {e}")
 
-    # Lightweight migrations for redgreen_session (dataset + run version for export filtering)
-    for col, col_type in [("dataset_name", "VARCHAR(200)"), ("experiment_run_version", "VARCHAR(200)")]:
+    # Lightweight migrations for redgreen_session (dataset + run version for export filtering, trials_completed counter)
+    for col, col_type in [
+        ("dataset_name", "VARCHAR(200)"),
+        ("experiment_run_version", "VARCHAR(200)"),
+        ("trials_completed", "INTEGER DEFAULT 0"),
+    ]:
         try:
             with db.engine.connect() as conn:
                 conn.execute(text(f"ALTER TABLE redgreen_session ADD COLUMN {col} {col_type}"))
@@ -400,8 +408,13 @@ with app.app_context():
             else:
                 print(f"Warning: could not add {col} column to redgreen_session: {e}")
 
-    # Lightweight migrations for trial_pause_click (ball position and diameters_away)
-    for col, col_type in [("ball_x", "REAL"), ("ball_y", "REAL"), ("diameters_away", "REAL")]:
+    # Lightweight migrations for trial_pause_click (ball position, diameters_away, and reaction time)
+    for col, col_type in [
+        ("ball_x", "REAL"),
+        ("ball_y", "REAL"),
+        ("diameters_away", "REAL"),
+        ("reaction_time_ms", "REAL"),
+    ]:
         try:
             with db.engine.connect() as conn:
                 conn.execute(text(f"ALTER TABLE trial_pause_click ADD COLUMN {col} {col_type}"))
@@ -749,7 +762,10 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         absolute_directory_path = os.path.join(script_dir, directory_path)
         
         # Get all trial folders in the dataset directory
-        entries = os.listdir(absolute_directory_path)
+        # NOTE: sort for deterministic order across deployments/OSes before applying seeded shuffling.
+        # Without this, os.listdir() order can vary, so even with a fixed seed, the final
+        # randomized order can change between runs or machines.
+        entries = sorted(os.listdir(absolute_directory_path))
         random_ = random.Random(314159)  # Consistent seed for reproducible randomization
 
         # Separate familiarization (F) and experimental (E) trial folders
@@ -1550,6 +1566,14 @@ def save_data():
         # Mark trial as completed
         trial.completed = True
         trial.end_time = datetime.utcnow()
+
+        # If this is an experimental trial (not familiarization), increment session-level trials_completed
+        # so we can quickly see how many experimental trials a participant finished.
+        if trial.trial_type == 'trial':
+            # Initialize to 0 if somehow null, then increment
+            if session.trials_completed is None:
+                session.trials_completed = 0
+            session.trials_completed += 1
         
         # Extract timing data from frontend
         first_frame_utc_str = request.json.get('first_frame_utc')
@@ -1674,6 +1698,15 @@ def save_pause_click():
             return jsonify({"error": "click_x and click_y required"}), 400
         radius = float(request.json.get('radius') or 0.0)
 
+        # Optional reaction time, in milliseconds, from pause onset to valid click placement.
+        # Frontend sends this only for valid placements (not out-of-bounds or over barriers).
+        reaction_time_ms = request.json.get('reaction_time_ms')
+        if reaction_time_ms is not None:
+            try:
+                reaction_time_ms = float(reaction_time_ms)
+            except (TypeError, ValueError):
+                reaction_time_ms = None
+
         session = db.session.get(REDGREEN_Session, session_id)
         if not session:
             return jsonify({"error": "Session not found"}), 402
@@ -1704,6 +1737,7 @@ def save_pause_click():
             ball_x=ball_x,
             ball_y=ball_y,
             diameters_away=diameters_away,
+            reaction_time_ms=reaction_time_ms,
         )
         db.session.add(row)
         db.session.commit()

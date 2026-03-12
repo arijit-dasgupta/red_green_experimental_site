@@ -82,6 +82,7 @@ const App = () => {
   const observationOnlyPhaseRef = useRef(false); // true after resume from click until trial end
   const clickPlacementRef = useRef(null); // always current for animation loop
   const fetchNextSceneInFlightRef = useRef(false); // synchronous guard so fast double space doesn't start two fetches
+  const clickPauseStartedAtRef = useRef(null); // performance.now() when scene paused for click (for reaction_time_ms)
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -317,6 +318,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
         isStrictMode={isStrictMode}
         showEarlyPressHint={showEarlyPressHint}
         isFetchingNextScene={isFetchingNextScene}
+        clickPauseStartedAtRef={clickPauseStartedAtRef}
       />;
     case 'post_feedback':
       return <PostExperimentFeedbackPage navigateToFinish={() => navigate('finish')} />;
@@ -369,6 +371,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
         setClickInvalidReason(null);
         setClickTrialResult(null);
         observationOnlyPhaseRef.current = false;
+        clickPauseStartedAtRef.current = null;
         setAverageScore(data.average_score);
         setProlificCompletionUrl(data.prolific_completion_url || null);
         navigate('post_feedback');
@@ -383,6 +386,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
         setClickInvalidReason(null);
         setClickTrialResult(null);
         observationOnlyPhaseRef.current = false;
+        clickPauseStartedAtRef.current = null;
         setIsTransitionPage(true);
         return;
       }
@@ -428,6 +432,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
       setClickInvalidReason(null);
       setClickTrialResult(null);
       observationOnlyPhaseRef.current = false;
+      clickPauseStartedAtRef.current = null;
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
   
@@ -487,6 +492,7 @@ const animate = (timestamp) => {
       renderFrame(nextFrame);
       isPlayingRef.current = false;
       setIsPlaying(false);
+      clickPauseStartedAtRef.current = performance.now(); // for reaction_time_ms (valid clicks only)
       setPauseState('awaiting_click');
       setClickInvalidReason(null);
       animate.lastTimestamp = timestamp;

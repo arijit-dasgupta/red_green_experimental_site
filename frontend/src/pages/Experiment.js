@@ -30,7 +30,8 @@ const ExperimentPage = ({
     canvasRef,
     isStrictMode,
     showEarlyPressHint,
-    isFetchingNextScene
+    isFetchingNextScene,
+    clickPauseStartedAtRef
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -220,6 +221,9 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
         try {
             const sessionId = sessionStorage.getItem('sessionId');
             if (!sessionId) throw new Error('Session ID not found');
+            const reactionTimeMs = clickPauseStartedAtRef?.current != null
+                ? Math.round(performance.now() - clickPauseStartedAtRef.current)
+                : undefined;
             const res = await fetch(getApiBase() + '/save_pause_click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'React-Experiment-App' },
@@ -233,6 +237,7 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
                     ball_x,
                     ball_y,
                     diameters_away,
+                    reaction_time_ms: reactionTimeMs,
                 }),
             });
             if (!res.ok) {
