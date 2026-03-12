@@ -70,6 +70,7 @@ const App = () => {
   const [clickTrialResult, setClickTrialResult] = useState(null); // { isClickTrial: true, diametersAway: number } when trial had click task
   const [statusMessage, setStatusMessage] = useState(null); // short UI hints (e.g., scene loading)
   const [showEarlyPressHint, setShowEarlyPressHint] = useState(false); // true after pressing space before scene is ready
+  const [isFetchingNextScene, setIsFetchingNextScene] = useState(false); // block duplicate fetchNextScene so trial number stays correct
   // const [currentPage, setCurrentPage] = useState('welcome');
 
   const animationRef = useRef(null);
@@ -80,6 +81,7 @@ const App = () => {
   const keyStatesRef = useRef({ f: false, j: false });
   const observationOnlyPhaseRef = useRef(false); // true after resume from click until trial end
   const clickPlacementRef = useRef(null); // always current for animation loop
+  const fetchNextSceneInFlightRef = useRef(false); // synchronous guard so fast double space doesn't start two fetches
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -119,13 +121,6 @@ const App = () => {
         canvas.height / sceneData.worldHeight
     );
 
-    // const scale = 20;
-
-    console.log("Rendering frame:", frameIndex, "Scale:", scale);
-    console.log("Canvas size:", canvas.width, canvas.height);
-    console.log("window size:", window.innerWidth, window.innerHeight);
-
-    // ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.scale(1, -1);
@@ -321,6 +316,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
         canvasRef={canvasRef}
         isStrictMode={isStrictMode}
         showEarlyPressHint={showEarlyPressHint}
+        isFetchingNextScene={isFetchingNextScene}
       />;
     case 'post_feedback':
       return <PostExperimentFeedbackPage navigateToFinish={() => navigate('finish')} />;
@@ -335,6 +331,9 @@ const renderCurrentPage = (showEarlyPressHint) => {
 
 
   const fetchNextScene = async (setdisableCountdownTrigger) => {
+    if (fetchNextSceneInFlightRef.current) return; // synchronous guard: prevent double-fetch so trial number stays correct
+    fetchNextSceneInFlightRef.current = true;
+    setIsFetchingNextScene(true);
     const t0 = performance.now();
     console.log("fetchNextScene: requesting next scene...");
     try {
@@ -398,6 +397,16 @@ const renderCurrentPage = (showEarlyPressHint) => {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
+      // Ensure any previous animation loop is fully stopped before starting a new scene
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+      // Reset animation timing flags so the new trial starts with a fresh clock
+      animate.lastTimestamp = null;
+      animate.dataSaved = false;
   
       setdisableCountdownTrigger(false); // Enable countdown trigger
       setSceneData(data);
@@ -436,6 +445,9 @@ const renderCurrentPage = (showEarlyPressHint) => {
       } catch (error) {
       console.error("Error loading next scene:", error);
       alert("Frontend Failed to load the next scene.");
+    } finally {
+      fetchNextSceneInFlightRef.current = false;
+      setIsFetchingNextScene(false);
     }
   };
 
@@ -572,6 +584,14 @@ const animate = (timestamp) => {
       return;
     }
     if (isPlayingRef.current) return;
+
+    // Make sure any previous animation frame is cancelled and timing state reset
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    animate.lastTimestamp = null;
+    animate.dataSaved = false;
 
     let countdownValue = 3;
     setCountdown(countdownValue);

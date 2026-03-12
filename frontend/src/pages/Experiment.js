@@ -29,7 +29,8 @@ const ExperimentPage = ({
     fetchNextScene,
     canvasRef,
     isStrictMode,
-    showEarlyPressHint
+    showEarlyPressHint,
+    isFetchingNextScene
 }) => {
 
     const isInitializedRef = useRef(false);
@@ -45,7 +46,7 @@ const ExperimentPage = ({
     useEffect(() => {
         strictModeRenderCount.current += 1;
 
-        if ((strictModeRenderCount.current === 2 | !isStrictMode) && !isInitializedRef.current) {
+        if ((strictModeRenderCount.current === 2 || !isStrictMode) && !isInitializedRef.current) {
             // console.log("ExperimentPage initialized (Strict Mode safe)");
             isInitializedRef.current = true;
             fetchNextScene(setdisableCountdownTrigger); // Fetch the first scene
@@ -118,10 +119,10 @@ const ExperimentPage = ({
         let isSpacePressed = false; // Tracks whether the Spacebar is pressed
     
         const handleKeyUp = (e) => {
-            if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving' && !isTransitionPage && !showScoringInstruc && !showClickInstructions) {
+if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving' && !isTransitionPage && !showScoringInstruc && !showClickInstructions && !isFetchingNextScene) {
                 isSpacePressed = false;
                 fetchNextScene(setdisableCountdownTrigger);
-            }
+              }
         };
     
         const handleKeyDown = (e) => {
@@ -137,7 +138,7 @@ const ExperimentPage = ({
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
         };
-    }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc, showClickInstructions]);
+    }, [fetchNextScene, finished, savingStatus, isTransitionPage, showScoringInstruc, showClickInstructions, isFetchingNextScene]);
 
     const handleCanvasMouseMove = (e) => {
         if (pauseState !== 'awaiting_click' || !canvasRef.current || !sceneData) return;
