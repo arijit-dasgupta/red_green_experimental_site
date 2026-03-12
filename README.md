@@ -64,6 +64,25 @@ Open **http://127.0.0.1:5000** in your browser.
 - **Size:** `heroku pg:info -a redgreen-exp`
 - **Reset (wipe all data):** `heroku pg:reset DATABASE_URL -a redgreen-exp` (confirm when prompted). Redeploying does **not** reset the database.
 
+#### Wiping/cleaning Heroku Postgres safely
+
+- **1. Export a backup (recommended):**
+  - Use the export script to pull the current data into a local SQLite file:
+    ```bash
+    conda activate redgreen_exp
+    python scripts/export_postgres_to_sqlite.py --app redgreen-exp
+    ```
+  - This creates `human_raw_data/{DATASET_NAME}_{EXPERIMENT_RUN_VERSION}_redgreen.db` you can archive.
+- **2. Reset the database (destructive):**
+  - This drops **all** tables and data in the Heroku Postgres add‑on for `redgreen-exp`:
+    ```bash
+    heroku pg:reset DATABASE_URL -a redgreen-exp
+    ```
+  - Type `redgreen-exp` when Heroku asks you to confirm.
+- **3. Redeploy or restart:**
+  - After a reset, the next deploy/run of the backend will recreate tables on first use.
+  - Existing sessions are gone; new sessions will start in a completely clean database.
+
 ### Exporting Heroku Postgres to a SQLite file
 
 To get a single `.db` file for DB Browser (e.g. for analysis):
