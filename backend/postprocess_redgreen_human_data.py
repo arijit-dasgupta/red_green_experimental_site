@@ -4,7 +4,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import json
 import cv2
 from tqdm import tqdm
@@ -79,14 +79,14 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     if allow_incomplete_sessions:
         # Include incomplete sessions, but still exclude ignored data
         session_query = """
-            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed
+            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed, trials_completed
             FROM redgreen_session
             WHERE (ignore_data = 0 OR ignore_data IS NULL)
         """
     else:
         # Only completed sessions
         session_query = """
-            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed
+            SELECT id AS session_id, prolific_pid, average_score, randomized_profile_id, time_taken, completed, trials_completed
             FROM redgreen_session
             WHERE completed = 1 AND (ignore_data = 0 OR ignore_data IS NULL)
         """
@@ -96,7 +96,16 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
         session_ids_str = ','.join(map(str, session_ids))
         session_query += f" AND id IN ({session_ids_str})"
 
-    session_df = pd.read_sql(session_query, engine)
+    try:
+        session_df = pd.read_sql(session_query, engine)
+    except Exception as e:
+        msg = str(e).lower()
+        if "no such column" in msg or "trials_completed" in msg:
+            session_query_legacy = session_query.replace(", trials_completed", "")
+            session_df = pd.read_sql(session_query_legacy, engine)
+            session_df["trials_completed"] = np.nan
+        else:
+            raise
     print(f"Found {len(session_df)} sessions (allow_incomplete={allow_incomplete_sessions}, session_ids={session_ids})")
 
     # # Step 4: Load trial data and map `global_trial_name`
@@ -467,27 +476,39 @@ def load_click_data(db_path):
     """
     Load click-point data from trial_pause_click table (if it exists).
     Joins with trial to get global_trial_name and repeat_instance_index.
-    Returns a DataFrame with columns session_id, trial_id, trial_name,
-    global_trial_name, repeat_instance_index, pause_frame, click_bottom_left_x, click_bottom_left_y,
-    ball_x, ball_y, diameters_away (all positions as bottom-left in world coords), or empty DataFrame.
+    Returns a DataFrame with columns including session_id, trial_id, pause_frame,
+    click_bottom_left_x/y, ball_x/y, diameters_away. When present in the DB,
+    also includes trial_name (from c) and reaction_time_ms.
     """
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as conn:
         result = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='trial_pause_click'"
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='trial_pause_click'")
         )
         if result.fetchone() is None:
             return pd.DataFrame()
-    query = """
-        SELECT c.id, c.trial_id, c.session_id, c.trial_name,
-               t.global_trial_name, t.repeat_instance_index,
-               c.pause_frame, c.click_bottom_left_x, c.click_bottom_left_y,
-               c.ball_x, c.ball_y, c.diameters_away
+        # Discover columns so we can handle legacy DBs missing reaction_time_ms or trial_name
+        info = conn.execute(text("PRAGMA table_info(trial_pause_click)")).fetchall()
+        c_cols = [row[1] for row in info]
+    base_c = ["c.id", "c.trial_id", "c.session_id", "c.pause_frame",
+              "c.click_bottom_left_x", "c.click_bottom_left_y", "c.ball_x", "c.ball_y", "c.diameters_away"]
+    if "trial_name" in c_cols:
+        base_c.append("c.trial_name")
+    if "reaction_time_ms" in c_cols:
+        base_c.append("c.reaction_time_ms")
+    c_select = ", ".join(base_c)
+    query = f"""
+        SELECT {c_select},
+               t.global_trial_name, t.repeat_instance_index
         FROM trial_pause_click c
         JOIN trial t ON c.trial_id = t.id
         ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id
     """
     click_df = pd.read_sql(query, engine)
+    if "reaction_time_ms" not in click_df.columns:
+        click_df["reaction_time_ms"] = np.nan
+    if "trial_name" not in click_df.columns:
+        click_df["trial_name"] = click_df["global_trial_name"]
     return click_df
 
 

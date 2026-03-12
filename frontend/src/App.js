@@ -585,7 +585,6 @@ const animate = (timestamp) => {
     // Do not start countdown if a scene hasn't been loaded yet
     if (!sceneData || !canvasRef.current) {
       console.error("Cannot start countdown: scene data or canvas not ready", { sceneData, canvasRef });
-      setStatusMessage("Loading the next scene... please wait a moment, then press space.");
       setShowEarlyPressHint(true);
       return;
     }
