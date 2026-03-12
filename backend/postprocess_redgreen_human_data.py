@@ -467,9 +467,9 @@ def load_click_data(db_path):
     """
     Load click-point data from trial_pause_click table (if it exists).
     Joins with trial to get global_trial_name and repeat_instance_index.
-    Returns a DataFrame with columns session_id, trial_id, global_trial_name, repeat_instance_index,
-    pause_frame, click_bottom_left_x, click_bottom_left_y, ball_x, ball_y, diameters_away
-    (all positions as bottom-left in world coords), or empty DataFrame.
+    Returns a DataFrame with columns session_id, trial_id, trial_name,
+    global_trial_name, repeat_instance_index, pause_frame, click_bottom_left_x, click_bottom_left_y,
+    ball_x, ball_y, diameters_away (all positions as bottom-left in world coords), or empty DataFrame.
     """
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as conn:
@@ -479,7 +479,8 @@ def load_click_data(db_path):
         if result.fetchone() is None:
             return pd.DataFrame()
     query = """
-        SELECT c.id, c.trial_id, c.session_id, t.global_trial_name, t.repeat_instance_index,
+        SELECT c.id, c.trial_id, c.session_id, c.trial_name,
+               t.global_trial_name, t.repeat_instance_index,
                c.pause_frame, c.click_bottom_left_x, c.click_bottom_left_y,
                c.ball_x, c.ball_y, c.diameters_away
         FROM trial_pause_click c

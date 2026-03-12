@@ -258,7 +258,8 @@ CREATE TABLE IF NOT EXISTS redgreen_session (
     dataset_name TEXT,
     experiment_run_version TEXT,
     post_experiment_feedback TEXT,
-    post_experiment_feedback_submitted INTEGER
+    post_experiment_feedback_submitted INTEGER,
+    trials_completed INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS config (
@@ -282,7 +283,8 @@ CREATE TABLE IF NOT EXISTS trial (
     last_frame_utc TEXT,
     symmetry_transform INTEGER,
     is_repeated INTEGER,
-    repeat_instance_index INTEGER
+    repeat_instance_index INTEGER,
+    reaction_time_ms REAL
 );
 
 CREATE TABLE IF NOT EXISTS keystate (
@@ -304,7 +306,9 @@ CREATE TABLE IF NOT EXISTS trial_pause_click (
     click_bottom_left_y REAL NOT NULL,
     ball_x REAL,
     ball_y REAL,
-    diameters_away REAL
+    diameters_away REAL,
+    reaction_time_ms REAL,
+    trial_name TEXT
 );
 """
 

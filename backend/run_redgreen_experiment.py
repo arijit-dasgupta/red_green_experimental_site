@@ -88,7 +88,7 @@ DATASET_NAME = 'March102026_PointClick'  # Specific dataset folder name within P
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'clickpilot_testingv5'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'clickpilot_testingv6'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
 _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '45'))
@@ -281,6 +281,8 @@ class TrialPauseClick(db.Model):
     diameters_away = db.Column(db.Float, nullable=True)  # Distance from click center to ball center in diameters
     # Reaction time (ms) from pause onset to valid click placement.
     reaction_time_ms = db.Column(db.Float, nullable=True)
+    # Redundant with trial.global_trial_name; stored for convenience in exports/processing.
+    trial_name = db.Column(db.String(100), nullable=True)
 
 
 #=============================================================================
@@ -408,12 +410,13 @@ with app.app_context():
             else:
                 print(f"Warning: could not add {col} column to redgreen_session: {e}")
 
-    # Lightweight migrations for trial_pause_click (ball position, diameters_away, and reaction time)
+    # Lightweight migrations for trial_pause_click (ball position, diameters_away, reaction time, trial_name)
     for col, col_type in [
         ("ball_x", "REAL"),
         ("ball_y", "REAL"),
         ("diameters_away", "REAL"),
         ("reaction_time_ms", "REAL"),
+        ("trial_name", "TEXT"),
     ]:
         try:
             with db.engine.connect() as conn:
@@ -1738,6 +1741,7 @@ def save_pause_click():
             ball_y=ball_y,
             diameters_away=diameters_away,
             reaction_time_ms=reaction_time_ms,
+            trial_name=trial.global_trial_name,
         )
         db.session.add(row)
         db.session.commit()
