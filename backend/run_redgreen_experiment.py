@@ -1717,6 +1717,16 @@ def save_pause_click():
         if not trial or trial.session_id != int(session_id):
             return jsonify({"error": "Trial not found for the current session"}), 405
 
+        # Guardrail: only one click row per (session_id, trial_id). If a row already exists
+        # for this paused trial, ignore additional valid clicks (e.g., double/triple clicks).
+        existing = (
+            db.session.query(TrialPauseClick)
+            .filter_by(session_id=int(session_id), trial_id=int(trial_id))
+            .first()
+        )
+        if existing is not None:
+            return jsonify({"status": "ignored_duplicate_click"}), 200
+
         # Store only bottom-left (one form) for the click
         click_bottom_left_x = float(click_x) - radius
         click_bottom_left_y = float(click_y) - radius

@@ -497,11 +497,19 @@ def load_click_data(db_path):
     if "reaction_time_ms" in c_cols:
         base_c.append("c.reaction_time_ms")
     c_select = ", ".join(base_c)
+    # Mirror extract_human_data filtering:
+    # - Only completed experimental trials (trial_type != 'ftrial', t.completed = 1)
+    # - Only sessions that are completed and not ignored (ignore_data = 0/NULL, s.completed = 1)
     query = f"""
         SELECT {c_select},
                t.global_trial_name, t.repeat_instance_index
         FROM trial_pause_click c
         JOIN trial t ON c.trial_id = t.id
+        JOIN redgreen_session s ON c.session_id = s.id
+        WHERE (s.ignore_data = 0 OR s.ignore_data IS NULL)
+          AND s.completed = 1
+          AND t.trial_type != 'ftrial'
+          AND t.completed = 1
         ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id
     """
     click_df = pd.read_sql(query, engine)
