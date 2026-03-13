@@ -126,6 +126,8 @@ Set these for your app:
 
 For a new experiment run you can change only the path prefix, Prolific URL, and timeout via Config Vars; no code change required.
 
+**Important:** If you change `BASE_PATH` / `REACT_APP_BASE_PATH` / `PUBLIC_URL`, you must **redeploy** (push to Heroku) so the frontend is rebuilt with the new paths. Restarting the dyno alone is not enough—asset paths are baked in at build time, so you will get a blank page (and 404s for `/oldpath/static/...`) until you push a new build.
+
 ### Deploy
 
 From the repo (with the `heroku` remote added: `heroku git:remote -a redgreen-exp`):
