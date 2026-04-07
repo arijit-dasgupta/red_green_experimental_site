@@ -490,6 +490,8 @@ def load_click_data(db_path):
         # Discover columns so we can handle legacy DBs missing reaction_time_ms or trial_name
         info = conn.execute(text("PRAGMA table_info(trial_pause_click)")).fetchall()
         c_cols = [row[1] for row in info]
+        t_info = conn.execute(text("PRAGMA table_info(trial)")).fetchall()
+        t_cols = [row[1] for row in t_info]
     base_c = ["c.id", "c.trial_id", "c.session_id", "c.pause_frame",
               "c.click_bottom_left_x", "c.click_bottom_left_y", "c.ball_x", "c.ball_y", "c.diameters_away"]
     if "trial_name" in c_cols:
@@ -497,18 +499,22 @@ def load_click_data(db_path):
     if "reaction_time_ms" in c_cols:
         base_c.append("c.reaction_time_ms")
     c_select = ", ".join(base_c)
-    # Mirror extract_human_data filtering:
-    # - Only completed experimental trials (trial_type != 'ftrial', t.completed = 1)
-    # - Only sessions that are completed and not ignored (ignore_data = 0/NULL, s.completed = 1)
+    t_extra = ["t.trial_type"]
+    if "symmetry_transform" in t_cols:
+        t_extra.append("t.symmetry_transform")
+    t_select = "t.global_trial_name, t.repeat_instance_index, " + ", ".join(t_extra)
+    # Mirror extract_human_data trial filtering: only experimental trials (no fam).
+    # - trial_type = 'trial' (exclude 'ftrial' familiarization trials)
+    # - t.completed = 1; sessions completed and not ignored (ignore_data = 0/NULL, s.completed = 1)
     query = f"""
         SELECT {c_select},
-               t.global_trial_name, t.repeat_instance_index
+               {t_select}
         FROM trial_pause_click c
         JOIN trial t ON c.trial_id = t.id
         JOIN redgreen_session s ON c.session_id = s.id
         WHERE (s.ignore_data = 0 OR s.ignore_data IS NULL)
           AND s.completed = 1
-          AND t.trial_type != 'ftrial'
+          AND t.trial_type = 'trial'
           AND t.completed = 1
         ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id
     """
@@ -517,6 +523,9 @@ def load_click_data(db_path):
         click_df["reaction_time_ms"] = np.nan
     if "trial_name" not in click_df.columns:
         click_df["trial_name"] = click_df["global_trial_name"]
+    if "symmetry_transform" not in click_df.columns:
+        click_df["symmetry_transform"] = 0
+    click_df["symmetry_transform"] = click_df["symmetry_transform"].fillna(0).astype(int)
     return click_df
 
 
@@ -530,7 +539,102 @@ def save_click_data_by_trial(click_df, path_to_data):
     if click_df is None or click_df.empty:
         return
     click_df = click_df.copy()
+    # Exclude familiarization trials (same as non-click analysis: only experimental trials)
+    if "trial_type" in click_df.columns:
+        click_df = click_df[click_df["trial_type"] == "trial"].copy()
+        click_df = click_df.drop(columns=["trial_type"])
+    if click_df.empty:
+        return
     click_df["repeat_instance_index"] = click_df["repeat_instance_index"].fillna(0).astype(int)
+
+    # Undo D4 symmetry so exported click positions are in the canonical frame.
+    def _inverse_transform_index(idx: int) -> int:
+        # D4 group: reflections/self-inverse; 90deg <-> 270deg.
+        if idx == 1:
+            return 3
+        if idx == 3:
+            return 1
+        return idx or 0
+
+    def _transform_point(x, y, W, H, transform_index):
+        # Copied from backend.transform_point
+        cx = W / 2.0
+        cy = H / 2.0
+        def _get_d4_matrix(ti):
+            if ti == 0:
+                return 1, 0, 0, 1
+            elif ti == 1:
+                return 0, -1, 1, 0
+            elif ti == 2:
+                return -1, 0, 0, -1
+            elif ti == 3:
+                return 0, 1, -1, 0
+            elif ti == 4:
+                return -1, 0, 0, 1
+            elif ti == 5:
+                return 1, 0, 0, -1
+            elif ti == 6:
+                return 0, 1, 1, 0
+            elif ti == 7:
+                return 0, -1, -1, 0
+            else:
+                raise ValueError(f"Invalid D4 transform index: {ti}")
+        a, b, c, d = _get_d4_matrix(transform_index)
+        dx = x - cx
+        dy = y - cy
+        x_prime = cx + a * dx + b * dy
+        y_prime = cy + c * dx + d * dy
+        return x_prime, y_prime
+
+    # Preload world dimensions and radius per trial_name from simulation_data.json
+    trial_dims = {}
+    for trial_name in sorted(click_df["global_trial_name"].unique()):
+        trial_dir = os.path.join(path_to_data, str(trial_name))
+        sim_path = os.path.join(trial_dir, "simulation_data.json")
+        if not os.path.exists(sim_path):
+            # Fallback to defaults if JSON missing
+            trial_dims[trial_name] = (20.0, 20.0, 0.5)
+            continue
+        try:
+            with open(sim_path, "r") as f:
+                data = json.load(f)
+            W = float(data.get("worldWidth", data.get("world_width", 20.0)))
+            H = float(data.get("worldHeight", data.get("world_height", 20.0)))
+            radius = float(data.get("radius", 0.5))
+            trial_dims[trial_name] = (W, H, radius)
+        except Exception:
+            trial_dims[trial_name] = (20.0, 20.0, 0.5)
+
+    def _undo_symmetry_for_row(row):
+        trial_name = row["global_trial_name"]
+        W, H, radius = trial_dims.get(trial_name, (20.0, 20.0, 0.5))
+        idx = int(row.get("symmetry_transform", 0) or 0)
+        inv_idx = _inverse_transform_index(idx)
+        if inv_idx == 0:
+            return row
+        # Transform click bottom-left (if present)
+        cbx = row.get("click_bottom_left_x")
+        cby = row.get("click_bottom_left_y")
+        if cbx is not None and cby is not None:
+            cx = float(cbx) + radius
+            cy = float(cby) + radius
+            cx0, cy0 = _transform_point(cx, cy, W, H, inv_idx)
+            row["click_bottom_left_x"] = cx0 - radius
+            row["click_bottom_left_y"] = cy0 - radius
+        # Transform ball bottom-left (if present)
+        bx = row.get("ball_x")
+        by = row.get("ball_y")
+        if bx is not None and by is not None:
+            bcx = float(bx) + radius
+            bcy = float(by) + radius
+            bcx0, bcy0 = _transform_point(bcx, bcy, W, H, inv_idx)
+            row["ball_x"] = bcx0 - radius
+            row["ball_y"] = bcy0 - radius
+        return row
+
+    # Apply inverse symmetry per row
+    click_df = click_df.apply(_undo_symmetry_for_row, axis=1)
+
     for (trial_name, rep_idx), group in click_df.groupby(["global_trial_name", "repeat_instance_index"]):
         trial_dir = os.path.join(path_to_data, str(trial_name))
         os.makedirs(trial_dir, exist_ok=True)
@@ -629,6 +733,96 @@ def plot_scores_distribution(trial_df):
         ax.tick_params(axis='x', which='both', labelbottom=True)  # Ensure x-ticks are visible
     
     plt.xlabel("Score")  # Set x-axis label for the entire figure
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_reaction_time_distributions(click_df, bins=30):
+    """
+    Plot overall reaction time distribution for all click trials, with summary statistics.
+    """
+    if click_df is None or click_df.empty or "reaction_time_ms" not in click_df.columns:
+        print("No reaction_time_ms data to plot.")
+        return
+    rts = click_df["reaction_time_ms"].dropna()
+    if rts.empty:
+        print("No non-null reaction_time_ms values to plot.")
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.hist(rts, bins=bins, color="steelblue", edgecolor="black", alpha=0.7)
+
+    mean_rt = rts.mean()
+    median_rt = rts.median()
+    ax.axvline(mean_rt, color="red", linestyle="--", label=f"Mean = {mean_rt:.0f} ms")
+    ax.axvline(median_rt, color="green", linestyle=":", label=f"Median = {median_rt:.0f} ms")
+
+    ax.set_xlabel("Reaction time (ms)")
+    ax.set_ylabel("Count")
+    ax.set_title("Reaction time distribution (all click trials)")
+    # Ensure x-axis starts at 0
+    xmin, xmax = ax.get_xlim()
+    ax.set_xlim(left=0, right=xmax)
+    ax.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_reaction_time_distributions_by_session(click_df, max_cols=4, bins=20):
+    """
+    Plot reaction time distributions per participant (session_id) in a grid of histograms.
+    All subplots share the same x-axis limits.
+    """
+    if click_df is None or click_df.empty or "reaction_time_ms" not in click_df.columns:
+        print("No reaction_time_ms data to plot.")
+        return
+    if "session_id" not in click_df.columns:
+        print("click_df is missing 'session_id'; cannot facet by participant.")
+        return
+
+    data = click_df[["session_id", "reaction_time_ms"]].dropna()
+    if data.empty:
+        print("No non-null reaction_time_ms values to plot by session.")
+        return
+
+    # Global min/max for shared x-axis; force lower bound to 0
+    rt_min = 0.0
+    rt_max = data["reaction_time_ms"].max()
+    if rt_min == rt_max:
+        rt_min -= 1.0
+        rt_max += 1.0
+    bin_edges = np.linspace(rt_min, rt_max, bins + 1)
+
+    session_ids = sorted(data["session_id"].unique())
+    num_sessions = len(session_ids)
+    n_cols = min(max_cols, num_sessions)
+    n_rows = int(np.ceil(num_sessions / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), sharex=True)
+    axes = np.atleast_2d(axes)
+
+    for idx, sid in enumerate(session_ids):
+        rts_s = data.loc[data["session_id"] == sid, "reaction_time_ms"]
+        row = idx // n_cols
+        col = idx % n_cols
+        ax = axes[row, col]
+        ax.hist(rts_s, bins=bin_edges, color="steelblue", edgecolor="black", alpha=0.7)
+        participant_idx = idx + 1
+        ax.set_title(f"Participant {participant_idx}")
+        ax.set_ylabel("Count")
+        # Ensure x-axis ticks/labels are visible on all subplots
+        ax.tick_params(axis="x", which="both", labelbottom=True)
+
+    # Turn off any unused subplots
+    for j in range(num_sessions, n_rows * n_cols):
+        row = j // n_cols
+        col = j % n_cols
+        axes[row, col].axis("off")
+
+    for ax in axes[-1, :]:
+        ax.set_xlabel("Reaction time (ms)")
+
+    fig.suptitle("Reaction time distributions by participant", y=0.98)
     plt.tight_layout()
     plt.show()
 
