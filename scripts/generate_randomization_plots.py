@@ -19,6 +19,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from backend import randomization_utils as ru  # noqa: E402
 
+HEATMAP_COLOR_STEPS = 12
+HEATMAP_LEGEND_SWATCHES = 12
+
 
 def _natural_trial_key(value: str):
     parts = []
@@ -72,6 +75,70 @@ def _hex_lerp(start_hex: str, end_hex: str, t: float) -> str:
     g = round(sg + (eg - sg) * t)
     b = round(sb + (eb - sb) * t)
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _interpolated_palette(start_hex: str, end_hex: str, steps: int) -> list[str]:
+    if steps <= 1:
+        return [_hex_lerp(start_hex, end_hex, 1.0)]
+    return [_hex_lerp(start_hex, end_hex, idx / (steps - 1)) for idx in range(steps)]
+
+
+def _quantized_color(count: int, max_count: int, start_hex: str, end_hex: str, steps: int = HEATMAP_COLOR_STEPS) -> str:
+    palette = _interpolated_palette(start_hex, end_hex, steps)
+    if max_count <= 0:
+        return palette[0]
+    if count <= 0:
+        return palette[0]
+    if count >= max_count:
+        return palette[-1]
+    idx = round((count / max_count) * (steps - 1))
+    return palette[max(0, min(steps - 1, idx))]
+
+
+def _legend_ticks(max_count: int, num_ticks: int = 3) -> list[int]:
+    if max_count <= 0:
+        return [0]
+    if num_ticks <= 1:
+        return [0, max_count]
+    fractions = [i / (num_ticks - 1) for i in range(num_ticks)]
+    ticks = []
+    for frac in fractions:
+        tick = round(max_count * frac)
+        if not ticks or tick != ticks[-1]:
+            ticks.append(tick)
+    if ticks[-1] != max_count:
+        ticks[-1] = max_count
+    return ticks
+
+
+def _add_horizontal_legend(
+    lines: list[str],
+    *,
+    x: float,
+    title_y: float,
+    bar_y: float,
+    max_count: int,
+    start_hex: str,
+    end_hex: str,
+    width_per: float,
+    swatches: int = HEATMAP_LEGEND_SWATCHES,
+    title: str,
+):
+    palette = _interpolated_palette(start_hex, end_hex, swatches)
+    bar_w = width_per * len(palette)
+    lines.append(_text(x, title_y, title, size=9, fill="#475569", anchor="start"))
+    for idx, color in enumerate(palette):
+        lines.append(_rect(x + idx * width_per, bar_y, width_per, 13, color, stroke="none"))
+    lines.append(_rect(x, bar_y, bar_w, 13, "none", stroke="#94a3b8", width=0.5))
+
+    tick_y = bar_y + 17
+    label_y = bar_y + 29
+    for tick in _legend_ticks(max_count):
+        frac = 0 if max_count <= 0 else tick / max_count
+        tick_x = x + frac * bar_w
+        lines.append(_line(tick_x, bar_y + 13, tick_x, tick_y, stroke="#94a3b8", width=0.8))
+        lines.append(_text(tick_x, label_y, str(tick), size=9, fill="#475569", anchor="middle"))
+    return bar_y + 13, label_y
 
 
 def collect_repeat_data(num_participants: int):
@@ -447,7 +514,10 @@ def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: P
     cell_h = 10
     n_rows = len(trial_names)
     matrix_w = max_slot * cell_w
-    height = top_margin + n_rows * row_h + 120
+    matrix_bottom = top_margin + n_rows * row_h + 3
+    legend_label_y = matrix_bottom + 28
+    legend_y = matrix_bottom + 36
+    height = legend_y + 42
 
     slot_labels = list(range(1, max_slot + 1))
     tick_slots = [1]
@@ -474,8 +544,8 @@ def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: P
 
     for tick in tick_slots:
         x = left_margin + (tick - 1) * cell_w + cell_w / 2
-        lines.append(_line(x, top_margin, x, top_margin + n_rows * row_h + 3, stroke="#eef2f7", width=0.8))
-        lines.append(_text(x + 4.5, top_margin + n_rows * row_h + 20, str(tick), size=8, fill="#475569", anchor="middle"))
+        lines.append(_line(x, top_margin, x, matrix_bottom, stroke="#eef2f7", width=0.8))
+        lines.append(_text(x + 4.5, matrix_bottom + 20, str(tick), size=8, fill="#475569", anchor="middle"))
 
     for row_idx, name in enumerate(trial_names):
         y = top_margin + row_idx * row_h
@@ -483,9 +553,22 @@ def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: P
         lines.append(_line(left_margin - 4, y + 4, left_margin, y + 4, stroke="#94a3b8", width=1, dash="2,3"))
         for slot_idx in range(max_slot):
             count = counts_by_name[name].get(slot_idx, 0)
-            fill = "#f7fbff" if count == 0 else _hex_lerp("#d9e8f5", "#0b4f8a", count / max_count)
+            fill = "#ffffff" if count == 0 else _quantized_color(count, max_count, "#d9e8f5", "#0b4f8a")
             x = left_margin + slot_idx * cell_w
             lines.append(_rect(x, y, cell_w, cell_h, fill, stroke="#ffffff", width=0.35))
+
+    _add_horizontal_legend(
+        lines,
+        x=left_margin,
+        title_y=legend_label_y,
+        bar_y=legend_y,
+        max_count=max_count,
+        start_hex="#ffffff",
+        end_hex="#0b4f8a",
+        width_per=20,
+        swatches=HEATMAP_LEGEND_SWATCHES,
+        title=f"Participant count in trial slot (empirical max = {max_count})",
+    )
 
     lines.extend(_svg_footer())
     output_path.write_text("\n".join(lines) + "\n")
@@ -493,22 +576,7 @@ def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: P
 
 
 def _symmetry_heatmap_palette():
-    return [
-        "#fff7f5",
-        "#fef0ec",
-        "#fde7e1",
-        "#fbd9cf",
-        "#f8c8bc",
-        "#f3b5a9",
-        "#ec9c90",
-        "#e17f72",
-        "#d46557",
-        "#c34f42",
-        "#b33e33",
-        "#a4342b",
-        "#932a22",
-        "#4a0f0d",
-    ]
+    return _interpolated_palette("#fff7f5", "#4a0f0d", HEATMAP_COLOR_STEPS)
 
 
 def _symmetry_heatmap_color(count: int, max_count: int) -> str:
@@ -571,33 +639,22 @@ def generate_symmetry_transform_heatmap_svg(num_participants: int = 100, output_
         lines.append(_line(left_margin - 4, y + 4, left_margin, y + 4, stroke="#94a3b8", width=1, dash="2,3"))
         for slot_idx in range(8):
             count = counts_by_name[name].get(slot_idx + 1, 0)
-            fill = _symmetry_heatmap_color(count, max_count)
+            fill = _quantized_color(count, max_count, "#fff7f5", "#4a0f0d")
             x = left_margin + slot_idx * cell_w
             lines.append(_rect(x, y, cell_w - 2, cell_h, fill, stroke="#ffffff", width=0.35))
 
-    legend_x = 60
-    legend_cell_w = 20
-    legend_cell_h = 13
-    legend_colors = [_symmetry_heatmap_color(i, max_count or 13) for i in range(0, (max_count or 13) + 1)]
-    lines.append(
-        _text(
-            legend_x,
-            legend_label_y,
-            f"Participant count in transform slot (empirical max = {max_count})",
-            size=9,
-            fill="#475569",
-            anchor="start",
-        )
+    _add_horizontal_legend(
+        lines,
+        x=60,
+        title_y=legend_label_y,
+        bar_y=legend_y,
+        max_count=max_count,
+        start_hex="#fff7f5",
+        end_hex="#4a0f0d",
+        width_per=20,
+        swatches=HEATMAP_LEGEND_SWATCHES,
+        title=f"Participant count in transform slot (empirical max = {max_count})",
     )
-    for idx, color in enumerate(legend_colors):
-        lines.append(_rect(legend_x + idx * legend_cell_w, legend_y, legend_cell_w, legend_cell_h, color, stroke="none"))
-    lines.append(_rect(legend_x, legend_y, legend_cell_w * len(legend_colors), legend_cell_h, "none", stroke="#94a3b8", width=0.5))
-    if max_count > 0:
-        mid_count = max_count // 2
-        legend_label_y2 = legend_y + 28
-        lines.append(_text(legend_x, legend_label_y2, "0", size=9, fill="#475569", anchor="middle"))
-        lines.append(_text(legend_x + (legend_cell_w * mid_count), legend_label_y2, str(mid_count), size=9, fill="#475569", anchor="middle"))
-        lines.append(_text(legend_x + (legend_cell_w * max_count), legend_label_y2, str(max_count), size=9, fill="#475569", anchor="middle"))
 
     lines.extend(_svg_footer())
     output_path.write_text("\n".join(lines) + "\n")

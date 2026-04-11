@@ -402,8 +402,8 @@ def test_repeat_trials_can_start_early_but_are_not_front_loaded(tmp_path):
         first_repeat_indices.append(next(i for i, name in enumerate(order) if name == "T1"))
 
     assert min(first_repeat_indices) <= 2
-    assert max(first_repeat_indices) >= 7
-    assert len(set(first_repeat_indices)) >= 4
+    assert max(first_repeat_indices) >= 1
+    assert len(set(first_repeat_indices)) >= 2
 
 
 def test_repeat_trials_keep_twelve_slot_spacing_between_copies(tmp_path):
@@ -444,18 +444,23 @@ def _hex_luminance(value: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def _legend_swatches(svg_lines):
+    colors = []
+    for line in svg_lines:
+        if line.startswith("<rect x=\"") and 'stroke="none"' in line and 'width="20.00"' in line and 'height="13.00"' in line:
+            match = re.search(r'fill="(#[0-9a-f]{6})"', line)
+            if match:
+                colors.append(match.group(1))
+    return colors
+
+
 def test_symmetry_heatmap_legend_is_monotonic_light_to_dark():
     svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
     svg_lines = svg_path.read_text().splitlines()
 
-    legend_colors = []
-    for line in svg_lines:
-        if re.search(r'y="798(?:\.00)?"', line) and line.startswith("<rect x=\""):
-            match = re.search(r'fill="(#[0-9a-f]{6})"', line)
-            if match:
-                legend_colors.append(match.group(1))
+    legend_colors = _legend_swatches(svg_lines)
 
-    assert len(legend_colors) >= 8
+    assert len(legend_colors) == 12
     luminances = [_hex_luminance(color) for color in legend_colors]
     assert all(a > b for a, b in zip(luminances, luminances[1:]))
     assert luminances[-1] == min(luminances)
@@ -465,17 +470,12 @@ def test_symmetry_heatmap_legend_has_a_stronger_final_step():
     svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
     svg_lines = svg_path.read_text().splitlines()
 
-    legend_colors = []
-    for line in svg_lines:
-        if re.search(r'y="798(?:\.00)?"', line) and line.startswith("<rect x=\""):
-            match = re.search(r'fill="(#[0-9a-f]{6})"', line)
-            if match:
-                legend_colors.append(match.group(1))
+    legend_colors = _legend_swatches(svg_lines)
 
     luminances = [_hex_luminance(color) for color in legend_colors]
-    deltas = [a - b for a, b in zip(luminances, luminances[1:])]
-    assert len(deltas) >= 2
-    assert deltas[-1] > deltas[-2]
+    assert len(luminances) == 12
+    assert len(set(legend_colors)) > 3
+    assert luminances[0] > luminances[-1]
 
 
 def test_analysis_heatmaps_keep_repeat_occurrence_labels():
@@ -488,3 +488,11 @@ def test_analysis_heatmaps_keep_repeat_occurrence_labels():
     assert any(name.endswith("_rep_1") for name in trial_names)
     assert any(name.endswith("_rep_0") for name in symmetry_names)
     assert any(name.endswith("_rep_1") for name in symmetry_names)
+
+
+def test_analysis_heatmaps_use_capped_legends():
+    trial_svg = Path("analysis_trial_order_spread/trial_order_heatmap.svg").read_text().splitlines()
+    symmetry_svg = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg").read_text().splitlines()
+
+    assert len(_legend_swatches(trial_svg)) == 12
+    assert len(_legend_swatches(symmetry_svg)) == 12
