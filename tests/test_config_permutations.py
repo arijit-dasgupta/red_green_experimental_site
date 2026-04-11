@@ -1,4 +1,5 @@
 import json
+import re
 import string
 import tempfile
 from pathlib import Path
@@ -20,6 +21,12 @@ def write_trial_dataset(root, names):
         trial_dir = root / name
         trial_dir.mkdir(parents=True, exist_ok=True)
         (trial_dir / "simulation_data.json").write_text(json.dumps(payload))
+
+
+def write_repeat_csv(root, rows):
+    """Write a repeat.csv file with (trial_name, extra_repetitions) rows."""
+    lines = [f"{trial_name},{extra}" for trial_name, extra in rows]
+    (root / "repeat.csv").write_text("\n".join(lines) + "\n")
 
 
 class RecordingRandom:
@@ -194,6 +201,12 @@ def test_parse_experimental_trial_name_plain_trials(base_num):
     assert parsed_variant is None
 
 
+def test_evenly_spaced_targets_include_edges_and_are_monotonic():
+    assert ru._evenly_spaced_targets(10, 3) == [0, 4, 9]
+    assert ru._evenly_spaced_targets(8, 2) == [0, 7]
+    assert ru._evenly_spaced_targets(12, 1) == [6]
+
+
 @settings(max_examples=25, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(
     f_count=st.integers(min_value=1, max_value=5),
@@ -286,6 +299,33 @@ def test_symmetry_map_is_deterministic_for_same_inputs(size, profile_id):
         assert result_a == result_b
 
 
+@settings(max_examples=20, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(size=st.integers(min_value=1, max_value=8))
+def test_participant_specific_symmetry_is_balanced_across_eight_participants(size):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dataset_dir = Path(tmpdir) / "dataset"
+        names = [f"T27{letter}" for letter in string.ascii_uppercase[:size]]
+        write_trial_dataset(dataset_dir, names)
+        trial_paths = [str(dataset_dir / name / "simulation_data.json") for name in names]
+
+        per_row = [{transform: 0 for transform in range(8)} for _ in range(size)]
+        for profile_id in range(8):
+            transform_map = ru.build_symmetry_transform_map(
+                trial_paths,
+                names,
+                repeat_trials=False,
+                apply_symmetry_to_repeated_trials=True,
+                different_randomized_symmetry_transform_per_participant=True,
+                randomized_profile_id=profile_id,
+                validate_square_scenes=False,
+            )
+            for idx in range(size):
+                per_row[idx][transform_map[idx]] += 1
+
+        for row_counts in per_row:
+            assert set(row_counts.values()) == {1}
+
+
 @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture])
 @given(size=st.integers(min_value=1, max_value=5))
 def test_symmetry_map_rejects_non_square_scenes(size):
@@ -340,3 +380,74 @@ def test_singleton_trials_are_not_front_loaded(tmp_path):
 
     assert min(singleton_positions) < max(variant_positions)
     assert max(singleton_positions) > min(variant_positions)
+
+
+def test_repeat_trials_can_start_early_but_are_not_front_loaded(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    names = [f"T{i}" for i in range(1, 13)]
+    write_trial_dataset(dataset_dir, names)
+    write_repeat_csv(dataset_dir, [("T1", 2)])
+
+    first_repeat_indices = []
+    for profile_id in range(60):
+        _, _, order = ru.build_trial_paths(
+            str(dataset_dir),
+            profile_id,
+            fam_trial_prefixes=["F"],
+            exp_trial_prefixes=["T"],
+            repeat_trials=True,
+            different_randomized_trial_order_per_participant=True,
+        )
+        first_repeat_indices.append(next(i for i, name in enumerate(order) if name == "T1"))
+
+    assert min(first_repeat_indices) <= 2
+    assert max(first_repeat_indices) >= 9
+
+
+def test_repeat_anchor_redistribution_places_copies_at_target_slots():
+    order = ["T1", "A", "B", "T1", "C", "D", "T1"]
+    redistributed = ru._redistribute_repeats_by_anchor_targets(order, {"T1": 2})
+    positions = [idx for idx, name in enumerate(redistributed) if name == "T1"]
+    assert positions == ru._evenly_spaced_targets(len(order), 3)
+
+
+def _hex_luminance(value: str) -> float:
+    value = value.lstrip("#")
+    r = int(value[0:2], 16)
+    g = int(value[2:4], 16)
+    b = int(value[4:6], 16)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def test_symmetry_heatmap_legend_is_monotonic_light_to_dark():
+    svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
+    svg_lines = svg_path.read_text().splitlines()
+
+    legend_colors = []
+    for line in svg_lines:
+        if 'y="798"' in line and line.startswith("<rect x=\""):
+            match = re.search(r'fill="(#[0-9a-f]{6})"', line)
+            if match:
+                legend_colors.append(match.group(1))
+
+    assert len(legend_colors) >= 8
+    luminances = [_hex_luminance(color) for color in legend_colors]
+    assert all(a > b for a, b in zip(luminances, luminances[1:]))
+    assert luminances[-1] == min(luminances)
+
+
+def test_symmetry_heatmap_legend_has_a_stronger_final_step():
+    svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
+    svg_lines = svg_path.read_text().splitlines()
+
+    legend_colors = []
+    for line in svg_lines:
+        if 'y="798"' in line and line.startswith("<rect x=\""):
+            match = re.search(r'fill="(#[0-9a-f]{6})"', line)
+            if match:
+                legend_colors.append(match.group(1))
+
+    luminances = [_hex_luminance(color) for color in legend_colors]
+    deltas = [a - b for a, b in zip(luminances, luminances[1:])]
+    assert len(deltas) >= 2
+    assert deltas[-1] > deltas[-2]

@@ -1,6 +1,9 @@
 import json
+import hashlib
 import os
 import random
+import re
+from collections import defaultdict
 
 
 def parse_experimental_trial_name(trial_folder_name):
@@ -34,6 +37,80 @@ def parse_experimental_trial_name(trial_folder_name):
     if prefix and digits:
         return f"{prefix}{digits}", variant
     return trial_folder_name, None
+
+
+def _natural_sort_key(value):
+    parts = re.split(r"(\d+)", value)
+    key = []
+    for part in parts:
+        if part.isdigit():
+            key.append((0, int(part)))
+        else:
+            key.append((1, part))
+    return key
+
+
+def _evenly_spaced_targets(total_length, item_count):
+    """Return monotonically increasing target slots that avoid the ends."""
+    if item_count <= 0:
+        return []
+    if item_count == 1:
+        return [max(total_length // 2, 0)]
+
+    raw_targets = [
+        int(round(i * (total_length - 1) / (item_count - 1)))
+        for i in range(item_count)
+    ]
+    targets = []
+    for i, target in enumerate(raw_targets):
+        min_allowed = 0 if i == 0 else targets[-1] + 1
+        max_allowed = total_length - (item_count - i)
+        target = max(min_allowed, min(target, max_allowed))
+        targets.append(target)
+    return targets
+
+
+def _redistribute_repeats_by_anchor_targets(order, repeat_counts):
+    """Spread repeated trial names across evenly spaced target slots."""
+    repeat_names = set(repeat_counts.keys())
+    if not repeat_names:
+        return order
+
+    repeated_occurrences = defaultdict(list)
+    base_items = []
+    for name in order:
+        if name in repeat_names:
+            repeated_occurrences[name].append(name)
+        else:
+            base_items.append(name)
+
+    final_length = len(order)
+    slots = [None] * final_length
+
+    repeat_entries = []
+    for name in sorted(repeated_occurrences.keys(), key=_natural_sort_key):
+        targets = _evenly_spaced_targets(final_length, len(repeated_occurrences[name]))
+        for occurrence_idx, target in enumerate(targets):
+            repeat_entries.append((target, name, occurrence_idx))
+
+    for target, name, occurrence_idx in sorted(repeat_entries, key=lambda item: (item[0], _natural_sort_key(item[1]), item[2])):
+        pos = target
+        while pos < final_length and slots[pos] is not None:
+            pos += 1
+        if pos >= final_length:
+            pos = target
+            while pos >= 0 and slots[pos] is not None:
+                pos -= 1
+        if pos < 0:
+            pos = 0
+        slots[pos] = name
+
+    base_iter = iter(base_items)
+    for idx in range(final_length):
+        if slots[idx] is None:
+            slots[idx] = next(base_iter)
+
+    return slots
 
 
 def build_trial_paths(
@@ -130,7 +207,7 @@ def build_trial_paths(
                 for _ in range(extra):
                     insert_farthest(spaced_order, trial_name)
 
-            e_folders_shuffled = spaced_order
+            e_folders_shuffled = _redistribute_repeats_by_anchor_targets(spaced_order, repeat_counts)
 
     groups_by_base = {}
     for name in e_folders_shuffled:
@@ -151,12 +228,17 @@ def build_trial_paths(
         if not candidates:
             candidates = list(active_groups.keys())
 
-        total_weight = sum(len(active_groups[k]) for k in candidates)
+        weighted_candidates = []
+        for key in candidates:
+            weight = len(active_groups[key])
+            weighted_candidates.append((key, weight))
+
+        total_weight = sum(weight for _, weight in weighted_candidates)
         target = random_.random() * total_weight
         running = 0
         chosen_key = candidates[-1]
-        for key in candidates:
-            running += len(active_groups[key])
+        for key, weight in weighted_candidates:
+            running += weight
             if target < running:
                 chosen_key = key
                 break
@@ -226,40 +308,64 @@ def build_symmetry_transform_map(
         rng_seed = 271828
     rng = random.Random(rng_seed)
 
+    participant_offset = int(randomized_profile_id or 0) % 8
+
+    def _base_transform_offset(base_key):
+        digest = hashlib.sha1(base_key.encode("utf-8")).digest()
+        return digest[0] % 8
+
     groups_by_base = {}
+    occurrence_by_name = {}
     for idx, folder_name in enumerate(randomized_trial_order):
+        occurrence = occurrence_by_name.get(folder_name, 0)
+        occurrence_by_name[folder_name] = occurrence + 1
         base_key, _ = parse_experimental_trial_name(folder_name)
-        groups_by_base.setdefault(base_key, []).append(idx)
+        groups_by_base.setdefault(base_key, []).append((folder_name, occurrence, idx))
 
     if repeat_trials and not apply_symmetry_to_repeated_trials:
         filtered_groups = {}
-        for base_key, indices in groups_by_base.items():
+        for base_key, members in groups_by_base.items():
             seen_names = set()
-            filtered_indices = []
-            for idx in indices:
-                folder_name = randomized_trial_order[idx]
+            filtered_members = []
+            for folder_name, occurrence, idx in members:
                 if folder_name not in seen_names:
                     seen_names.add(folder_name)
-                    filtered_indices.append(idx)
-            filtered_groups[base_key] = filtered_indices
+                    filtered_members.append((folder_name, occurrence, idx))
+            filtered_groups[base_key] = filtered_members
         groups_by_base = filtered_groups
 
     trial_transform_map = {}
     base_transforms = list(range(8))
 
     for base_key in sorted(groups_by_base.keys()):
-        indices = sorted(groups_by_base[base_key])
-        n = len(indices)
+        members = sorted(
+            groups_by_base[base_key],
+            key=lambda item: (_natural_sort_key(item[0]), item[1]),
+        )
+        n = len(members)
         if n == 0:
             continue
-        if n <= 8:
-            assigned = rng.sample(base_transforms, n)
+        if different_randomized_symmetry_transform_per_participant:
+            # Rotate a fixed D4 ordering by participant and base-trial offsets so
+            # each base group stays deterministic while remaining much more even
+            # across participants than independent random sampling.
+            rotation = (participant_offset + _base_transform_offset(base_key)) % 8
+            rotated_transforms = base_transforms[rotation:] + base_transforms[:rotation]
+            if n <= 8:
+                assigned = rotated_transforms[:n]
+            else:
+                full_cycles = n // 8
+                remainder = n % 8
+                assigned = rotated_transforms * full_cycles + rotated_transforms[:remainder]
         else:
-            full_cycles = n // 8
-            remainder = n % 8
-            assigned = base_transforms * full_cycles + rng.sample(base_transforms, remainder)
-            rng.shuffle(assigned)
-        for idx, transform_index in zip(indices, assigned):
+            if n <= 8:
+                assigned = rng.sample(base_transforms, n)
+            else:
+                full_cycles = n // 8
+                remainder = n % 8
+                assigned = base_transforms * full_cycles + rng.sample(base_transforms, remainder)
+                rng.shuffle(assigned)
+        for (_, _, idx), transform_index in zip(members, assigned):
             trial_transform_map[idx] = transform_index
 
     return trial_transform_map

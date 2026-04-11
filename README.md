@@ -167,3 +167,13 @@ Run them with:
 ```bash
 pytest
 ```
+
+### Plot generation
+
+To regenerate the repeat-order validation plot, run:
+
+```bash
+python scripts/generate_randomization_plots.py --num-participants 100
+```
+
+This writes `analysis_trial_order_spread/repeat_order_validation.svg`.
