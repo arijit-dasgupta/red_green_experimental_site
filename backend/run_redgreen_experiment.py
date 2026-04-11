@@ -77,6 +77,19 @@ from sqlalchemy.orm.attributes import flag_modified
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+try:
+    from backend.randomization_utils import (
+        build_symmetry_transform_map,
+        build_trial_paths,
+        parse_experimental_trial_name,
+    )
+except ImportError:
+    from randomization_utils import (
+        build_symmetry_transform_map,
+        build_trial_paths,
+        parse_experimental_trial_name,
+    )
+
 # Example URL with Prolific parameters for testing:
 # https://b90e-18-29-88-130.ngrok-free.app?PROLIFIC_PID=arijitprolificpid&STUDY_ID=rg1&SESSION_ID=77
 
@@ -90,6 +103,9 @@ FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
 EXPERIMENT_RUN_VERSION = 'experiment_1_pilot_debug'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
+# If True, each participant gets a different randomized experimental trial order.
+# If False, everyone gets the same deterministic randomized order.
+DIFFERENT_RANDOMIZED_TRIAL_ORDER_PER_PARTICIPANT = True
 # Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
 _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '50'))
 TIMEOUT_PERIOD = timedelta(minutes=_timeout_min)  # Maximum time before session expires
@@ -110,13 +126,33 @@ PARTICIPANT_BUFFER = 2000
 # repetitions). Repeated trials are spaced out to reduce carryover.
 REPEAT_TRIALS = True
 
-# When REPEAT_TRIALS is True and symmetry transforms are enabled, this flag
-# controls whether repeated trial instances also receive D4 symmetry
-# transforms (as additional variants in their prefix+number group).
+# If True, repeated trial instances created via repeat.csv are also eligible
+# for symmetry transforms, so each copy is included in the same D4 assignment
+# pool as the original. The transforms are assigned pseudo-randomly from the
+# eight D4 options using a fixed seed, so the result is deterministic but
+# still shuffled. Within that pool, copies from the same repeated trial set
+# are assigned different transforms whenever there are 8 or fewer assigned
+# instances; if a set grows past 8, transforms must be reused.
+# If False, only the first occurrence of a repeated trial name is assigned a
+# symmetry transform and later copies keep the same underlying scene layout.
 APPLY_SYMMETRY_TO_REPEATED_TRIALS = True
 
-# If True, apply one of eight D4 symmetry transforms to each experimental trial
-# variant (grouped by prefix+number, e.g. T5A–T5D) to reduce carryover effects.
+# If True, each participant gets their own pseudo-random symmetry assignment
+# for the same underlying trial order. If False, all participants share the
+# same deterministic symmetry assignment as before.
+DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT = True
+
+# If True, apply one of the eight D4 symmetry transforms to every experimental
+# trial instance. Variant groups like T2A/T2B/T2C/T2D are assigned transforms
+# within the same base group, and single-name trials like T10 or T23 are also
+# assigned their own transforms. Within any base group, transforms are sampled
+# pseudo-randomly without replacement from the eight D4 options, so members of
+# the same group are guaranteed to have different transforms as long as the
+# group has 8 or fewer assigned instances. If a group exceeds 8 assigned
+# instances, transforms are reused. The assignment is deterministic because it
+# uses a fixed seed.
+# This helps reduce carryover effects by showing the same underlying scene in
+# different orientations/reflections.
 # Requires all experimental scenes in the dataset to be strictly square
 # (scene_dims[0] == scene_dims[1]); this is asserted once at startup.
 SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS = True
@@ -642,99 +678,41 @@ def parse_experimental_trial_name(trial_folder_name):
     return trial_folder_name, None
 
 
-def initialize_symmetry_for_dataset(trial_paths, randomized_trial_order):
+def initialize_symmetry_for_dataset(trial_paths, randomized_trial_order, randomized_profile_id=None):
     """
     One-time initialization for symmetry transforms:
       - Assert all experimental scenes are square (W == H > 0).
       - Count variants per base_key and warn when count >= 8.
       - Build a deterministic mapping from trial folder name to transform index.
+        When DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT is True,
+        the mapping is deterministic per participant because the seed includes
+        randomized_profile_id.
     """
     global _SYMMETRY_VALIDATED, _SYMMETRY_TRIAL_TRANSFORMS
 
-    if _SYMMETRY_VALIDATED:
-        return
+    if not DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT and _SYMMETRY_VALIDATED:
+        return _SYMMETRY_TRIAL_TRANSFORMS
 
-    # Aspect ratio assertion and variant counting
-    base_counts = {}
-    for path in trial_paths:
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-        except Exception as e:
-            raise AssertionError(f"Failed to load trial JSON at {path}: {e}")
+    trial_transform_map = build_symmetry_transform_map(
+        trial_paths,
+        randomized_trial_order,
+        repeat_trials=REPEAT_TRIALS,
+        apply_symmetry_to_repeated_trials=APPLY_SYMMETRY_TO_REPEATED_TRIALS,
+        different_randomized_symmetry_transform_per_participant=DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT,
+        randomized_profile_id=randomized_profile_id,
+    )
 
-        scene_dims = data.get("scene_dims", [20, 20])
-        W = scene_dims[0] if len(scene_dims) > 0 else 20
-        H = scene_dims[1] if len(scene_dims) > 1 else 20
-        if not (W == H and W > 0):
-            folder_name = os.path.basename(os.path.dirname(path))
-            raise AssertionError(
-                f"SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS is True, but trial "
-                f"'{folder_name}' has non-square scene_dims={scene_dims}."
-            )
-
-        folder_name = os.path.basename(os.path.dirname(path))
-        base_key, _ = parse_experimental_trial_name(folder_name)
-        base_counts[base_key] = base_counts.get(base_key, 0) + 1
-
-    # Warn for large variant sets
-    for base_key, count in base_counts.items():
-        if count >= 8:
-            print(
-                f"\033[93m[SYMMETRY WARNING]\033[0m "
-                f"Base trial set '{base_key}' has {count} variants; "
-                f"symmetry transforms will be reused within this set."
-            )
-
-    # Deterministic assignment of transforms per base_key and trial index
-    rng = random.Random(271828)
-    # First, group trial indices by base_key
-    groups_by_base = {}
-    for idx, folder_name in enumerate(randomized_trial_order):
-        base_key, _ = parse_experimental_trial_name(folder_name)
-        groups_by_base.setdefault(base_key, []).append(idx)
-
-    # If we are repeating trials but not applying symmetry to repeats,
-    # restrict to the first occurrence of each folder name in each base group.
-    if REPEAT_TRIALS and not APPLY_SYMMETRY_TO_REPEATED_TRIALS:
-        filtered_groups = {}
-        for base_key, indices in groups_by_base.items():
-            seen_names = set()
-            filtered_indices = []
-            for idx in indices:
-                folder_name = randomized_trial_order[idx]
-                if folder_name not in seen_names:
-                    seen_names.add(folder_name)
-                    filtered_indices.append(idx)
-            filtered_groups[base_key] = filtered_indices
-        groups_by_base = filtered_groups
-
-    trial_transform_map = {}
-    base_transforms = list(range(8))
-
-    for base_key in sorted(groups_by_base.keys()):
-        indices = sorted(groups_by_base[base_key])
-        n = len(indices)
-        if n == 0:
-            continue
-        if n <= 8:
-            assigned = rng.sample(base_transforms, n)
-        else:
-            full_cycles = n // 8
-            remainder = n % 8
-            assigned = base_transforms * full_cycles + rng.sample(base_transforms, remainder)
-            rng.shuffle(assigned)
-        for idx, transform_index in zip(indices, assigned):
-            trial_transform_map[idx] = transform_index
-
-    _SYMMETRY_TRIAL_TRANSFORMS = trial_transform_map
-    _SYMMETRY_VALIDATED = True
+    if not DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT:
+        _SYMMETRY_TRIAL_TRANSFORMS = trial_transform_map
+        _SYMMETRY_VALIDATED = True
 
     # Log that symmetry-related sanity checks have passed (bold green)
     print(
         "\033[1;32m[SYMMETRY OK]\033[0m "
         "All experimental trials have square scenes and D4 symmetry transforms have been assigned."
     )
+
+    return trial_transform_map
 
 def get_all_trial_paths(directory_path, randomized_profile_id):
     """
@@ -756,139 +734,23 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
       1. Group trials by prefix (CC_control, CC_surprise, UC_positive, UC_negative)
       2. Shuffle each prefix's trials separately (using fixed seed)
       3. Round-robin: pick one from each prefix, shuffle those 4, repeat until all trials are used
-      4. Different order for each participant, but deterministic per profile ID
+      4. Either the same order for all participants or a different order per participant,
+         depending on DIFFERENT_RANDOMIZED_TRIAL_ORDER_PER_PARTICIPANT
       5. Skip first SKIP_FIRST_N_EXP_TRIALS trials after randomization
     """
     try:
-        # Convert relative path to absolute path based on this Python file's location
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        absolute_directory_path = os.path.join(script_dir, directory_path)
-        
-        # Get all trial folders in the dataset directory
-        # NOTE: sort for deterministic order across deployments/OSes before applying seeded shuffling.
-        # Without this, os.listdir() order can vary, so even with a fixed seed, the final
-        # randomized order can change between runs or machines.
-        entries = sorted(os.listdir(absolute_directory_path))
-        random_ = random.Random(314159 + int(randomized_profile_id))  # Deterministic per participant
-
-        # Separate familiarization (F) and experimental (E) trial folders
-        participants_f_assignments = [
-            entry for entry in entries 
-            if any(entry.startswith(prefix) for prefix in FAM_TRIAL_PREFIXES)
-        ]
-        participants_f_assignments.sort()  # F1, F2, F3 etc. in order if multiple prefixes
-        
-        # Group experimental trials by prefix
-        prefix_stacks = {}
-        for prefix in EXP_TRIAL_PREFIXES:
-            prefix_trials = [
-                entry for entry in entries 
-                if entry.startswith(prefix)
-            ]
-            # Shuffle each prefix's trials separately (using same seed for reproducibility)
-            prefix_trials_shuffled = prefix_trials[:]
-            random_.shuffle(prefix_trials_shuffled)
-            prefix_stacks[prefix] = prefix_trials_shuffled
-        
-        # Round-robin interleaving: pick one from each stack, shuffle those 4, repeat
-        e_folders_shuffled = []
-        max_trials = max(len(stack) for stack in prefix_stacks.values()) if prefix_stacks else 0
-        
-        for round_idx in range(max_trials):
-            # Pick one trial from each prefix stack (if available)
-            round_trials = []
-            for prefix in EXP_TRIAL_PREFIXES:
-                if len(prefix_stacks[prefix]) > round_idx:
-                    round_trials.append(prefix_stacks[prefix][round_idx])
-            
-            # Shuffle the trials in this round
-            if round_trials:
-                random_.shuffle(round_trials)
-                e_folders_shuffled.extend(round_trials)
-
-        # Optionally repeat selected trials based on repeat.csv in the dataset folder
-        if REPEAT_TRIALS:
-            repeat_csv_path = os.path.join(absolute_directory_path, "repeat.csv")
-            repeat_counts = {}
-            if os.path.exists(repeat_csv_path):
-                try:
-                    with open(repeat_csv_path, "r") as f:
-                        for line in f:
-                            line = line.strip()
-                            if not line or line.startswith("#"):
-                                continue
-                            parts = [p.strip() for p in line.split(",")]
-                            if len(parts) != 2:
-                                continue
-                            trial_name, extra_str = parts
-                            try:
-                                extra = int(extra_str)
-                            except ValueError:
-                                continue
-                            if extra > 0:
-                                repeat_counts[trial_name] = repeat_counts.get(trial_name, 0) + extra
-                except Exception as e:
-                    print(f"Warning: failed to read repeat.csv at {repeat_csv_path}: {e}")
-
-            if repeat_counts:
-                # Spread repeated trials so that same trials are as far apart as possible
-                base_order = e_folders_shuffled[:]
-
-                def insert_farthest(ap_list, trial_name):
-                    """Insert trial_name into ap_list at the position maximizing distance to existing same-name trials."""
-                    # Current positions of this trial
-                    positions = [i for i, name in enumerate(ap_list) if name == trial_name]
-                    if not positions:
-                        # If the trial is not present (unexpected), append at end
-                            # but keep deterministic behavior
-                        ap_list.append(trial_name)
-                        return
-
-                    best_pos = 0
-                    best_min_dist = -1
-                    n = len(ap_list)
-                    for pos in range(n + 1):
-                        # Compute minimal distance to any existing occurrence of this trial
-                        min_dist = min(abs(pos - p) for p in positions)
-                        if min_dist > best_min_dist:
-                            best_min_dist = min_dist
-                            best_pos = pos
-                    ap_list.insert(best_pos, trial_name)
-
-                # Work on a mutable copy
-                spaced_order = base_order[:]
-                for trial_name in sorted(repeat_counts.keys()):
-                    extra = repeat_counts[trial_name]
-                    for _ in range(extra):
-                        insert_farthest(spaced_order, trial_name)
-
-                e_folders_shuffled = spaced_order
-
-        # Spread trials with the same prefix+number (base_key) so they don't appear consecutively
-        groups_by_base = {}
-        for name in e_folders_shuffled:
-            base_key, _ = parse_experimental_trial_name(name)
-            groups_by_base.setdefault(base_key, []).append(name)
-        for base_key in groups_by_base:
-            random_.shuffle(groups_by_base[base_key])
-        group_keys = list(groups_by_base.keys())
-        spread_order = []
-        while any(groups_by_base[k] for k in group_keys):
-            keys_with_items = [k for k in group_keys if groups_by_base[k]]
-            random_.shuffle(keys_with_items)
-            for k in keys_with_items:
-                spread_order.append(groups_by_base[k].pop(0))
-        e_folders_shuffled = spread_order
-
-        # All participants get the same shuffled order
-        f_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
-                  for entry in participants_f_assignments]
-        e_paths = [os.path.join(os.path.join(absolute_directory_path, entry), 'simulation_data.json') 
-                  for entry in e_folders_shuffled]
-        
-        return f_paths, e_paths, e_folders_shuffled
+        return build_trial_paths(
+            directory_path,
+            randomized_profile_id,
+            fam_trial_prefixes=FAM_TRIAL_PREFIXES,
+            exp_trial_prefixes=EXP_TRIAL_PREFIXES,
+            repeat_trials=REPEAT_TRIALS,
+            different_randomized_trial_order_per_participant=DIFFERENT_RANDOMIZED_TRIAL_ORDER_PER_PARTICIPANT,
+        )
 
     except (FileNotFoundError, PermissionError) as e:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        absolute_directory_path = os.path.join(script_dir, directory_path)
         print(f"Error accessing {absolute_directory_path}: {e}")
         return [], [], []
 
@@ -966,8 +828,13 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     major_path = config["major_path"]
     ftrial_paths, trial_paths, randomized_trial_order = get_all_trial_paths(major_path, randomized_profile_id)
 
+    symmetry_trial_transform_map = {}
     if SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS and trial_paths:
-        initialize_symmetry_for_dataset(trial_paths, randomized_trial_order)
+        symmetry_trial_transform_map = initialize_symmetry_for_dataset(
+            trial_paths,
+            randomized_trial_order,
+            randomized_profile_id,
+        )
 
     def parse_json(file_path):
         """
@@ -1025,7 +892,7 @@ def load_experiment_config(experiment_name, randomized_profile_id):
     for idx, file_path in enumerate(trial_paths):
         trial_dict = parse_json(file_path)
         if SYMMETRY_TRANSFORM_TO_REDUCE_CARRYOVER_EFFECTS:
-            transform_index = _SYMMETRY_TRIAL_TRANSFORMS.get(idx)
+            transform_index = symmetry_trial_transform_map.get(idx)
             if transform_index is not None:
                 apply_symmetry_transform_to_trial(trial_dict, transform_index)
         trial_datas.append(trial_dict)

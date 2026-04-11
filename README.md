@@ -158,3 +158,12 @@ App URL with path prefix: **https://redgreen-exp.herokuapp.com/BASE_PATH** (e.g.
 ## Postprocessing
 
 Use `backend/postprocess.ipynb`: set the paths/config in the first cell, then run the notebook to produce a `.pkl` file. For custom code, reuse `extract_human_data` from `backend/postprocess_redgreen_human_data.py` to get pandas dataframes from the database without touching SQLAlchemy directly. Demographics CSV is from Prolific; you can comment out that part if you don’t have it.
+
+## Tests
+
+The config-permutation tests live in `tests/` and use `pytest` plus `hypothesis` to exercise the trial-order and symmetry-flag combinations.
+Run them with:
+
+```bash
+pytest
+```
