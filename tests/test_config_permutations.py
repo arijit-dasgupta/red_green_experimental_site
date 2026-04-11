@@ -37,6 +37,9 @@ class RecordingRandom:
     def sample(self, population, k):
         return list(population)[:k]
 
+    def random(self):
+        return 0.0
+
 
 @pytest.fixture
 def recording_random(monkeypatch):
@@ -306,3 +309,34 @@ def test_symmetry_map_rejects_non_square_scenes(size):
                 different_randomized_symmetry_transform_per_participant=False,
                 randomized_profile_id=0,
             )
+
+
+def test_singleton_trials_are_not_front_loaded(tmp_path):
+    """
+    Regression test for the old spread logic that exhausted singleton groups in
+    the first pass and pushed variant/repeat groups to the back half.
+    """
+    dataset_dir = tmp_path / "dataset"
+    singleton_trials = [f"T{i}" for i in range(10, 25)]
+    variant_trials = [
+        "T1A", "T1B", "T1C", "T1D",
+        "T2A", "T2B", "T2C", "T2D",
+        "T3A", "T3B", "T3C", "T3D",
+        "T4A", "T4B", "T4C", "T4D",
+    ]
+    write_trial_dataset(dataset_dir, singleton_trials + variant_trials)
+
+    _, _, order = ru.build_trial_paths(
+        str(dataset_dir),
+        0,
+        fam_trial_prefixes=["F"],
+        exp_trial_prefixes=["T"],
+        repeat_trials=False,
+        different_randomized_trial_order_per_participant=True,
+    )
+
+    singleton_positions = [i for i, name in enumerate(order, start=1) if name in singleton_trials]
+    variant_positions = [i for i, name in enumerate(order, start=1) if name in variant_trials]
+
+    assert min(singleton_positions) < max(variant_positions)
+    assert max(singleton_positions) > min(variant_positions)

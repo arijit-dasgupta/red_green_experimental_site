@@ -138,13 +138,34 @@ def build_trial_paths(
         groups_by_base.setdefault(base_key, []).append(name)
     for base_key in groups_by_base:
         random_.shuffle(groups_by_base[base_key])
-    group_keys = list(groups_by_base.keys())
+
+    # Interleave groups one item at a time so singleton groups do not all get
+    # exhausted in the first pass. We bias toward groups with more remaining
+    # items, but we avoid repeating the same base_key when another group is
+    # available.
     spread_order = []
-    while any(groups_by_base[k] for k in group_keys):
-        keys_with_items = [k for k in group_keys if groups_by_base[k]]
-        random_.shuffle(keys_with_items)
-        for k in keys_with_items:
-            spread_order.append(groups_by_base[k].pop(0))
+    prev_key = None
+    active_groups = {k: v[:] for k, v in groups_by_base.items() if v}
+    while active_groups:
+        candidates = [k for k in active_groups.keys() if k != prev_key]
+        if not candidates:
+            candidates = list(active_groups.keys())
+
+        total_weight = sum(len(active_groups[k]) for k in candidates)
+        target = random_.random() * total_weight
+        running = 0
+        chosen_key = candidates[-1]
+        for key in candidates:
+            running += len(active_groups[key])
+            if target < running:
+                chosen_key = key
+                break
+
+        spread_order.append(active_groups[chosen_key].pop(0))
+        if not active_groups[chosen_key]:
+            del active_groups[chosen_key]
+        prev_key = chosen_key
+
     e_folders_shuffled = spread_order
 
     f_paths = [
