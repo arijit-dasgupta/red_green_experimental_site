@@ -88,7 +88,7 @@ DATASET_NAME = 'JTAP_Experiment_1'  # Specific dataset folder name within PATH_T
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'experiment_1_pilot_april72026'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'experiment_1_pilot_debug'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # Timeout and Prolific URL can be overridden via Heroku Config Vars (e.g. for a new experiment run)
 _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '50'))
@@ -756,7 +756,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
       1. Group trials by prefix (CC_control, CC_surprise, UC_positive, UC_negative)
       2. Shuffle each prefix's trials separately (using fixed seed)
       3. Round-robin: pick one from each prefix, shuffle those 4, repeat until all trials are used
-      4. Same order for all participants (deterministic)
+      4. Different order for each participant, but deterministic per profile ID
       5. Skip first SKIP_FIRST_N_EXP_TRIALS trials after randomization
     """
     try:
@@ -769,7 +769,7 @@ def get_all_trial_paths(directory_path, randomized_profile_id):
         # Without this, os.listdir() order can vary, so even with a fixed seed, the final
         # randomized order can change between runs or machines.
         entries = sorted(os.listdir(absolute_directory_path))
-        random_ = random.Random(314159)  # Consistent seed for reproducible randomization
+        random_ = random.Random(314159 + int(randomized_profile_id))  # Deterministic per participant
 
         # Separate familiarization (F) and experimental (E) trial folders
         participants_f_assignments = [
