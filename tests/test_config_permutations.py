@@ -2,6 +2,7 @@ import json
 import re
 import string
 import tempfile
+import random
 from pathlib import Path
 
 import pytest
@@ -384,7 +385,7 @@ def test_singleton_trials_are_not_front_loaded(tmp_path):
 
 def test_repeat_trials_can_start_early_but_are_not_front_loaded(tmp_path):
     dataset_dir = tmp_path / "dataset"
-    names = [f"T{i}" for i in range(1, 13)]
+    names = [f"T{i}" for i in range(1, 31)]
     write_trial_dataset(dataset_dir, names)
     write_repeat_csv(dataset_dir, [("T1", 2)])
 
@@ -401,14 +402,38 @@ def test_repeat_trials_can_start_early_but_are_not_front_loaded(tmp_path):
         first_repeat_indices.append(next(i for i, name in enumerate(order) if name == "T1"))
 
     assert min(first_repeat_indices) <= 2
-    assert max(first_repeat_indices) >= 9
+    assert max(first_repeat_indices) >= 7
+    assert len(set(first_repeat_indices)) >= 4
+
+
+def test_repeat_trials_keep_twelve_slot_spacing_between_copies(tmp_path):
+    dataset_dir = tmp_path / "dataset"
+    names = [f"T{i}" for i in range(1, 31)]
+    write_trial_dataset(dataset_dir, names)
+    write_repeat_csv(dataset_dir, [("T1", 2)])
+
+    for profile_id in range(60):
+        _, _, order = ru.build_trial_paths(
+            str(dataset_dir),
+            profile_id,
+            fam_trial_prefixes=["F"],
+            exp_trial_prefixes=["T"],
+            repeat_trials=True,
+            different_randomized_trial_order_per_participant=True,
+        )
+
+        positions = [i for i, name in enumerate(order) if name == "T1"]
+        gaps = [b - a for a, b in zip(positions, positions[1:])]
+        assert len(positions) == 3
+        assert all(gap >= 12 for gap in gaps)
 
 
 def test_repeat_anchor_redistribution_places_copies_at_target_slots():
-    order = ["T1", "A", "B", "T1", "C", "D", "T1"]
-    redistributed = ru._redistribute_repeats_by_anchor_targets(order, {"T1": 2})
+    order = ["T1"] + [f"A{i}" for i in range(1, 34)]
+    redistributed = ru._redistribute_repeats_by_anchor_targets(order, {"T1": 2}, random.Random(1))
     positions = [idx for idx, name in enumerate(redistributed) if name == "T1"]
-    assert positions == ru._evenly_spaced_targets(len(order), 3)
+    assert len(positions) == 3
+    assert all(gap >= 12 for gap in [b - a for a, b in zip(positions, positions[1:])])
 
 
 def _hex_luminance(value: str) -> float:
@@ -425,7 +450,7 @@ def test_symmetry_heatmap_legend_is_monotonic_light_to_dark():
 
     legend_colors = []
     for line in svg_lines:
-        if 'y="798"' in line and line.startswith("<rect x=\""):
+        if re.search(r'y="798(?:\.00)?"', line) and line.startswith("<rect x=\""):
             match = re.search(r'fill="(#[0-9a-f]{6})"', line)
             if match:
                 legend_colors.append(match.group(1))
@@ -442,7 +467,7 @@ def test_symmetry_heatmap_legend_has_a_stronger_final_step():
 
     legend_colors = []
     for line in svg_lines:
-        if 'y="798"' in line and line.startswith("<rect x=\""):
+        if re.search(r'y="798(?:\.00)?"', line) and line.startswith("<rect x=\""):
             match = re.search(r'fill="(#[0-9a-f]{6})"', line)
             if match:
                 legend_colors.append(match.group(1))
@@ -451,3 +476,15 @@ def test_symmetry_heatmap_legend_has_a_stronger_final_step():
     deltas = [a - b for a, b in zip(luminances, luminances[1:])]
     assert len(deltas) >= 2
     assert deltas[-1] > deltas[-2]
+
+
+def test_analysis_heatmaps_keep_repeat_occurrence_labels():
+    from scripts import generate_randomization_plots as plots
+
+    trial_names, _, _ = plots.collect_trial_heatmap_data(3)
+    symmetry_names, _, _ = plots.collect_symmetry_heatmap_data(3)
+
+    assert any(name.endswith("_rep_0") for name in trial_names)
+    assert any(name.endswith("_rep_1") for name in trial_names)
+    assert any(name.endswith("_rep_0") for name in symmetry_names)
+    assert any(name.endswith("_rep_1") for name in symmetry_names)

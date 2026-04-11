@@ -70,40 +70,89 @@ def _evenly_spaced_targets(total_length, item_count):
     return targets
 
 
-def _redistribute_repeats_by_anchor_targets(order, repeat_counts):
-    """Spread repeated trial names across evenly spaced target slots."""
+MIN_REPEAT_GAP = 15
+REPEAT_FIRST_START_BIAS_POWER = 1.0
+
+
+def _weighted_choice_from_range(rng, start, stop, *, bias_power=1.0):
+    """Sample an integer in [start, stop] with a soft later-position bias."""
+    if stop <= start:
+        return start
+
+    weights = [float((value - start + 1) ** bias_power) for value in range(start, stop + 1)]
+    total_weight = sum(weights)
+    draw = rng.random() * total_weight
+    running = 0.0
+    for value, weight in zip(range(start, stop + 1), weights):
+        running += weight
+        if draw < running:
+            return value
+    return stop
+
+
+def _redistribute_repeats_by_anchor_targets(base_order, repeat_counts, rng, min_repeat_gap=MIN_REPEAT_GAP):
+    """Reserve repeated trial copies first, then fill the remaining slots."""
     repeat_names = set(repeat_counts.keys())
     if not repeat_names:
-        return order
+        return base_order
 
     repeated_occurrences = defaultdict(list)
     base_items = []
-    for name in order:
+    for name in base_order:
         if name in repeat_names:
             repeated_occurrences[name].append(name)
         else:
             base_items.append(name)
 
-    final_length = len(order)
+    final_length = len(base_items) + sum(len(repeated_occurrences[name]) + repeat_counts[name] for name in repeat_names)
     slots = [None] * final_length
+    group_specs = []
+    for name in sorted(repeat_names, key=_natural_sort_key):
+        total_copies = len(repeated_occurrences[name]) + repeat_counts[name]
+        max_first = final_length - 1 - min_repeat_gap * (total_copies - 1)
+        if max_first < 0:
+            raise RuntimeError(
+                f"Repeat group '{name}' with {total_copies} copies cannot fit "
+                f"with min gap {min_repeat_gap} in a list of length {final_length}."
+            )
+        first_target = _weighted_choice_from_range(
+            rng,
+            0,
+            max_first,
+            bias_power=REPEAT_FIRST_START_BIAS_POWER,
+        )
+        group_specs.append((first_target, -total_copies, name, total_copies))
 
-    repeat_entries = []
-    for name in sorted(repeated_occurrences.keys(), key=_natural_sort_key):
-        targets = _evenly_spaced_targets(final_length, len(repeated_occurrences[name]))
-        for occurrence_idx, target in enumerate(targets):
-            repeat_entries.append((target, name, occurrence_idx))
+    for first_target, _, name, total_copies in sorted(
+        group_specs,
+        key=lambda item: (item[0], item[1], _natural_sort_key(item[2])),
+    ):
+        max_start = final_length - 1 - min_repeat_gap * (total_copies - 1)
+        start = None
+        candidate_positions = None
 
-    for target, name, occurrence_idx in sorted(repeat_entries, key=lambda item: (item[0], _natural_sort_key(item[1]), item[2])):
-        pos = target
-        while pos < final_length and slots[pos] is not None:
-            pos += 1
-        if pos >= final_length:
-            pos = target
-            while pos >= 0 and slots[pos] is not None:
-                pos -= 1
-        if pos < 0:
-            pos = 0
-        slots[pos] = name
+        for candidate in range(first_target, max_start + 1):
+            positions = [candidate + i * min_repeat_gap for i in range(total_copies)]
+            if all(slots[pos] is None for pos in positions):
+                start = candidate
+                candidate_positions = positions
+                break
+
+        if start is None:
+            for candidate in range(0, first_target):
+                positions = [candidate + i * min_repeat_gap for i in range(total_copies)]
+                if positions[-1] >= final_length:
+                    continue
+                if all(slots[pos] is None for pos in positions):
+                    start = candidate
+                    candidate_positions = positions
+                    break
+
+        if candidate_positions is None:
+            raise RuntimeError("Could not place repeat trial copies without exhausting slots.")
+
+        for pos in candidate_positions:
+            slots[pos] = name
 
     base_iter = iter(base_items)
     for idx in range(final_length):
@@ -182,33 +231,6 @@ def build_trial_paths(
             except Exception:
                 repeat_counts = {}
 
-        if repeat_counts:
-            base_order = e_folders_shuffled[:]
-
-            def insert_farthest(ap_list, trial_name):
-                positions = [i for i, name in enumerate(ap_list) if name == trial_name]
-                if not positions:
-                    ap_list.append(trial_name)
-                    return
-
-                best_pos = 0
-                best_min_dist = -1
-                n = len(ap_list)
-                for pos in range(n + 1):
-                    min_dist = min(abs(pos - p) for p in positions)
-                    if min_dist > best_min_dist:
-                        best_min_dist = min_dist
-                        best_pos = pos
-                ap_list.insert(best_pos, trial_name)
-
-            spaced_order = base_order[:]
-            for trial_name in sorted(repeat_counts.keys()):
-                extra = repeat_counts[trial_name]
-                for _ in range(extra):
-                    insert_farthest(spaced_order, trial_name)
-
-            e_folders_shuffled = _redistribute_repeats_by_anchor_targets(spaced_order, repeat_counts)
-
     groups_by_base = {}
     for name in e_folders_shuffled:
         base_key, _ = parse_experimental_trial_name(name)
@@ -249,6 +271,12 @@ def build_trial_paths(
         prev_key = chosen_key
 
     e_folders_shuffled = spread_order
+    if repeat_trials and repeat_counts:
+        e_folders_shuffled = _redistribute_repeats_by_anchor_targets(
+            e_folders_shuffled,
+            repeat_counts,
+            random_,
+        )
 
     f_paths = [
         os.path.join(os.path.join(absolute_directory_path, entry), "simulation_data.json")

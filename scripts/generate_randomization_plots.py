@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import html
 from collections import defaultdict
+from collections import Counter
 from pathlib import Path
 import statistics
+import re
 import sys
 
 
@@ -34,6 +36,15 @@ def _natural_trial_key(value: str):
     return parts
 
 
+def _repeat_aware_trial_key(value: str):
+    match = re.match(r"^(.*)_rep_(\d+)$", value)
+    if match:
+        base = match.group(1)
+        rep_idx = int(match.group(2))
+        return _natural_trial_key(base) + [(0, rep_idx)]
+    return _natural_trial_key(value) + [(1, -1)]
+
+
 def _percentile(values, p):
     if not values:
         return 0.0
@@ -45,6 +56,22 @@ def _percentile(values, p):
     hi = min(lo + 1, len(values) - 1)
     frac = idx - lo
     return values[lo] * (1 - frac) + values[hi] * frac
+
+
+def _hex_lerp(start_hex: str, end_hex: str, t: float) -> str:
+    t = max(0.0, min(1.0, t))
+    start_hex = start_hex.lstrip("#")
+    end_hex = end_hex.lstrip("#")
+    sr = int(start_hex[0:2], 16)
+    sg = int(start_hex[2:4], 16)
+    sb = int(start_hex[4:6], 16)
+    er = int(end_hex[0:2], 16)
+    eg = int(end_hex[2:4], 16)
+    eb = int(end_hex[4:6], 16)
+    r = round(sr + (er - sr) * t)
+    g = round(sg + (eg - sg) * t)
+    b = round(sb + (eb - sb) * t)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def collect_repeat_data(num_participants: int):
@@ -90,6 +117,68 @@ def collect_repeat_data(num_participants: int):
                 gap_values[(name, i)].append(right - left)
 
     return repeated_names or [], per_participant_positions, per_name_occurrence_positions, gap_values, monotonic_violations, max_slot
+
+
+def collect_trial_heatmap_data(num_participants: int):
+    counts_by_name = defaultdict(lambda: defaultdict(int))
+    max_slot = 0
+
+    for profile_id in range(num_participants):
+        _, _, trial_order = ru.build_trial_paths(
+            "trial_data/JTAP_Experiment_1",
+            profile_id,
+            fam_trial_prefixes=["F"],
+            exp_trial_prefixes=["T"],
+            repeat_trials=True,
+            different_randomized_trial_order_per_participant=True,
+        )
+        total_counts = Counter(trial_order)
+        seen_counts = defaultdict(int)
+        max_slot = max(max_slot, len(trial_order))
+        for slot_idx, name in enumerate(trial_order):
+            occurrence_idx = seen_counts[name]
+            seen_counts[name] += 1
+            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
+            counts_by_name[label][slot_idx] += 1
+
+    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
+    return trial_names, counts_by_name, max_slot
+
+
+def collect_symmetry_heatmap_data(num_participants: int):
+    counts_by_name = defaultdict(lambda: defaultdict(int))
+    max_count = 0
+
+    for profile_id in range(num_participants):
+        _, trial_paths, trial_order = ru.build_trial_paths(
+            "trial_data/JTAP_Experiment_1",
+            profile_id,
+            fam_trial_prefixes=["F"],
+            exp_trial_prefixes=["T"],
+            repeat_trials=True,
+            different_randomized_trial_order_per_participant=True,
+        )
+        total_counts = Counter(trial_order)
+        seen_counts = defaultdict(int)
+        transform_map = ru.build_symmetry_transform_map(
+            trial_paths,
+            trial_order,
+            repeat_trials=True,
+            apply_symmetry_to_repeated_trials=True,
+            different_randomized_symmetry_transform_per_participant=True,
+            randomized_profile_id=profile_id,
+        )
+
+        for idx, name in enumerate(trial_order):
+            occurrence_idx = seen_counts[name]
+            seen_counts[name] += 1
+            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
+            transform_index = transform_map[idx] + 1
+            counts_by_name[label][transform_index] += 1
+            max_count = max(max_count, counts_by_name[label][transform_index])
+
+    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
+    return trial_names, counts_by_name, max_count
 
 
 def _svg_header(width: int, height: int) -> list[str]:
@@ -343,6 +432,178 @@ def generate_repeat_validation_svg(num_participants: int = 100, output_path: Pat
     return output_path
 
 
+def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: Path | None = None):
+    trial_names, counts_by_name, max_slot = collect_trial_heatmap_data(num_participants)
+
+    if output_path is None:
+        output_path = REPO_ROOT / "analysis_trial_order_spread" / "trial_order_heatmap.svg"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    width = 786
+    left_margin = 92
+    top_margin = 70
+    row_h = 11
+    cell_w = 9
+    cell_h = 10
+    n_rows = len(trial_names)
+    matrix_w = max_slot * cell_w
+    height = top_margin + n_rows * row_h + 120
+
+    slot_labels = list(range(1, max_slot + 1))
+    tick_slots = [1]
+    for start in range(11, max_slot + 1, 10):
+        tick_slots.append(start)
+    if slot_labels and slot_labels[-1] not in tick_slots:
+        tick_slots.append(slot_labels[-1])
+
+    max_count = max((max(row.values()) for row in counts_by_name.values()), default=1)
+    lines = []
+    lines.extend(_svg_header(width, height))
+    lines.append(_text(width / 2, 28, "JTAP_Experiment_1", size=15, fill="#111827", anchor="middle"))
+    lines.append(
+        _text(
+            width / 2,
+            48,
+            f"Trial-position heatmap with randomized ordering for {num_participants} participants",
+            size=12,
+            fill="#475569",
+            anchor="middle",
+        )
+    )
+    lines.append(_line(6, 58, width - 8, 58, stroke="#e5edf5"))
+
+    for tick in tick_slots:
+        x = left_margin + (tick - 1) * cell_w + cell_w / 2
+        lines.append(_line(x, top_margin, x, top_margin + n_rows * row_h + 3, stroke="#eef2f7", width=0.8))
+        lines.append(_text(x + 4.5, top_margin + n_rows * row_h + 20, str(tick), size=8, fill="#475569", anchor="middle"))
+
+    for row_idx, name in enumerate(trial_names):
+        y = top_margin + row_idx * row_h
+        lines.append(_text(left_margin - 8, y + 8, name, size=9, fill="#111827", anchor="end"))
+        lines.append(_line(left_margin - 4, y + 4, left_margin, y + 4, stroke="#94a3b8", width=1, dash="2,3"))
+        for slot_idx in range(max_slot):
+            count = counts_by_name[name].get(slot_idx, 0)
+            fill = "#f7fbff" if count == 0 else _hex_lerp("#d9e8f5", "#0b4f8a", count / max_count)
+            x = left_margin + slot_idx * cell_w
+            lines.append(_rect(x, y, cell_w, cell_h, fill, stroke="#ffffff", width=0.35))
+
+    lines.extend(_svg_footer())
+    output_path.write_text("\n".join(lines) + "\n")
+    return output_path
+
+
+def _symmetry_heatmap_palette():
+    return [
+        "#fff7f5",
+        "#fef0ec",
+        "#fde7e1",
+        "#fbd9cf",
+        "#f8c8bc",
+        "#f3b5a9",
+        "#ec9c90",
+        "#e17f72",
+        "#d46557",
+        "#c34f42",
+        "#b33e33",
+        "#a4342b",
+        "#932a22",
+        "#4a0f0d",
+    ]
+
+
+def _symmetry_heatmap_color(count: int, max_count: int) -> str:
+    palette = _symmetry_heatmap_palette()
+    if max_count <= 0:
+        return palette[0]
+    if len(palette) == 1:
+        return palette[0]
+    if count <= 0:
+        return palette[0]
+    if count >= max_count:
+        return palette[-1]
+
+    scaled = round(count * (len(palette) - 1) / max_count)
+    return palette[max(0, min(len(palette) - 1, scaled))]
+
+
+def generate_symmetry_transform_heatmap_svg(num_participants: int = 100, output_path: Path | None = None):
+    trial_names, counts_by_name, max_count = collect_symmetry_heatmap_data(num_participants)
+
+    if output_path is None:
+        output_path = REPO_ROOT / "analysis_trial_order_spread" / "symmetry_transform_heatmap.svg"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    width = 470
+    left_margin = 60
+    top_margin = 70
+    row_h = 11
+    cell_w = 32
+    cell_h = 10
+    n_rows = len(trial_names)
+    matrix_bottom = top_margin + n_rows * row_h + 3
+    legend_label_y = matrix_bottom + 28
+    legend_y = matrix_bottom + 36
+    height = legend_y + 42
+
+    lines = []
+    lines.extend(_svg_header(width, height))
+    lines.append(_text(width / 2, 28, "JTAP_Experiment_1", size=15, fill="#111827", anchor="middle"))
+    lines.append(
+        _text(
+            width / 2,
+            48,
+            f"Symmetry-transform heatmap with randomized ordering for {num_participants} participants",
+            size=12,
+            fill="#475569",
+            anchor="middle",
+        )
+    )
+    lines.append(_line(6, 58, width - 8, 58, stroke="#e5edf5"))
+
+    for tick in range(1, 9):
+        x = left_margin + (tick - 1) * cell_w
+        lines.append(_line(x, top_margin, x, matrix_bottom, stroke="#eef2f7", width=0.8))
+        lines.append(_text(x + 15, matrix_bottom + 20, str(tick), size=8, fill="#475569", anchor="middle"))
+
+    for row_idx, name in enumerate(trial_names):
+        y = top_margin + row_idx * row_h
+        lines.append(_text(left_margin - 8, y + 8, name, size=9, fill="#111827", anchor="end"))
+        lines.append(_line(left_margin - 4, y + 4, left_margin, y + 4, stroke="#94a3b8", width=1, dash="2,3"))
+        for slot_idx in range(8):
+            count = counts_by_name[name].get(slot_idx + 1, 0)
+            fill = _symmetry_heatmap_color(count, max_count)
+            x = left_margin + slot_idx * cell_w
+            lines.append(_rect(x, y, cell_w - 2, cell_h, fill, stroke="#ffffff", width=0.35))
+
+    legend_x = 60
+    legend_cell_w = 20
+    legend_cell_h = 13
+    legend_colors = [_symmetry_heatmap_color(i, max_count or 13) for i in range(0, (max_count or 13) + 1)]
+    lines.append(
+        _text(
+            legend_x,
+            legend_label_y,
+            f"Participant count in transform slot (empirical max = {max_count})",
+            size=9,
+            fill="#475569",
+            anchor="start",
+        )
+    )
+    for idx, color in enumerate(legend_colors):
+        lines.append(_rect(legend_x + idx * legend_cell_w, legend_y, legend_cell_w, legend_cell_h, color, stroke="none"))
+    lines.append(_rect(legend_x, legend_y, legend_cell_w * len(legend_colors), legend_cell_h, "none", stroke="#94a3b8", width=0.5))
+    if max_count > 0:
+        mid_count = max_count // 2
+        legend_label_y2 = legend_y + 28
+        lines.append(_text(legend_x, legend_label_y2, "0", size=9, fill="#475569", anchor="middle"))
+        lines.append(_text(legend_x + (legend_cell_w * mid_count), legend_label_y2, str(mid_count), size=9, fill="#475569", anchor="middle"))
+        lines.append(_text(legend_x + (legend_cell_w * max_count), legend_label_y2, str(max_count), size=9, fill="#475569", anchor="middle"))
+
+    lines.extend(_svg_footer())
+    output_path.write_text("\n".join(lines) + "\n")
+    return output_path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -357,9 +618,25 @@ def main():
         default=None,
         help="Optional output path for the SVG plot.",
     )
+    parser.add_argument(
+        "--trial-heatmap-output",
+        type=Path,
+        default=None,
+        help="Optional output path for the trial-order heatmap SVG.",
+    )
+    parser.add_argument(
+        "--symmetry-heatmap-output",
+        type=Path,
+        default=None,
+        help="Optional output path for the symmetry-transform heatmap SVG.",
+    )
     args = parser.parse_args()
-    path = generate_repeat_validation_svg(args.num_participants, args.output)
-    print(f"Wrote {path}")
+    repeat_path = generate_repeat_validation_svg(args.num_participants, args.output)
+    trial_heatmap_path = generate_trial_order_heatmap_svg(args.num_participants, args.trial_heatmap_output)
+    symmetry_heatmap_path = generate_symmetry_transform_heatmap_svg(args.num_participants, args.symmetry_heatmap_output)
+    print(f"Wrote {repeat_path}")
+    print(f"Wrote {trial_heatmap_path}")
+    print(f"Wrote {symmetry_heatmap_path}")
 
 
 if __name__ == "__main__":
