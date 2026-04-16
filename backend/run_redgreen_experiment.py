@@ -97,11 +97,11 @@ except ImportError:
 # EXPERIMENT CONFIGURATION - MODIFY THESE VARIABLES TO CUSTOMIZE EXPERIMENT
 #=============================================================================
 PATH_TO_DATA_FOLDER = 'trial_data'  #RELATIVE path to the folder containing all trial datasets
-DATASET_NAME = 'JTAP_Experiment_1'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
+DATASET_NAME = 'redgreen_experiment_1'  # Specific dataset folder name within PATH_TO_DATA_FOLDER
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['T']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'experiment_1_pilot_debug'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'exp_1_pilot_debug'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # If True, each participant gets a different randomized experimental trial order.
 # If False, everyone gets the same deterministic randomized order.
@@ -111,7 +111,7 @@ _timeout_min = int(os.environ.get('TIMEOUT_PERIOD_MINUTES', '50'))
 TIMEOUT_PERIOD = timedelta(minutes=_timeout_min)  # Maximum time before session expires
 _check_min = int(os.environ.get('CHECK_TIMEOUT_INTERVAL_MINUTES', '5'))
 check_TIMEOUT_interval = timedelta(minutes=_check_min)  # How often to check for timeouts
-NUM_PARTICIPANTS = 150  # Target number of participants to recruit
+NUM_PARTICIPANTS = 100  # Target number of participants to recruit
 PROLIFIC_COMPLETION_URL = os.environ.get(
     'PROLIFIC_COMPLETION_URL',
     'https://app.prolific.com/submissions/complete?cc=CIF4CGOI'
@@ -119,7 +119,7 @@ PROLIFIC_COMPLETION_URL = os.environ.get(
 
 # Buffer for additional participants to account for dropouts and invalid responses
 # This ensures we can still reach our target even if some participants don't complete
-PARTICIPANT_BUFFER = 2000
+PARTICIPANT_BUFFER = 50
 
 # If True, duplicate specific experimental trials according to repeat.csv
 # in the dataset folder (one row per trial name and number of extra
