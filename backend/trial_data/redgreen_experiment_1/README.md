@@ -4,7 +4,7 @@ This folder contains the preregistered stimulus set for the Red-Green Human Stud
 
 ## Folder structure
 
-Each trial has its own folder, named by trial ID, for example `T1A/`, `T9/`, or `T30/`.
+Each trial has its own folder, named by trial ID, for example `T1A/`, `T9/`, or `T30/`. The six familiarization trials are `F1` to `F6`, and they follow the same folder structure as the experimental trials.
 
 Inside each trial folder:
 
@@ -13,6 +13,7 @@ Inside each trial folder:
 - `{trial_id}_stimulus.mp4`: the rendered stimulus video for that trial. This is what participants would see, at the same frame rate (30 FPS).
 
 At the top level, the folder contains 62 unique trial directories. After applying the repetition schedule in `repeat.csv`, these expand to 74 experimental trials in the actual experiment.
+The familiarization trials also included and follow the same folder structure, even though they are not part of the 74 experimental trials counted above.
 
 ## Metadata files
 
