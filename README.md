@@ -173,7 +173,7 @@ pytest
 To regenerate the repeat-order validation plot, run:
 
 ```bash
-python scripts/generate_randomization_plots.py --num-participants 100
+python scripts/generate_randomization_plots.py --dataset-name redgreen_experiment_1
 ```
 
-This writes `analysis_trial_order_spread/repeat_order_validation.svg`.
+This writes PNG files into `analysis_trial_order_spread/`.

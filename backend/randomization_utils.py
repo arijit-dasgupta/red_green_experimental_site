@@ -1,5 +1,6 @@
 import json
 import hashlib
+import csv
 import os
 import random
 import re
@@ -48,6 +49,15 @@ def _natural_sort_key(value):
         else:
             key.append((1, part))
     return key
+
+
+def _repeat_aware_trial_key(value):
+    match = re.match(r"^(.*)_rep_(\d+)$", value)
+    if match:
+        base = match.group(1)
+        rep_idx = int(match.group(2))
+        return _natural_sort_key(base) + [(0, rep_idx)]
+    return _natural_sort_key(value) + [(1, -1)]
 
 
 def _evenly_spaced_targets(total_length, item_count):
@@ -160,6 +170,173 @@ def _redistribute_repeats_by_anchor_targets(base_order, repeat_counts, rng, min_
             slots[idx] = next(base_iter)
 
     return slots
+
+
+def _get_trial_data_dataset_dir(*, dataset_name, trial_data_root=None):
+    """
+    Return the dataset directory under backend/trial_data for the given dataset name.
+    """
+    if not dataset_name:
+        raise ValueError("dataset_name is required")
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    root_dir = trial_data_root or os.path.join(script_dir, "trial_data")
+    dataset_dir = os.path.join(root_dir, dataset_name)
+    if not os.path.isdir(dataset_dir):
+        raise FileNotFoundError(
+            f"Dataset directory not found: {dataset_dir}. "
+            "Expected a subdirectory inside backend/trial_data."
+        )
+    return dataset_dir
+
+
+def load_trial_order_details(*, dataset_name, trial_data_root=None):
+    """
+    Load the raw trial_order_details.csv for a dataset from backend/trial_data.
+    """
+    dataset_dir = _get_trial_data_dataset_dir(dataset_name=dataset_name, trial_data_root=trial_data_root)
+    csv_path = os.path.join(dataset_dir, "trial_order_details.csv")
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"Missing trial order file: {csv_path}")
+
+    rows = []
+    with open(csv_path, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not row:
+                continue
+            try:
+                rows.append({
+                    "base_trial_name": row["base_trial_name"],
+                    "session_id": int(row["session_id"]),
+                    "repeat_instance_index": int(row["repeat_instance_index"]),
+                    "trial_order_position": int(row["trial_order_position"]),
+                    "symmetry_transform": int(row["symmetry_transform"]),
+                })
+            except (KeyError, TypeError, ValueError) as e:
+                raise ValueError(f"Invalid row in {csv_path}: {row}") from e
+
+    rows.sort(key=lambda row: (row["session_id"], row["trial_order_position"], row["repeat_instance_index"], row["base_trial_name"]))
+    return rows
+
+
+def _count_trial_instances_by_session(trial_order_rows):
+    counts = defaultdict(lambda: defaultdict(int))
+    for row in trial_order_rows:
+        counts[row["session_id"]][row["base_trial_name"]] += 1
+    return counts
+
+
+def collect_repeat_data_from_trial_order_details(*, dataset_name, trial_data_root=None):
+    """
+    Collect repeat-order validation data from raw trial_order_details.csv rows.
+    Returns the same structure the SVG helper expects, but driven by empirical data.
+    """
+    rows = load_trial_order_details(dataset_name=dataset_name, trial_data_root=trial_data_root)
+    if not rows:
+        return [], [], defaultdict(lambda: defaultdict(list)), defaultdict(list), defaultdict(int), 0
+
+    per_participant_positions = []
+    per_name_occurrence_positions = defaultdict(lambda: defaultdict(list))
+    gap_values = defaultdict(list)
+    monotonic_violations = defaultdict(int)
+    max_slot = 0
+
+    rows_by_session = defaultdict(list)
+    for row in rows:
+        rows_by_session[row["session_id"]].append(row)
+
+    repeated_name_set = set()
+    for session_rows in rows_by_session.values():
+        session_counts = defaultdict(int)
+        for row in session_rows:
+            session_counts[row["base_trial_name"]] += 1
+        repeated_name_set.update(name for name, count in session_counts.items() if count > 1)
+    repeated_names = sorted(repeated_name_set, key=_natural_sort_key)
+
+    for session_id in sorted(rows_by_session.keys()):
+        session_rows = rows_by_session[session_id]
+        max_slot = max(max_slot, len(session_rows))
+
+        positions_by_name = defaultdict(list)
+        for row in session_rows:
+            positions_by_name[row["base_trial_name"]].append(row["trial_order_position"] - 1)
+
+        per_participant_positions.append(positions_by_name)
+
+        for name in repeated_names:
+            positions = positions_by_name.get(name, [])
+            if any(right < left for left, right in zip(positions, positions[1:])):
+                monotonic_violations[name] += 1
+            for occurrence_idx, slot_idx in enumerate(positions):
+                per_name_occurrence_positions[name][occurrence_idx].append(slot_idx)
+            for i, (left, right) in enumerate(zip(positions, positions[1:])):
+                gap_values[(name, i)].append(right - left)
+
+    return repeated_names or [], per_participant_positions, per_name_occurrence_positions, gap_values, monotonic_violations, max_slot
+
+
+def collect_trial_heatmap_data_from_trial_order_details(*, dataset_name, trial_data_root=None):
+    """
+    Build trial-order heatmap counts from raw trial_order_details.csv rows.
+    """
+    rows = load_trial_order_details(dataset_name=dataset_name, trial_data_root=trial_data_root)
+    counts_by_name = defaultdict(lambda: defaultdict(int))
+    max_slot = 0
+
+    rows_by_session = defaultdict(list)
+    for row in rows:
+        rows_by_session[row["session_id"]].append(row)
+
+    for session_id in sorted(rows_by_session.keys()):
+        session_rows = rows_by_session[session_id]
+        total_counts = defaultdict(int)
+        for row in session_rows:
+            total_counts[row["base_trial_name"]] += 1
+        seen_counts = defaultdict(int)
+        max_slot = max(max_slot, len(session_rows))
+
+        for row in session_rows:
+            name = row["base_trial_name"]
+            occurrence_idx = seen_counts[name]
+            seen_counts[name] += 1
+            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
+            counts_by_name[label][row["trial_order_position"] - 1] += 1
+
+    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
+    return trial_names, counts_by_name, max_slot
+
+
+def collect_symmetry_heatmap_data_from_trial_order_details(*, dataset_name, trial_data_root=None):
+    """
+    Build symmetry-transform heatmap counts from raw trial_order_details.csv rows.
+    """
+    rows = load_trial_order_details(dataset_name=dataset_name, trial_data_root=trial_data_root)
+    counts_by_name = defaultdict(lambda: defaultdict(int))
+    max_count = 0
+
+    rows_by_session = defaultdict(list)
+    for row in rows:
+        rows_by_session[row["session_id"]].append(row)
+
+    for session_id in sorted(rows_by_session.keys()):
+        session_rows = rows_by_session[session_id]
+        total_counts = defaultdict(int)
+        for row in session_rows:
+            total_counts[row["base_trial_name"]] += 1
+        seen_counts = defaultdict(int)
+
+        for row in session_rows:
+            name = row["base_trial_name"]
+            occurrence_idx = seen_counts[name]
+            seen_counts[name] += 1
+            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
+            transform_index = int(row["symmetry_transform"]) + 1
+            counts_by_name[label][transform_index] += 1
+            max_count = max(max_count, counts_by_name[label][transform_index])
+
+    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
+    return trial_names, counts_by_name, max_count
 
 
 def build_trial_paths(

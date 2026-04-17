@@ -455,10 +455,9 @@ def _legend_swatches(svg_lines):
 
 
 def test_symmetry_heatmap_legend_is_monotonic_light_to_dark():
-    svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
-    svg_lines = svg_path.read_text().splitlines()
+    from scripts import generate_randomization_plots as plots
 
-    legend_colors = _legend_swatches(svg_lines)
+    legend_colors = plots._interpolated_palette("#fff7f5", "#4a0f0d", plots.HEATMAP_LEGEND_SWATCHES)
 
     assert len(legend_colors) == 12
     luminances = [_hex_luminance(color) for color in legend_colors]
@@ -467,10 +466,9 @@ def test_symmetry_heatmap_legend_is_monotonic_light_to_dark():
 
 
 def test_symmetry_heatmap_legend_has_a_stronger_final_step():
-    svg_path = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg")
-    svg_lines = svg_path.read_text().splitlines()
+    from scripts import generate_randomization_plots as plots
 
-    legend_colors = _legend_swatches(svg_lines)
+    legend_colors = plots._symmetry_heatmap_palette()
 
     luminances = [_hex_luminance(color) for color in legend_colors]
     assert len(luminances) == 12
@@ -481,8 +479,8 @@ def test_symmetry_heatmap_legend_has_a_stronger_final_step():
 def test_analysis_heatmaps_keep_repeat_occurrence_labels():
     from scripts import generate_randomization_plots as plots
 
-    trial_names, _, _ = plots.collect_trial_heatmap_data(3)
-    symmetry_names, _, _ = plots.collect_symmetry_heatmap_data(3)
+    trial_names, _, _ = plots.collect_trial_heatmap_data(dataset_name="redgreen_experiment_1")
+    symmetry_names, _, _ = plots.collect_symmetry_heatmap_data(dataset_name="redgreen_experiment_1")
 
     assert any(name.endswith("_rep_0") for name in trial_names)
     assert any(name.endswith("_rep_1") for name in trial_names)
@@ -491,8 +489,10 @@ def test_analysis_heatmaps_keep_repeat_occurrence_labels():
 
 
 def test_analysis_heatmaps_use_capped_legends():
-    trial_svg = Path("analysis_trial_order_spread/trial_order_heatmap.svg").read_text().splitlines()
-    symmetry_svg = Path("analysis_trial_order_spread/symmetry_transform_heatmap.svg").read_text().splitlines()
+    from scripts import generate_randomization_plots as plots
 
-    assert len(_legend_swatches(trial_svg)) == 12
-    assert len(_legend_swatches(symmetry_svg)) == 12
+    trial_colors = plots._interpolated_palette("#ffffff", "#0b4f8a", plots.HEATMAP_LEGEND_SWATCHES)
+    symmetry_colors = plots._symmetry_heatmap_palette()
+
+    assert len(trial_colors) == 12
+    assert len(symmetry_colors) == 12

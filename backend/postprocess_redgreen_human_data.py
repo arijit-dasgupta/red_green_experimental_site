@@ -599,14 +599,18 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
     Returns:
         dict: Dictionary keyed by (global_trial_name, repeat_instance_index) of dataframes
     """
-    if trial_df.empty or keystate_df.empty:
-        print("No trial or keystate data to save.")
+    if trial_df.empty:
+        print("No trial data to save.")
         return {}
 
-    required_cols = ['trial_id', 'session_id', 'global_trial_name', 'rg_outcome']
     if 'repeat_instance_index' not in trial_df.columns:
         trial_df = trial_df.copy()
         trial_df['repeat_instance_index'] = 0
+    if 'symmetry_transform' not in trial_df.columns:
+        trial_df = trial_df.copy()
+        trial_df['symmetry_transform'] = 0
+
+    required_cols = ['trial_id', 'session_id', 'global_trial_name', 'rg_outcome']
     export_cols = required_cols + ['repeat_instance_index']
     missing_in_trial = [c for c in required_cols if c not in trial_df.columns]
     if missing_in_trial:
@@ -618,6 +622,28 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
             "Found trials with empty global_trial_name. "
             f"Offending trial_ids: {trial_df.loc[empty_trial_names, 'trial_id'].tolist()}"
         )
+
+    trial_order_details = trial_df.copy()
+    if 'trial_index' not in trial_order_details.columns:
+        raise ValueError(
+            "Missing column 'trial_index' in trial_df needed to export trial order details."
+        )
+    if 'symmetry_transform' not in trial_order_details.columns:
+        trial_order_details['symmetry_transform'] = 0
+    trial_order_details['repeat_instance_index'] = trial_order_details['repeat_instance_index'].fillna(0).astype(int)
+    trial_order_details['symmetry_transform'] = trial_order_details['symmetry_transform'].fillna(0).astype(int)
+    trial_order_details = trial_order_details.rename(columns={'global_trial_name': 'base_trial_name'})
+    trial_order_details['trial_order_position'] = trial_order_details['trial_index'].astype(int) + 1
+    trial_order_details = trial_order_details[
+        ['base_trial_name', 'session_id', 'repeat_instance_index', 'trial_order_position', 'symmetry_transform']
+    ].sort_values(['session_id', 'trial_order_position', 'repeat_instance_index', 'base_trial_name'])
+    trial_order_details_filepath = os.path.join(path_to_data, 'trial_order_details.csv')
+    trial_order_details.to_csv(trial_order_details_filepath, index=False)
+
+    if keystate_df.empty:
+        print(f"Saved trial order details to {trial_order_details_filepath}")
+        print("No keystate data to save.")
+        return {}
 
     kstate_no_name = keystate_df.drop(columns=['global_trial_name', 'repeat_instance_index'], errors='ignore')
 
@@ -682,6 +708,7 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
         csv_filepath = os.path.join(path_to_data, trial_name, csv_filename)
         trial_data.to_csv(csv_filepath, index=False)
 
+    print(f"Saved trial order details to {trial_order_details_filepath}")
     print(f"Saved human data as CSV files in {path_to_data}")
     return keystate_by_trial
 

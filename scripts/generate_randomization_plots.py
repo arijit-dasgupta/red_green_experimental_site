@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import subprocess
 from collections import defaultdict
 from collections import Counter
 from pathlib import Path
@@ -141,111 +142,16 @@ def _add_horizontal_legend(
     return bar_y + 13, label_y
 
 
-def collect_repeat_data(num_participants: int):
-    repeated_names = None
-    per_participant_positions = []
-    per_name_occurrence_positions = defaultdict(lambda: defaultdict(list))
-    gap_values = defaultdict(list)
-    monotonic_violations = defaultdict(int)
-    max_slot = 0
-
-    for profile_id in range(num_participants):
-        _, _, trial_order = ru.build_trial_paths(
-            "trial_data/JTAP_Experiment_1",
-            profile_id,
-            fam_trial_prefixes=["F"],
-            exp_trial_prefixes=["T"],
-            repeat_trials=True,
-            different_randomized_trial_order_per_participant=True,
-        )
-
-        max_slot = max(max_slot, len(trial_order))
-        if repeated_names is None:
-            counts = defaultdict(int)
-            for name in trial_order:
-                counts[name] += 1
-            repeated_names = sorted(
-                [name for name, count in counts.items() if count > 1],
-                key=_natural_trial_key,
-            )
-
-        positions_by_name = defaultdict(list)
-        for slot_idx, name in enumerate(trial_order):
-            positions_by_name[name].append(slot_idx)
-
-        per_participant_positions.append(positions_by_name)
-        for name in repeated_names:
-            positions = positions_by_name.get(name, [])
-            if any(right < left for left, right in zip(positions, positions[1:])):
-                monotonic_violations[name] += 1
-            for occurrence_idx, slot_idx in enumerate(positions):
-                per_name_occurrence_positions[name][occurrence_idx].append(slot_idx)
-            for i, (left, right) in enumerate(zip(positions, positions[1:])):
-                gap_values[(name, i)].append(right - left)
-
-    return repeated_names or [], per_participant_positions, per_name_occurrence_positions, gap_values, monotonic_violations, max_slot
+def collect_repeat_data(*, dataset_name: str):
+    return ru.collect_repeat_data_from_trial_order_details(dataset_name=dataset_name)
 
 
-def collect_trial_heatmap_data(num_participants: int):
-    counts_by_name = defaultdict(lambda: defaultdict(int))
-    max_slot = 0
-
-    for profile_id in range(num_participants):
-        _, _, trial_order = ru.build_trial_paths(
-            "trial_data/JTAP_Experiment_1",
-            profile_id,
-            fam_trial_prefixes=["F"],
-            exp_trial_prefixes=["T"],
-            repeat_trials=True,
-            different_randomized_trial_order_per_participant=True,
-        )
-        total_counts = Counter(trial_order)
-        seen_counts = defaultdict(int)
-        max_slot = max(max_slot, len(trial_order))
-        for slot_idx, name in enumerate(trial_order):
-            occurrence_idx = seen_counts[name]
-            seen_counts[name] += 1
-            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
-            counts_by_name[label][slot_idx] += 1
-
-    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
-    return trial_names, counts_by_name, max_slot
+def collect_trial_heatmap_data(*, dataset_name: str):
+    return ru.collect_trial_heatmap_data_from_trial_order_details(dataset_name=dataset_name)
 
 
-def collect_symmetry_heatmap_data(num_participants: int):
-    counts_by_name = defaultdict(lambda: defaultdict(int))
-    max_count = 0
-
-    for profile_id in range(num_participants):
-        _, trial_paths, trial_order = ru.build_trial_paths(
-            "trial_data/JTAP_Experiment_1",
-            profile_id,
-            fam_trial_prefixes=["F"],
-            exp_trial_prefixes=["T"],
-            repeat_trials=True,
-            different_randomized_trial_order_per_participant=True,
-        )
-        total_counts = Counter(trial_order)
-        seen_counts = defaultdict(int)
-        transform_map = ru.build_symmetry_transform_map(
-            trial_paths,
-            trial_order,
-            repeat_trials=True,
-            apply_symmetry_to_repeated_trials=True,
-            different_randomized_symmetry_transform_per_participant=True,
-            randomized_profile_id=profile_id,
-        )
-
-        for idx, name in enumerate(trial_order):
-            occurrence_idx = seen_counts[name]
-            seen_counts[name] += 1
-            label = f"{name}_rep_{occurrence_idx}" if total_counts[name] > 1 else name
-            transform_index = transform_map[idx] + 1
-            counts_by_name[label][transform_index] += 1
-            max_count = max(max_count, counts_by_name[label][transform_index])
-
-    trial_names = sorted(counts_by_name.keys(), key=_repeat_aware_trial_key)
-    return trial_names, counts_by_name, max_count
+def collect_symmetry_heatmap_data(*, dataset_name: str):
+    return ru.collect_symmetry_heatmap_data_from_trial_order_details(dataset_name=dataset_name)
 
 
 def _svg_header(width: int, height: int) -> list[str]:
@@ -298,12 +204,42 @@ def _text(x, y, value, size=10, fill="#111827", anchor="start", weight="400"):
     )
 
 
-def generate_repeat_validation_svg(num_participants: int = 100, output_path: Path | None = None):
-    repeated_names, per_participant_positions, per_name_occurrence_positions, gap_values, monotonic_violations, max_slot = collect_repeat_data(num_participants)
+def _render_svg_to_png(svg_path: Path, png_path: Path):
+    png_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            ["rsvg-convert", "-f", "png", "-o", str(png_path), str(svg_path)],
+            check=True,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        subprocess.run(
+            ["convert", str(svg_path), str(png_path)],
+            check=True,
+            capture_output=True,
+        )
+    finally:
+        if svg_path.exists():
+            svg_path.unlink()
+
+
+def _save_svg_lines_as_png(lines: list[str], output_path: Path):
+    output_path = Path(output_path)
+    if output_path.suffix.lower() != ".png":
+        output_path = output_path.with_suffix(".png")
+    svg_path = output_path.with_suffix(".svg")
+    svg_path.parent.mkdir(parents=True, exist_ok=True)
+    svg_path.write_text("\n".join(lines) + "\n")
+    _render_svg_to_png(svg_path, output_path)
+    return output_path
+
+
+def generate_repeat_validation_svg(*, dataset_name: str, output_path: Path | None = None):
+    repeated_names, per_participant_positions, per_name_occurrence_positions, gap_values, monotonic_violations, max_slot = collect_repeat_data(dataset_name=dataset_name)
+    num_participants = len(per_participant_positions)
 
     if output_path is None:
-        output_path = REPO_ROOT / "analysis_trial_order_spread" / "repeat_order_validation.svg"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = REPO_ROOT / "analysis_trial_order_spread" / "repeat_order_validation.png"
 
     width = 980
     left_margin = 150
@@ -495,16 +431,15 @@ def generate_repeat_validation_svg(num_participants: int = 100, output_path: Pat
     lines.append(_text(hist_x0 - 6, hist_inner_top - 16, "Count", size=9, fill="#64748b", anchor="end"))
 
     lines.extend(_svg_footer())
-    output_path.write_text("\n".join(lines) + "\n")
-    return output_path
+    return _save_svg_lines_as_png(lines, Path(output_path))
 
 
-def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: Path | None = None):
-    trial_names, counts_by_name, max_slot = collect_trial_heatmap_data(num_participants)
+def generate_trial_order_heatmap_svg(*, dataset_name: str, output_path: Path | None = None):
+    trial_names, counts_by_name, max_slot = collect_trial_heatmap_data(dataset_name=dataset_name)
+    num_participants = len({row["session_id"] for row in ru.load_trial_order_details(dataset_name=dataset_name)})
 
     if output_path is None:
-        output_path = REPO_ROOT / "analysis_trial_order_spread" / "trial_order_heatmap.svg"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = REPO_ROOT / "analysis_trial_order_spread" / "trial_order_heatmap.png"
 
     width = 786
     left_margin = 92
@@ -571,8 +506,7 @@ def generate_trial_order_heatmap_svg(num_participants: int = 100, output_path: P
     )
 
     lines.extend(_svg_footer())
-    output_path.write_text("\n".join(lines) + "\n")
-    return output_path
+    return _save_svg_lines_as_png(lines, Path(output_path))
 
 
 def _symmetry_heatmap_palette():
@@ -594,12 +528,12 @@ def _symmetry_heatmap_color(count: int, max_count: int) -> str:
     return palette[max(0, min(len(palette) - 1, scaled))]
 
 
-def generate_symmetry_transform_heatmap_svg(num_participants: int = 100, output_path: Path | None = None):
-    trial_names, counts_by_name, max_count = collect_symmetry_heatmap_data(num_participants)
+def generate_symmetry_transform_heatmap_svg(*, dataset_name: str, output_path: Path | None = None):
+    trial_names, counts_by_name, max_count = collect_symmetry_heatmap_data(dataset_name=dataset_name)
+    num_participants = len({row["session_id"] for row in ru.load_trial_order_details(dataset_name=dataset_name)})
 
     if output_path is None:
-        output_path = REPO_ROOT / "analysis_trial_order_spread" / "symmetry_transform_heatmap.svg"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path = REPO_ROOT / "analysis_trial_order_spread" / "symmetry_transform_heatmap.png"
 
     width = 470
     left_margin = 60
@@ -657,40 +591,39 @@ def generate_symmetry_transform_heatmap_svg(num_participants: int = 100, output_
     )
 
     lines.extend(_svg_footer())
-    output_path.write_text("\n".join(lines) + "\n")
-    return output_path
+    return _save_svg_lines_as_png(lines, Path(output_path))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--num-participants",
-        type=int,
-        default=100,
-        help="Number of simulated participants to include in the validation plot.",
+        "--dataset-name",
+        type=str,
+        required=True,
+        help="Dataset name under backend/trial_data to read trial_order_details.csv from.",
     )
     parser.add_argument(
         "--output",
         type=Path,
         default=None,
-        help="Optional output path for the SVG plot.",
+        help="Optional output path for the repeat-validation PNG plot.",
     )
     parser.add_argument(
         "--trial-heatmap-output",
         type=Path,
         default=None,
-        help="Optional output path for the trial-order heatmap SVG.",
+        help="Optional output path for the trial-order heatmap PNG.",
     )
     parser.add_argument(
         "--symmetry-heatmap-output",
         type=Path,
         default=None,
-        help="Optional output path for the symmetry-transform heatmap SVG.",
+        help="Optional output path for the symmetry-transform heatmap PNG.",
     )
     args = parser.parse_args()
-    repeat_path = generate_repeat_validation_svg(args.num_participants, args.output)
-    trial_heatmap_path = generate_trial_order_heatmap_svg(args.num_participants, args.trial_heatmap_output)
-    symmetry_heatmap_path = generate_symmetry_transform_heatmap_svg(args.num_participants, args.symmetry_heatmap_output)
+    repeat_path = generate_repeat_validation_svg(dataset_name=args.dataset_name, output_path=args.output)
+    trial_heatmap_path = generate_trial_order_heatmap_svg(dataset_name=args.dataset_name, output_path=args.trial_heatmap_output)
+    symmetry_heatmap_path = generate_symmetry_transform_heatmap_svg(dataset_name=args.dataset_name, output_path=args.symmetry_heatmap_output)
     print(f"Wrote {repeat_path}")
     print(f"Wrote {trial_heatmap_path}")
     print(f"Wrote {symmetry_heatmap_path}")
