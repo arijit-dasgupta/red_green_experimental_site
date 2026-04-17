@@ -260,6 +260,17 @@ class REDGREEN_Session(db.Model):
     post_experiment_feedback = db.Column(db.Text, nullable=True)
     post_experiment_feedback_submitted = db.Column(db.Boolean, default=False)
 
+
+def _current_run_session_filter():
+    """
+    Restrict queries to sessions created for the currently configured dataset/run.
+    """
+    return and_(
+        REDGREEN_Session.dataset_name == DATASET_NAME,
+        REDGREEN_Session.experiment_run_version == EXPERIMENT_RUN_VERSION,
+    )
+
+
 class Trial(db.Model):
     """
     Individual trial records within a session. Contains trial-specific data
@@ -335,6 +346,7 @@ def print_active_sessions():
     # Query for all profile IDs that are considered "active" (occupied)
     # This includes completed sessions, currently active sessions, and flagged sessions
     active_profile_ids = db.session.query(REDGREEN_Session.randomized_profile_id).filter(
+        _current_run_session_filter(),
         or_(
             REDGREEN_Session.ignore_data == True,  # Manually flagged sessions
             or_(
@@ -951,6 +963,7 @@ def start_experiment(experiment_name):
 
     # Find next available profile ID by checking which ones are currently occupied
     active_profile_ids = db.session.query(REDGREEN_Session.randomized_profile_id).filter(
+        _current_run_session_filter(),
         or_(
             REDGREEN_Session.ignore_data == True,  # Manually flagged sessions
             or_(

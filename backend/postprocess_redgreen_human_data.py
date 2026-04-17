@@ -45,8 +45,143 @@ def _load_allowed_repeat_trial_names(path_to_data):
     return allowed
 
 
+def _load_catch_trial_names(path_to_data):
+    """
+    Load ordered list of catch-trial names from catch_trials.txt in path_to_data.
+    Returns an empty list if the file is missing or unreadable.
+    """
+    catch_trials_path = os.path.join(path_to_data, "catch_trials.txt")
+    if not os.path.exists(catch_trials_path):
+        return []
+
+    catch_trial_names = []
+    try:
+        with open(catch_trials_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                catch_trial_names.append(line)
+    except Exception as e:
+        print(f"Warning: could not read catch_trials.txt at {catch_trials_path}: {e}")
+        return []
+
+    return catch_trial_names
+
+
+def _compute_session_exclusion_info(
+    trial_df,
+    catch_trial_names=None,
+    single_keypress_score_min=15,
+    single_keypress_score_max=25,
+    single_keypress_trial_fraction_threshold=0.5,
+    catch_score_threshold=40,
+    catch_min_correct=4,
+):
+    """
+    Compute session IDs flagged by each exclusion rule.
+
+    Returns:
+        dict with sorted session ID lists for each criterion and their union.
+    """
+    empty_info = {
+        "single_keypress_session_ids": [],
+        "catch_failure_session_ids": [],
+        "excluded_session_ids": [],
+        "catch_failure_details": [],
+    }
+    if trial_df is None or trial_df.empty or "session_id" not in trial_df.columns:
+        return empty_info
+
+    catch_trial_names = catch_trial_names or []
+
+    trial_df = trial_df.copy()
+    trial_df["score"] = pd.to_numeric(trial_df["score"], errors="coerce")
+
+    in_midrange = trial_df["score"].between(single_keypress_score_min, single_keypress_score_max, inclusive="both")
+    per_session_trial_counts = trial_df.groupby("session_id").size()
+    per_session_midrange_counts = in_midrange.groupby(trial_df["session_id"]).sum()
+    per_session_midrange_fraction = (
+        per_session_midrange_counts / per_session_trial_counts.replace(0, np.nan)
+    ).fillna(0)
+
+    single_keypress_session_ids = sorted(
+        per_session_midrange_fraction[
+            per_session_midrange_fraction > single_keypress_trial_fraction_threshold
+        ].index.tolist()
+    )
+
+    catch_failure_session_ids = []
+    catch_failure_details = []
+    if catch_trial_names:
+        all_session_ids = sorted(trial_df["session_id"].dropna().unique().tolist())
+        catch_trial_set = set(catch_trial_names)
+        catch_trial_df = trial_df[trial_df["global_trial_name"].isin(catch_trial_set)].copy()
+        if catch_trial_df.empty:
+            catch_failure_session_ids = all_session_ids
+            catch_failure_details = [
+                {
+                    "session_id": int(session_id),
+                    "n_correct": 0,
+                    "n_failed": int(len(catch_trial_names)),
+                    "n_missing": int(len(catch_trial_names)),
+                    "n_total_catch_trials": int(len(catch_trial_names)),
+                }
+                for session_id in all_session_ids
+            ]
+        else:
+            catch_trial_df["is_catch_correct"] = catch_trial_df["score"] > catch_score_threshold
+            catch_correct_counts = (
+                catch_trial_df.groupby("session_id")["is_catch_correct"]
+                .sum()
+                .reindex(all_session_ids, fill_value=0)
+            )
+            catch_present_counts = (
+                catch_trial_df.groupby("session_id")
+                .size()
+                .reindex(all_session_ids, fill_value=0)
+            )
+            catch_failure_mask = (
+                (catch_present_counts < len(catch_trial_names))
+                | (catch_correct_counts < catch_min_correct)
+            )
+            catch_failure_session_ids = sorted(
+                catch_failure_mask[catch_failure_mask].index.tolist()
+            )
+            for session_id in catch_failure_session_ids:
+                n_correct = int(catch_correct_counts.loc[session_id])
+                n_present = int(catch_present_counts.loc[session_id])
+                n_missing = max(0, int(len(catch_trial_names) - n_present))
+                n_failed = int(len(catch_trial_names) - n_correct)
+                catch_failure_details.append({
+                    "session_id": int(session_id),
+                    "n_correct": n_correct,
+                    "n_failed": n_failed,
+                    "n_missing": n_missing,
+                    "n_total_catch_trials": int(len(catch_trial_names)),
+                })
+
+    excluded_session_ids = sorted(
+        set(single_keypress_session_ids).union(catch_failure_session_ids)
+    )
+
+    return {
+        "single_keypress_session_ids": single_keypress_session_ids,
+        "catch_failure_session_ids": catch_failure_session_ids,
+        "excluded_session_ids": excluded_session_ids,
+        "catch_failure_details": catch_failure_details,
+    }
+
+
 def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial_prefixes=None, 
-                       allow_incomplete_sessions=False, session_ids=None): 
+                       allow_incomplete_sessions=False, session_ids=None,
+                       apply_session_exclusion_criteria=True,
+                       single_keypress_score_min=15,
+                       single_keypress_score_max=25,
+                       single_keypress_trial_fraction_threshold=0.5,
+                       catch_score_threshold=40,
+                       catch_min_correct=4,
+                       enforce_shared_symmetry_transform=False): 
     """
     Extract human experiment data from database and match with trial data files.
     
@@ -57,7 +192,15 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
         fam_trial_prefixes: List of prefixes for familiarization trials (e.g., ['F'])
         allow_incomplete_sessions: If True, include sessions that are not marked as completed
         session_ids: List of specific session IDs to include (None means include all matching sessions)
-    
+        apply_session_exclusion_criteria: If True, exclude sessions flagged by either criterion
+        single_keypress_score_min: Lower score bound for the single-keypress exclusion criterion
+        single_keypress_score_max: Upper score bound for the single-keypress exclusion criterion
+        single_keypress_trial_fraction_threshold: Exclude if more than this fraction of trials are in the score band
+        catch_score_threshold: Score threshold for a catch trial to count as correct
+        catch_min_correct: Minimum number of correct catch trials required to keep a session
+        enforce_shared_symmetry_transform: If True, require each (global_trial_name, repeat_instance_index)
+            to have the same symmetry_transform across participants
+
     Returns:
         tuple: (session_df, trial_df, keystate_df, rgplot_df, valid_trial_ids, global_trial_names)
     """
@@ -74,6 +217,11 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     allowed_repeat_trial_names = _load_allowed_repeat_trial_names(path_to_data)
     if allowed_repeat_trial_names:
         print(f"Trials allowed to repeat (from repeat.csv): {sorted(allowed_repeat_trial_names)}")
+    catch_trial_names = _load_catch_trial_names(path_to_data)
+    if catch_trial_names:
+        print(f"Catch trials (from catch_trials.txt): {catch_trial_names}")
+    else:
+        print("No catch_trials.txt found; catch-trial exclusion criterion will not exclude any sessions.")
 
     # Step 2: Load session data with optional filtering
     if allow_incomplete_sessions:
@@ -209,8 +357,61 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
             ignore_index=True
         )
 
-    # Symmetry check: for each (global_trial_name, repeat_instance_index), symmetry_transform must be the same for all participants
-    if "symmetry_transform" in trial_df.columns:
+    exclusion_info = _compute_session_exclusion_info(
+        trial_df,
+        catch_trial_names=catch_trial_names,
+        single_keypress_score_min=single_keypress_score_min,
+        single_keypress_score_max=single_keypress_score_max,
+        single_keypress_trial_fraction_threshold=single_keypress_trial_fraction_threshold,
+        catch_score_threshold=catch_score_threshold,
+        catch_min_correct=catch_min_correct,
+    )
+    single_keypress_session_ids = exclusion_info["single_keypress_session_ids"]
+    catch_failure_session_ids = exclusion_info["catch_failure_session_ids"]
+    excluded_session_ids = exclusion_info["excluded_session_ids"]
+    catch_failure_details = exclusion_info["catch_failure_details"]
+
+    print(
+        "Criterion 1 - single-keypress-like sessions "
+        f"({single_keypress_score_min} to {single_keypress_score_max} on more than "
+        f"{100 * single_keypress_trial_fraction_threshold:.0f}% of trials): "
+        f"{single_keypress_session_ids} (n={len(single_keypress_session_ids)})"
+    )
+    print(
+        "Criterion 2 - failed catch sessions "
+        f"(< {catch_min_correct} of {len(catch_trial_names)} catch trials above {catch_score_threshold}): "
+        f"{catch_failure_session_ids} (n={len(catch_failure_session_ids)})"
+    )
+    if catch_failure_details:
+        print("Catch-trial failures by session:")
+        for detail in catch_failure_details:
+            missing_text = f", missing={detail['n_missing']}" if detail["n_missing"] > 0 else ""
+            print(
+                f"  Session {detail['session_id']}: "
+                f"failed {detail['n_failed']} of {detail['n_total_catch_trials']} "
+                f"(correct={detail['n_correct']}{missing_text})"
+            )
+
+    if apply_session_exclusion_criteria and excluded_session_ids:
+        session_df = session_df[~session_df["session_id"].isin(excluded_session_ids)].copy()
+        trial_df = trial_df[~trial_df["session_id"].isin(excluded_session_ids)].copy()
+        print(
+            f"Excluded session IDs after applying session exclusion criteria: "
+            f"{excluded_session_ids} (n={len(excluded_session_ids)})"
+        )
+    elif apply_session_exclusion_criteria:
+        print("No session IDs met the exclusion criteria.")
+    else:
+        print("Session exclusion criteria were computed but not applied.")
+
+    print(f"Sessions that made the cut: {len(session_df)}")
+    session_df.attrs["single_keypress_session_ids"] = single_keypress_session_ids
+    session_df.attrs["catch_failure_session_ids"] = catch_failure_session_ids
+    session_df.attrs["excluded_session_ids"] = excluded_session_ids
+    session_df.attrs["catch_failure_details"] = catch_failure_details
+
+    # Symmetry may be randomized per participant. Keep the old consistency check optional.
+    if "symmetry_transform" in trial_df.columns and enforce_shared_symmetry_transform:
         sym_check = (
             trial_df.groupby(["global_trial_name", "repeat_instance_index"])["symmetry_transform"]
             .agg(lambda x: x.dropna().nunique())
@@ -222,6 +423,19 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
                 "Symmetry transform must be the same for all participants for each (global_trial_name, repeat_instance_index). "
                 "Different values indicate inconsistent trial ordering across participants.\n"
                 f"Offending (global_trial_name, repeat_instance_index):\n{bad}"
+            )
+    elif "symmetry_transform" in trial_df.columns:
+        varying_symmetry = (
+            trial_df.groupby(["global_trial_name", "repeat_instance_index"])["symmetry_transform"]
+            .agg(lambda x: x.dropna().nunique())
+            .reset_index()
+        )
+        varying_symmetry = varying_symmetry[varying_symmetry["symmetry_transform"] > 1]
+        if not varying_symmetry.empty:
+            print(
+                "Detected participant-randomized symmetry transforms for "
+                f"{len(varying_symmetry)} (global_trial_name, repeat_instance_index) groups; "
+                "continuing because enforce_shared_symmetry_transform=False."
             )
 
     # Step 5: Load keystate data and filter for valid trials
@@ -472,13 +686,17 @@ def save_human_data_by_trial(trial_df, keystate_df, path_to_data):
     return keystate_by_trial
 
 
-def load_click_data(db_path):
+def load_click_data(db_path, session_ids=None):
     """
     Load click-point data from trial_pause_click table (if it exists).
     Joins with trial to get global_trial_name and repeat_instance_index.
     Returns a DataFrame with columns including session_id, trial_id, pause_frame,
     click_bottom_left_x/y, ball_x/y, diameters_away. When present in the DB,
     also includes trial_name (from c) and reaction_time_ms.
+
+    Args:
+        db_path: Path to the SQLite database file
+        session_ids: Optional list of session IDs to include
     """
     engine = create_engine(f"sqlite:///{db_path}")
     with engine.connect() as conn:
@@ -516,8 +734,14 @@ def load_click_data(db_path):
           AND s.completed = 1
           AND t.trial_type = 'trial'
           AND t.completed = 1
-        ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id
     """
+    if session_ids is not None:
+        session_ids = list(session_ids)
+        if len(session_ids) == 0:
+            return pd.DataFrame()
+        session_ids_str = ", ".join(map(str, session_ids))
+        query += f" AND c.session_id IN ({session_ids_str})"
+    query += "\n        ORDER BY t.global_trial_name, t.repeat_instance_index, c.session_id\n    "
     click_df = pd.read_sql(query, engine)
     if "reaction_time_ms" not in click_df.columns:
         click_df["reaction_time_ms"] = np.nan
@@ -950,4 +1174,3 @@ def extract_occlusion_data(path_to_data, participant_FPS=15):
         for stat, value in continuous_summary_stats.items():
             print(f"{stat}: {value:.2f}")
     return occlusion_durations, occlusion_frames, continuous_occlusion_periods, all_periods_seconds
-
