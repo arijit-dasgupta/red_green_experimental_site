@@ -57,7 +57,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             On <strong>some trials</strong>, the animation will pause at a <strong>random moment</strong>.
                         </li>
                         <li style={{ marginBottom: 10 }}>
-                            You will be asked to <strong>click where you think the ball is</strong> in the scene.
+                            You will be asked to <strong>click where the ball is at the moment the trial pauses</strong>, not where you think it will end up.
                         </li>
                         <li style={{ marginBottom: 10 }}>
                             <strong>The ball will disappear</strong> the moment the trial pauses, whether or not it was visible at that time.
@@ -67,7 +67,11 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             <strong style={{ color: '#FFC107' }}>gold border</strong> to catch your attention.
                         </li>
                         <li style={{ marginBottom: 10 }}>
-                            After you indicate where you think the ball is, you no longer need to predict where the ball will end up for that trial.
+                            <strong>Do not click where you think the ball will end up.</strong> {' '}
+                            <strong style={{ color: '#c62828' }}>IMPORTANT:</strong> click the ball’s <strong>actual location at pause time</strong>.
+                        </li>
+                        <li style={{ marginBottom: 10 }}>
+                            After you indicate where the ball is <strong>at the pause moment</strong>, you no longer need to predict where the ball will end up for that trial.
                         </li>
                         <li>
                             Afterward, you'll see <strong>where the ball was</strong> and <strong>which goal it ends up in</strong>.
@@ -76,7 +80,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                     <div style={{ marginTop: 18 }}>
                         <em>
                             This will only happen on a portion of the trials.
-                            For <strong>most of the trials</strong>, you will just predict which of the two goals the ball will end in (without being asked about the ball's current position).
+                            For <strong>most of the trials</strong>, you will just predict which of the two goals the ball will end in, and <strong>you will not be asked to place the ball</strong>.
                         </em>
                     </div>
                 </div>
