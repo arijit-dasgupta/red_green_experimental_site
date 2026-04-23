@@ -57,7 +57,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             On <strong>some trials</strong>, the animation will pause at a <strong>random moment</strong>.
                         </li>
                         <li style={{ marginBottom: 10 }}>
-                            You will be asked to <strong>click where the ball is at the moment the trial pauses</strong>, not where you think it will end up.
+                            You will be asked to <strong>click where the ball is at the moment the trial pauses</strong>.
                         </li>
                         <li style={{ marginBottom: 10 }}>
                             <strong>The ball will disappear</strong> the moment the trial pauses, whether or not it was visible at that time.
