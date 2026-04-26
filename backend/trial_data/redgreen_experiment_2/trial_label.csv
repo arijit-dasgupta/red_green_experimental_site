@@ -1,0 +1,34 @@
+trial_name,label
+L1,Calibration (No Occlusion)
+L2,Calibration (No Occlusion)
+L3,Calibration (No Occlusion)
+L4,Calibration (No Occlusion)
+L5,Calibration (Occlusion)
+L6,Calibration (Occlusion)
+L7,Calibration (Occlusion)
+L8,Calibration (Occlusion)
+L9,Calibration (Occlusion)
+L10,Calibration (Occlusion)
+L11,Calibration (Occlusion)
+L12,Calibration (Occlusion)
+L13,Diagnostic
+L14,Diagnostic
+L15,Diagnostic
+L16,Diagnostic
+L17,Diagnostic
+L18,Diagnostic
+L19,Diagnostic
+L20,Diagnostic
+L21,Diagnostic
+L22,Diagnostic
+L23,Diagnostic
+L24,Diagnostic
+L25,Diagnostic
+L26,Diagnostic
+L27,Diagnostic
+L28,Diagnostic
+L71,Catch
+L72,Catch
+L73,Catch
+L74,Catch
+L75,Catch

@@ -45,6 +45,29 @@ def _load_allowed_repeat_trial_names(path_to_data):
     return allowed
 
 
+def _load_click_trial_names(path_to_data):
+    """
+    Load set of trial names that have click-point pauses from click_points.csv in path_to_data.
+    Returns an empty set if the file is missing or unreadable.
+    """
+    click_trial_names = set()
+    csv_path = os.path.join(path_to_data, "click_points.csv")
+    if not os.path.exists(csv_path):
+        return click_trial_names
+    try:
+        with open(csv_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = [p.strip() for p in line.split(",")]
+                if len(parts) >= 1:
+                    click_trial_names.add(parts[0])
+    except Exception as e:
+        print(f"Warning: could not read click_points.csv at {csv_path}: {e}")
+    return click_trial_names
+
+
 def _load_catch_trial_names(path_to_data):
     """
     Load ordered list of catch-trial names from catch_trials.txt in path_to_data.
@@ -72,6 +95,7 @@ def _load_catch_trial_names(path_to_data):
 def _compute_session_exclusion_info(
     trial_df,
     catch_trial_names=None,
+    click_trial_names=None,
     single_keypress_score_min=15,
     single_keypress_score_max=25,
     single_keypress_trial_fraction_threshold=0.5,
@@ -94,13 +118,18 @@ def _compute_session_exclusion_info(
         return empty_info
 
     catch_trial_names = catch_trial_names or []
+    click_trial_names = set(click_trial_names) if click_trial_names else set()
 
     trial_df = trial_df.copy()
     trial_df["score"] = pd.to_numeric(trial_df["score"], errors="coerce")
 
-    in_midrange = trial_df["score"].between(single_keypress_score_min, single_keypress_score_max, inclusive="both")
-    per_session_trial_counts = trial_df.groupby("session_id").size()
-    per_session_midrange_counts = in_midrange.groupby(trial_df["session_id"]).sum()
+    # Criterion 1: exclude click trials — their scores naturally land near 20 when
+    # the participant releases keys to click, so they would inflate the mid-range fraction.
+    c1_df = trial_df[~trial_df["global_trial_name"].isin(click_trial_names)] if click_trial_names else trial_df
+
+    in_midrange = c1_df["score"].between(single_keypress_score_min, single_keypress_score_max, inclusive="both")
+    per_session_trial_counts = c1_df.groupby("session_id").size()
+    per_session_midrange_counts = in_midrange.groupby(c1_df["session_id"]).sum()
     per_session_midrange_fraction = (
         per_session_midrange_counts / per_session_trial_counts.replace(0, np.nan)
     ).fillna(0)
@@ -222,6 +251,9 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
         print(f"Catch trials (from catch_trials.txt): {catch_trial_names}")
     else:
         print("No catch_trials.txt found; catch-trial exclusion criterion will not exclude any sessions.")
+    click_trial_names = _load_click_trial_names(path_to_data)
+    if click_trial_names:
+        print(f"Click trials detected (from click_points.csv): {sorted(click_trial_names)} — excluded from Criterion 1")
 
     # Step 2: Load session data with optional filtering
     if allow_incomplete_sessions:
@@ -360,6 +392,7 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     exclusion_info = _compute_session_exclusion_info(
         trial_df,
         catch_trial_names=catch_trial_names,
+        click_trial_names=click_trial_names,
         single_keypress_score_min=single_keypress_score_min,
         single_keypress_score_max=single_keypress_score_max,
         single_keypress_trial_fraction_threshold=single_keypress_trial_fraction_threshold,
@@ -896,6 +929,195 @@ def save_click_data_by_trial(click_df, path_to_data):
         csv_filepath = os.path.join(trial_dir, csv_filename)
         group.to_csv(csv_filepath, index=False)
     print(f"Saved click data as CSV files in {path_to_data}")
+
+
+def filter_click_data_reaction_time(click_df, max_rt_ms=5000):
+    """
+    Remove individual click data points where reaction_time_ms > max_rt_ms.
+    Prints how many points were excluded and a breakdown by trial and participant.
+    Returns the filtered DataFrame.
+    """
+    if click_df is None or click_df.empty:
+        return click_df
+    if "reaction_time_ms" not in click_df.columns:
+        print("Reaction time filter: 'reaction_time_ms' column not found; skipping.")
+        return click_df
+
+    mask_too_slow = click_df["reaction_time_ms"].notna() & (click_df["reaction_time_ms"] > max_rt_ms)
+    n_excluded = int(mask_too_slow.sum())
+
+    if n_excluded == 0:
+        print(f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
+        return click_df
+
+    excluded = click_df[mask_too_slow]
+    print(
+        f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): "
+        f"{n_excluded} data point(s) excluded out of {len(click_df)}."
+    )
+
+    by_trial = (
+        excluded.groupby("global_trial_name").size()
+        .sort_values(ascending=False)
+        .reset_index(name="n_excluded")
+    )
+    print("  Excluded by trial:")
+    for _, row in by_trial.iterrows():
+        print(f"    {row['global_trial_name']}: {int(row['n_excluded'])} excluded")
+
+    if "session_id" in excluded.columns:
+        by_session = (
+            excluded.groupby("session_id").size()
+            .sort_values(ascending=False)
+            .reset_index(name="n_excluded")
+        )
+        print("  Excluded by participant (session_id):")
+        for _, row in by_session.iterrows():
+            print(f"    Session {int(row['session_id'])}: {int(row['n_excluded'])} excluded")
+
+    return click_df[~mask_too_slow].copy()
+
+
+def compute_click_goal_proximity_session_exclusions(
+    click_df,
+    path_to_data,
+    max_diameters_from_goal_edge=2.0,
+    fraction_threshold=0.5,
+):
+    """
+    Criterion 4: Exclude participants where more than fraction_threshold of their
+    click trials have a click position (symmetry-corrected) within max_diameters_from_goal_edge
+    ball diameters of any goal region boundary.
+
+    Args:
+        click_df: DataFrame from load_click_data (positions in symmetry-transformed frame).
+        path_to_data: Path to trial data directory (for simulation_data.json per trial).
+        max_diameters_from_goal_edge: Distance threshold in ball diameters.
+        fraction_threshold: Exclude participant if flagged fraction exceeds this value.
+
+    Returns:
+        List of excluded session_ids.
+    """
+    if click_df is None or click_df.empty:
+        print("Criterion 4 - goal proximity filter: empty click_df; no exclusions.")
+        return []
+
+    required_cols = ["session_id", "global_trial_name", "click_bottom_left_x",
+                     "click_bottom_left_y", "symmetry_transform"]
+    missing = [c for c in required_cols if c not in click_df.columns]
+    if missing:
+        print(f"Criterion 4 - goal proximity filter: missing columns {missing}; skipping.")
+        return []
+
+    def _inv_d4_idx(idx):
+        if idx == 1:
+            return 3
+        if idx == 3:
+            return 1
+        return idx or 0
+
+    def _d4_transform(x, y, W, H, ti):
+        cx, cy = W / 2.0, H / 2.0
+        matrices = {
+            0: (1, 0, 0, 1), 1: (0, -1, 1, 0), 2: (-1, 0, 0, -1), 3: (0, 1, -1, 0),
+            4: (-1, 0, 0, 1), 5: (1, 0, 0, -1), 6: (0, 1, 1, 0), 7: (0, -1, -1, 0),
+        }
+        a, b, c, d = matrices.get(ti, (1, 0, 0, 1))
+        dx, dy = x - cx, y - cy
+        return cx + a * dx + b * dy, cy + c * dx + d * dy
+
+    def _dist_to_rect_boundary(px, py, x0, y0, x1, y1):
+        inside_x = x0 <= px <= x1
+        inside_y = y0 <= py <= y1
+        if inside_x and inside_y:
+            return min(px - x0, x1 - px, py - y0, y1 - py)
+        nx = max(x0, min(px, x1))
+        ny = max(y0, min(py, y1))
+        return np.hypot(px - nx, py - ny)
+
+    # Load sensor geometry and radius per trial from simulation_data.json
+    trial_meta = {}
+    for trial_name in sorted(click_df["global_trial_name"].dropna().unique()):
+        sim_path = os.path.join(path_to_data, str(trial_name), "simulation_data.json")
+        if not os.path.exists(sim_path):
+            continue
+        try:
+            with open(sim_path) as f:
+                data = json.load(f)
+            if "scene_dims" in data:
+                W, H = float(data["scene_dims"][0]), float(data["scene_dims"][1])
+            else:
+                W = float(data.get("worldWidth", data.get("world_width", 20.0)))
+                H = float(data.get("worldHeight", data.get("world_height", 20.0)))
+            radius = float(data.get("radius") or (data.get("target", {}).get("size", 1.0) / 2.0))
+            sensors = []
+            for key in ("green_sensor", "red_sensor"):
+                s = data.get(key)
+                if s:
+                    x0 = float(s["x"])
+                    y0 = float(s["y"])
+                    sensors.append((x0, y0, x0 + float(s["width"]), y0 + float(s["height"])))
+            trial_meta[trial_name] = {"W": W, "H": H, "radius": radius, "sensors": sensors}
+        except Exception as e:
+            print(f"Warning: could not load simulation_data.json for {trial_name}: {e}")
+
+    if not trial_meta:
+        print("Criterion 4 - goal proximity filter: no trial metadata loaded; skipping.")
+        return []
+
+    def _is_near_goal(row):
+        meta = trial_meta.get(row["global_trial_name"])
+        if meta is None or not meta["sensors"]:
+            return False
+        radius = meta["radius"]
+        diameter = 2.0 * radius
+        W, H = meta["W"], meta["H"]
+        ti = int(row.get("symmetry_transform", 0) or 0)
+        inv_ti = _inv_d4_idx(ti)
+        cx_raw = float(row["click_bottom_left_x"]) + radius
+        cy_raw = float(row["click_bottom_left_y"]) + radius
+        cx, cy = _d4_transform(cx_raw, cy_raw, W, H, inv_ti) if inv_ti != 0 else (cx_raw, cy_raw)
+        return any(
+            _dist_to_rect_boundary(cx, cy, x0, y0, x1, y1) / diameter <= max_diameters_from_goal_edge
+            for (x0, y0, x1, y1) in meta["sensors"]
+        )
+
+    click_df = click_df.copy()
+    click_df["_near_goal"] = click_df.apply(_is_near_goal, axis=1)
+
+    rep_col = "repeat_instance_index" if "repeat_instance_index" in click_df.columns else None
+    group_cols = ["session_id", "global_trial_name"] + ([rep_col] if rep_col else [])
+
+    per_click = (
+        click_df.groupby(group_cols)["_near_goal"]
+        .any()
+        .reset_index()
+    )
+    per_participant = per_click.groupby("session_id").agg(
+        n_near_goal=("_near_goal", "sum"),
+        n_total=("_near_goal", "count"),
+    )
+    per_participant["fraction"] = (
+        per_participant["n_near_goal"] / per_participant["n_total"].replace(0, np.nan)
+    )
+
+    excluded_mask = per_participant["fraction"] > fraction_threshold
+    excluded_session_ids = sorted(per_participant[excluded_mask].index.tolist())
+
+    print(
+        f"Criterion 4 - goal proximity (within {max_diameters_from_goal_edge} diameters of goal edge "
+        f"on more than {100 * fraction_threshold:.0f}% of click trials): "
+        f"{excluded_session_ids} (n={len(excluded_session_ids)})"
+    )
+    print("  Goal proximity stats by participant:")
+    for sid, row in per_participant.sort_values("fraction", ascending=False).iterrows():
+        status = "EXCLUDED" if row["fraction"] > fraction_threshold else "kept"
+        print(
+            f"    Session {int(sid)}: {int(row['n_near_goal'])}/{int(row['n_total'])} "
+            f"near goal ({100 * row['fraction']:.1f}%) — {status}"
+        )
+
+    return excluded_session_ids
 
 
 def find_duplicate_completed_trials(trial_df):
