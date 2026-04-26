@@ -32,8 +32,8 @@
       "type": "barrier",
       "x": 1.6,
       "y": 16.1,
-      "width": 5.7,
-      "height": 1.5,
+      "width": 3.5,
+      "height": 1.1,
       "direction": 0
     },
     {
@@ -66,11 +66,8 @@
   ],
   "simulationParams": {
     "videoLength": 10,
-    "ballSpeed": 1.0,
+    "ballSpeed": 3.6,
     "fps": 30,
-    "res_multiplier": 1,
-    "physicsStepsPerFrame": 6,
-    "timestep": 0.02,
     "worldWidth": 20,
     "worldHeight": 20
   }

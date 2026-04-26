@@ -15,17 +15,16 @@ T14 -> L4
 # 2026-04-25 (random shuffle of T2C, T3B, T8A, T8B, T9, T13, T24, T28 -> L5..L12)
 T9  -> L5
 T3B -> L6
-T28 -> L7
+T28 -> L26
 T13 -> L8
 T24 -> L9
 T2C -> L10
 T8B -> L11
 T8A -> L12
 
-# 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L13..L28; L16 and L19 are new trials)
+# 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L13..L28; L15, L16 and L19 are new trials)
 T3A -> L13
 T2A -> L14
-T22 -> L15
 T5E -> L17
 T4F -> L18
 T5F -> L20
@@ -34,11 +33,12 @@ T4E -> L22
 T1B -> L23
 T6B -> L24
 T21 -> L25
-T29 -> L26
+T29 -> L7
 T25 -> L27
 T5C -> L28
 
 # 2026-04-25 (newly introduced trials)
+L15
 L16
 L19
 L29
