@@ -101,7 +101,7 @@ DATASET_NAME = 'redgreen_experiment_2'  # Specific dataset folder name within PA
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['L']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'debug_apr29'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'debug_apr29_v0'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # If True, each participant gets a different randomized experimental trial order.
 # If False, everyone gets the same deterministic randomized order.
@@ -141,6 +141,12 @@ APPLY_SYMMETRY_TO_REPEATED_TRIALS = True
 # for the same underlying trial order. If False, all participants share the
 # same deterministic symmetry assignment as before.
 DIFFERENT_RANDOMIZED_SYMMETRY_TRANSFORM_PER_PARTICIPANT = True
+
+# If True, after the participant places the ball in a click trial, they are also
+# prompted to click on the red or green goal to indicate their prediction.
+# The scene dims when this probe is active; hovering over a goal highlights it.
+# The goal choice (counterbalance-corrected) and RT are saved separately.
+CLICK_TRIAL_WITH_GOAL_PROBE = True
 
 # If True, apply one of the eight D4 symmetry transforms to every experimental
 # trial instance. Variant groups like T2A/T2B/T2C/T2D are assigned transforms
@@ -329,6 +335,23 @@ class TrialPauseClick(db.Model):
     # Reaction time (ms) from pause onset to valid click placement.
     reaction_time_ms = db.Column(db.Float, nullable=True)
     # Redundant with trial.global_trial_name; stored for convenience in exports/processing.
+    trial_name = db.Column(db.String(100), nullable=True)
+
+
+class TrialGoalProbe(db.Model):
+    """
+    Stores the participant's goal prediction click after ball placement in the
+    click-trial-with-goal-probe variant. One row per trial where the probe was shown.
+    goal_choice is already corrected for counterbalance ('red' or 'green' in
+    physical goal terms, not display terms).
+    reaction_time_ms is from ball-placement click to goal click.
+    """
+    __tablename__ = 'trial_goal_probe'
+    id = db.Column(db.Integer, primary_key=True)
+    trial_id = db.Column(db.Integer, db.ForeignKey('trial.id'), nullable=False)
+    session_id = db.Column(db.Integer, db.ForeignKey('redgreen_session.id'), nullable=False)
+    goal_choice = db.Column(db.String(10), nullable=False)   # 'red' or 'green' (counterbalance-corrected)
+    reaction_time_ms = db.Column(db.Float, nullable=True)    # ms from ball placement to goal click
     trial_name = db.Column(db.String(100), nullable=True)
 
 
@@ -1118,7 +1141,6 @@ def load_next_scene():
     
     # Handle resume functionality
     if resume_from_trial is not None:
-        print(f"RESUME DEBUG: Requested trial {resume_from_trial}")
         # COMPLETELY RESET config state for reliable resume behavior
         # This prevents any stale state from interfering with resume logic
         config.update({
@@ -1134,8 +1156,6 @@ def load_next_scene():
             'tscores': []                        # Reset trial scores for clean state
         })
         
-        print(f"RESUME DEBUG: Set config trial_i to {config['trial_i']} for trial {resume_from_trial}")
-        
         # Update the configuration in database IMMEDIATELY
         config_entry.config_data = config
         db.session.commit()
@@ -1145,8 +1165,6 @@ def load_next_scene():
     ftrial_i = config['ftrial_i']
     is_ftrial = config['is_ftrial']
     is_trial = config['is_trial']
-    
-    print(f"STATE DEBUG: trial_i={trial_i}, ftrial_i={ftrial_i}, is_ftrial={is_ftrial}, is_trial={is_trial}")
     
     # Validate config state integrity
     if resume_from_trial is not None:
@@ -1191,7 +1209,6 @@ def load_next_scene():
         # In experimental phase
         transition_to_exp_page = False
         npz_data = config["trial_datas"][trial_i]
-        print(f"EXP PHASE DEBUG: Loading trial_datas[{trial_i}] (1-based trial {trial_i + 1})")
         # Increment only after we ensure we are not reusing an existing trial (idempotency)
         is_trial = True
         finish = False
@@ -1400,6 +1417,7 @@ def load_next_scene():
         "is_repeated_trial": scene_is_repeated,
         "repeat_instance_index": scene_repeat_instance_index,
         "has_click_trials": has_click_trials,
+        "click_trial_with_goal_probe": CLICK_TRIAL_WITH_GOAL_PROBE if has_click_trials else False,
         "pause_at_frame": pause_at_frame,
         "ball_ever_occluded": ball_ever_occluded,
     }
@@ -1630,6 +1648,61 @@ def save_pause_click():
             ball_x=ball_x,
             ball_y=ball_y,
             diameters_away=diameters_away,
+            reaction_time_ms=reaction_time_ms,
+            trial_name=trial.global_trial_name,
+        )
+        db.session.add(row)
+        db.session.commit()
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/save_goal_probe', methods=['POST'])
+def save_goal_probe():
+    """
+    Save the participant's goal prediction click after ball placement in the
+    click-trial-with-goal-probe variant. goal_choice must already be
+    counterbalance-corrected (the frontend sends the physical goal, not the
+    display colour).  One row per trial; duplicate submissions are ignored.
+    """
+    try:
+        session_id = request.json.get('session_id')
+        if not session_id:
+            return jsonify({"error": "Session ID not provided"}), 401
+        trial_id = request.json.get('trial_id')
+        if trial_id is None:
+            return jsonify({"error": "Trial ID not provided"}), 401
+        goal_choice = request.json.get('goal_choice')
+        if goal_choice not in ('red', 'green'):
+            return jsonify({"error": "goal_choice must be 'red' or 'green'"}), 400
+
+        session = db.session.get(REDGREEN_Session, session_id)
+        if not session:
+            return jsonify({"error": "Session not found"}), 402
+        trial = db.session.get(Trial, trial_id)
+        if not trial or trial.session_id != int(session_id):
+            return jsonify({"error": "Trial not found for the current session"}), 405
+
+        existing = (
+            db.session.query(TrialGoalProbe)
+            .filter_by(session_id=int(session_id), trial_id=int(trial_id))
+            .first()
+        )
+        if existing is not None:
+            return jsonify({"status": "ignored_duplicate"}), 200
+
+        reaction_time_ms = request.json.get('reaction_time_ms')
+        if reaction_time_ms is not None:
+            try:
+                reaction_time_ms = float(reaction_time_ms)
+            except (TypeError, ValueError):
+                reaction_time_ms = None
+
+        row = TrialGoalProbe(
+            trial_id=int(trial_id),
+            session_id=int(session_id),
+            goal_choice=goal_choice,
             reaction_time_ms=reaction_time_ms,
             trial_name=trial.global_trial_name,
         )

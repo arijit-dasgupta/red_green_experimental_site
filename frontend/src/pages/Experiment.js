@@ -22,8 +22,12 @@ const ExperimentPage = ({
     pauseState,
     clickPlacement,
     clickInvalidReason,
+    goalClickInvalidReason,
     onValidPlacement,
     setClickInvalidReason,
+    setGoalClickInvalidReason,
+    onGoalHoverChange,
+    onGoalClick,
     canvasSize,
     handlePlayPause,
     fetchNextScene,
@@ -42,6 +46,7 @@ const ExperimentPage = ({
     const [showScoringInstruc, setShowScoringInstruc] = useState(false);
     const [showClickInstructions, setShowClickInstructions] = useState(false);
     const [mousePos, setMousePos] = useState(null); // { x, y } in canvas pixel coords when awaiting click
+    const [hoveredGoal, setHoveredGoal] = useState(null); // 'red' | 'green' | null during goal probe
     const canvasWrapperRef = useRef(null);
 
     useEffect(() => {
@@ -251,10 +256,60 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
         }
     };
 
+    // Helper: given canvas mouse event, return which goal ('red'|'green'|null) the cursor is over
+    const getHoveredGoalFromEvent = (e) => {
+        if (!canvasRef.current || !sceneData) return null;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const canvasX = e.clientX - rect.left;
+        const canvasY = e.clientY - rect.top;
+        const scale = Math.min(
+            canvasRef.current.width / (sceneData.worldWidth || 20),
+            canvasRef.current.height / (sceneData.worldHeight || 20)
+        );
+        const worldX = canvasX / scale;
+        const worldY = (canvasRef.current.height - canvasY) / scale;
+        const { counterbalance, red_sensor, green_sensor } = sceneData;
+        // Which sensor is visually red/green on screen?
+        const redDisplaySensor = counterbalance ? green_sensor : red_sensor;
+        const greenDisplaySensor = counterbalance ? red_sensor : green_sensor;
+        const inRed = redDisplaySensor &&
+            worldX >= redDisplaySensor.x && worldX <= redDisplaySensor.x + redDisplaySensor.width &&
+            worldY >= redDisplaySensor.y && worldY <= redDisplaySensor.y + redDisplaySensor.height;
+        const inGreen = greenDisplaySensor &&
+            worldX >= greenDisplaySensor.x && worldX <= greenDisplaySensor.x + greenDisplaySensor.width &&
+            worldY >= greenDisplaySensor.y && worldY <= greenDisplaySensor.y + greenDisplaySensor.height;
+        return inRed ? 'red' : (inGreen ? 'green' : null);
+    };
+
+    const handleGoalHoverMouseMove = (e) => {
+        if (pauseState !== 'awaiting_goal_click') return;
+        const goal = getHoveredGoalFromEvent(e);
+        setHoveredGoal(goal);
+        onGoalHoverChange(goal);
+    };
+
+    const handleGoalHoverMouseLeave = () => {
+        setHoveredGoal(null);
+        onGoalHoverChange(null);
+    };
+
+    const handleGoalAreaClick = (e) => {
+        if (pauseState !== 'awaiting_goal_click') return;
+        const goal = getHoveredGoalFromEvent(e);
+        if (!goal) {
+            setGoalClickInvalidReason('Please click directly on the red or green region to indicate your prediction.');
+            return;
+        }
+        setGoalClickInvalidReason(null);
+        setHoveredGoal(null);
+        onGoalClick(goal);
+    };
+
     const isClickAwaiting = pauseState === 'awaiting_click';
     const isClickPlaced = pauseState === 'click_placed';
-    const isObservationOnly = clickPlacement && sceneData?.pause_at_frame != null && !finished && !isClickAwaiting && !isClickPlaced;
-    const showRedGreenPanel = !isClickAwaiting && !isClickPlaced && !isObservationOnly;
+    const isGoalClickAwaiting = pauseState === 'awaiting_goal_click';
+    const isObservationOnly = clickPlacement && sceneData?.pause_at_frame != null && !finished && !isClickAwaiting && !isClickPlaced && !isGoalClickAwaiting;
+    const showRedGreenPanel = !isClickAwaiting && !isClickPlaced && !isObservationOnly && !isGoalClickAwaiting;
     const scale = sceneData && canvasRef.current ? Math.min(
         canvasRef.current.width / (sceneData.worldWidth || 20),
         canvasRef.current.height / (sceneData.worldHeight || 20)
@@ -273,7 +328,11 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
     }
 
     if (showClickInstructions) {
-        return <ClickInstructionsPage handleProceed={() => setShowClickInstructions(false)} trialInfo={trialInfo} />;
+        return <ClickInstructionsPage
+            handleProceed={() => setShowClickInstructions(false)}
+            trialInfo={trialInfo}
+            hasGoalProbe={sceneData?.click_trial_with_goal_probe || false}
+        />;
     }
 
     if (isTransitionPage) {
@@ -559,6 +618,22 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
                                 )}
                             </div>
                         )}
+                        {isGoalClickAwaiting && (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    width: canvasSize.width,
+                                    height: canvasSize.height,
+                                    cursor: hoveredGoal ? "pointer" : "default",
+                                    zIndex: 5,
+                                }}
+                                onMouseMove={handleGoalHoverMouseMove}
+                                onMouseLeave={handleGoalHoverMouseLeave}
+                                onClick={handleGoalAreaClick}
+                            />
+                        )}
                     </div>
                 </div>
 
@@ -636,6 +711,27 @@ if (e.code === 'Space' && isSpacePressed && finished && savingStatus !== 'saving
                             {clickInvalidReason && (
                                 <p style={{ margin: 0, color: "#c62828", fontSize: "0.95rem" }}>
                                     Invalid position: {clickInvalidReason}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                    {isGoalClickAwaiting && (
+                        <div style={{
+                            padding: "16px",
+                            border: "1px solid #1565c0",
+                            borderRadius: "8px",
+                            backgroundColor: "#e3f2fd",
+                            width: "100%",
+                        }}>
+                            <p style={{ margin: "0 0 8px 0", fontWeight: "bold", color: "#1565c0" }}>
+                                Now click on the <span style={{ color: "red" }}>red</span> or <span style={{ color: "green" }}>green</span> region to indicate which goal you think the ball will end up in.
+                            </p>
+                            <p style={{ margin: "0 0 0 0", fontSize: "0.9rem", color: "#555" }}>
+                                Hover over a goal to highlight it, then click to confirm your choice.
+                            </p>
+                            {goalClickInvalidReason && (
+                                <p style={{ margin: "8px 0 0 0", color: "#c62828", fontSize: "0.95rem", fontWeight: "bold" }}>
+                                    {goalClickInvalidReason}
                                 </p>
                             )}
                         </div>

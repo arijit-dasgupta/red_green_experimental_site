@@ -813,6 +813,62 @@ def load_click_data(db_path, session_ids=None):
     return click_df
 
 
+def load_goal_probe_data(db_path, session_ids=None):
+    """
+    Load goal-probe data from trial_goal_probe table (if it exists).
+    goal_choice is already counterbalance-corrected ('red' or 'green' = actual physical goal).
+    Returns empty DataFrame if the table does not exist.
+    """
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type='table' AND name='trial_goal_probe'")
+        )
+        if result.fetchone() is None:
+            return pd.DataFrame()
+        info = conn.execute(text("PRAGMA table_info(trial_goal_probe)")).fetchall()
+        gp_cols = [row[1] for row in info]
+        t_info = conn.execute(text("PRAGMA table_info(trial)")).fetchall()
+        t_cols = [row[1] for row in t_info]
+    base_gp = ["gp.id", "gp.trial_id", "gp.session_id", "gp.goal_choice"]
+    if "reaction_time_ms" in gp_cols:
+        base_gp.append("gp.reaction_time_ms")
+    if "trial_name" in gp_cols:
+        base_gp.append("gp.trial_name")
+    gp_select = ", ".join(base_gp)
+    t_extra = ["t.trial_type"]
+    if "symmetry_transform" in t_cols:
+        t_extra.append("t.symmetry_transform")
+    t_select = "t.global_trial_name, t.repeat_instance_index, " + ", ".join(t_extra)
+    query = f"""
+        SELECT {gp_select},
+               {t_select}
+        FROM trial_goal_probe gp
+        JOIN trial t ON gp.trial_id = t.id
+        JOIN redgreen_session s ON gp.session_id = s.id
+        WHERE (s.ignore_data = 0 OR s.ignore_data IS NULL)
+          AND s.completed = 1
+          AND t.trial_type = 'trial'
+          AND t.completed = 1
+    """
+    if session_ids is not None:
+        session_ids = list(session_ids)
+        if len(session_ids) == 0:
+            return pd.DataFrame()
+        session_ids_str = ", ".join(map(str, session_ids))
+        query += f" AND gp.session_id IN ({session_ids_str})"
+    query += "\n        ORDER BY t.global_trial_name, t.repeat_instance_index, gp.session_id\n    "
+    goal_probe_df = pd.read_sql(query, engine)
+    if "reaction_time_ms" not in goal_probe_df.columns:
+        goal_probe_df["reaction_time_ms"] = np.nan
+    if "trial_name" not in goal_probe_df.columns:
+        goal_probe_df["trial_name"] = goal_probe_df["global_trial_name"]
+    if "symmetry_transform" not in goal_probe_df.columns:
+        goal_probe_df["symmetry_transform"] = 0
+    goal_probe_df["symmetry_transform"] = goal_probe_df["symmetry_transform"].fillna(0).astype(int)
+    return goal_probe_df
+
+
 def save_click_data_by_trial(click_df, path_to_data):
     """
     Save click data as separate CSV files per (global_trial_name, repeat_instance_index).
@@ -929,6 +985,35 @@ def save_click_data_by_trial(click_df, path_to_data):
         csv_filepath = os.path.join(trial_dir, csv_filename)
         group.to_csv(csv_filepath, index=False)
     print(f"Saved click data as CSV files in {path_to_data}")
+
+
+def save_goal_probe_data_by_trial(goal_probe_df, path_to_data):
+    """
+    Save goal-probe data as separate CSV files per (global_trial_name, repeat_instance_index).
+    - Instance 0: goal_probe_data.csv
+    - Instance 1, 2, ...: goal_probe_data_rep1.csv, ...
+    goal_choice is already counterbalance-corrected; no spatial transform needed.
+    Does nothing if goal_probe_df is empty.
+    """
+    if goal_probe_df is None or goal_probe_df.empty:
+        return
+    goal_probe_df = goal_probe_df.copy()
+    if "trial_type" in goal_probe_df.columns:
+        goal_probe_df = goal_probe_df[goal_probe_df["trial_type"] == "trial"].copy()
+        goal_probe_df = goal_probe_df.drop(columns=["trial_type"])
+    if goal_probe_df.empty:
+        return
+    goal_probe_df["repeat_instance_index"] = goal_probe_df["repeat_instance_index"].fillna(0).astype(int)
+    for (trial_name, rep_idx), group in goal_probe_df.groupby(["global_trial_name", "repeat_instance_index"]):
+        trial_dir = os.path.join(path_to_data, str(trial_name))
+        os.makedirs(trial_dir, exist_ok=True)
+        if rep_idx == 0:
+            csv_filename = "goal_probe_data.csv"
+        else:
+            csv_filename = f"goal_probe_data_rep{rep_idx}.csv"
+        csv_filepath = os.path.join(trial_dir, csv_filename)
+        group.to_csv(csv_filepath, index=False)
+    print(f"Saved goal probe data as CSV files in {path_to_data}")
 
 
 def filter_click_data_reaction_time(click_df, max_rt_ms=5000):

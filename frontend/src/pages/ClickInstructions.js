@@ -5,7 +5,7 @@ import React from 'react';
  * Appears after F2 and before the click familiarization trial (F3).
  * Explains that placement happens on random trials at random moments, and sometimes the full path is shown.
  */
-const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
+const ClickInstructionsPage = ({ handleProceed, trialInfo, hasGoalProbe }) => {
     // Next trial is at ftrial_i (e.g. F3 → ftrial_i 3); after it, num_ftrials - ftrial_i remain
     const remainingAfterThis = Math.max(0, (trialInfo.num_ftrials || 0) - (trialInfo.ftrial_i || 0));
 
@@ -71,7 +71,12 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                             <strong style={{ color: '#c62828' }}>IMPORTANT:</strong> click the ball’s <strong>actual location at pause time</strong>.
                         </li>
                         <li style={{ marginBottom: 10 }}>
-                            After you indicate where the ball is <strong>at the pause moment</strong>, you no longer need to predict where the ball will end up for that trial.
+                            After you indicate where the ball is <strong>at the pause moment</strong>,{' '}
+                            {hasGoalProbe ? (
+                                <>the scene will dim and you will be asked to <strong>click on the red or green region</strong> to predict which goal the ball will end up in. Hover over a goal to highlight it, then click to confirm.</>
+                            ) : (
+                                <>you no longer need to predict where the ball will end up for that trial.</>
+                            )}
                         </li>
                         <li>
                             Afterward, you'll see <strong>where the ball was</strong> and <strong>which goal it ends up in</strong>.
@@ -80,7 +85,7 @@ const ClickInstructionsPage = ({ handleProceed, trialInfo }) => {
                     <div style={{ marginTop: 18 }}>
                         <em>
                             This will only happen on a portion of the trials.
-                            For <strong>most of the trials</strong>, you will just predict which of the two goals the ball will end in, and <strong>you will not be asked to place the ball</strong>.
+                            For <strong>some of the trials</strong>, you will predict which of the two goals the ball will end in, and <strong>you will not be asked to place the ball</strong>.
                         </em>
                     </div>
                 </div>

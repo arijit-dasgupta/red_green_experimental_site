@@ -52,9 +52,10 @@ const App = () => {
   const [finished, setFinished] = useState(false);
   const [score, setScore] = useState(-1);
   const [savingStatus, setSavingStatus] = useState(null); // null | 'saving' | 'saved' | 'error'
-  const [pauseState, setPauseState] = useState(null); // null | 'awaiting_click' | 'click_placed' (click-point variant)
+  const [pauseState, setPauseState] = useState(null); // null | 'awaiting_click' | 'click_placed' | 'awaiting_goal_click'
   const [clickPlacement, setClickPlacement] = useState(null); // { worldX, worldY } after valid click for blue circle
   const [clickInvalidReason, setClickInvalidReason] = useState(null); // 'Outside scene bounds' | 'Overlapping a barrier' | null
+  const [goalClickInvalidReason, setGoalClickInvalidReason] = useState(null); // shown when participant clicks non-goal area
   const [trialInfo, setTrialInfo] = useState({ 
     ftrial_i: 0, 
     trial_i: 0, 
@@ -83,6 +84,9 @@ const App = () => {
   const clickPlacementRef = useRef(null); // always current for animation loop
   const fetchNextSceneInFlightRef = useRef(false); // synchronous guard so fast double space doesn't start two fetches
   const clickPauseStartedAtRef = useRef(null); // performance.now() when scene paused for click (for reaction_time_ms)
+  const pauseStateRef = useRef(null); // mirror of pauseState for synchronous reads inside renderFrame
+  const hoveredGoalRef = useRef(null); // 'red' | 'green' | null — which goal is currently hovered during goal probe
+  const goalProbeRtStartRef = useRef(null); // performance.now() when goal probe starts (for RT from ball-place to goal-click)
   
   // const [canvasSize, setCanvasSize] = useState({
   //   width: Math.floor((window.innerHeight * CANVAS_PROPORTION) / 20) * 20,
@@ -153,8 +157,10 @@ const App = () => {
 
           // Draw target (ball) — Fix 5: hide ball when paused awaiting click; it reappears only when they click (drawn on top later)
           const pauseFrameNum = sceneData.pause_at_frame != null ? Number(sceneData.pause_at_frame) : null;
-          const hidingBallWhileAwaitingClick = sceneData.has_click_trials && pauseFrameNum !== null && frameIndex === pauseFrameNum && !clickPlacementRef.current;
-          const inObservationPhase = clickPlacementRef.current && pauseFrameNum !== null && frameIndex >= pauseFrameNum;
+          // Also hide when awaiting_goal_click: ball stays hidden until participant picks a goal
+          const hidingBallWhileAwaitingClick = sceneData.has_click_trials && pauseFrameNum !== null && frameIndex === pauseFrameNum &&
+              (!clickPlacementRef.current || pauseStateRef.current === 'awaiting_goal_click');
+          const inObservationPhase = clickPlacementRef.current && pauseStateRef.current !== 'awaiting_goal_click' && pauseFrameNum !== null && frameIndex >= pauseFrameNum;
           const ballOverOccluder = inObservationPhase && occluders && occluders.length > 0 && step_data[frameIndex] && occluders.some(({ x: ox, y: oy, width: w, height: h }) => {
               const worldX = step_data[frameIndex].x + radius;
               const worldY = step_data[frameIndex].y + radius;
@@ -228,6 +234,7 @@ const App = () => {
     }
 
     // Click-point variant: draw darker dotted blue circle at placement (stays visible during 1s wait and observation; use ref so animation loop sees it)
+    // Hidden during awaiting_goal_click — ball only reappears after goal is chosen
     const placement = clickPlacementRef.current;
     const pauseFrame = sceneData.pause_at_frame != null ? Number(sceneData.pause_at_frame) : null;
     if (sceneData.has_click_trials && pauseFrame !== null && placement && frameIndex >= pauseFrame) {
@@ -243,7 +250,8 @@ const App = () => {
     }
 
     // Fix 3: during the 1-second after click, draw the REAL ball on top so it "pops" into view (visible even if it was behind an occluder)
-    if (sceneData.has_click_trials && pauseFrame !== null && placement && frameIndex === pauseFrame && sceneData.step_data && sceneData.step_data[pauseFrame]) {
+    // Also gated on not awaiting_goal_click — ball only reveals once the goal is chosen
+    if (sceneData.has_click_trials && pauseFrame !== null && placement && frameIndex === pauseFrame && sceneData.step_data && sceneData.step_data[pauseFrame] && pauseStateRef.current !== 'awaiting_goal_click') {
         const { x, y } = sceneData.step_data[pauseFrame];
         const ballR = sceneData.radius || 0.5;
         const ballCenterX = (x + ballR) * scale;
@@ -252,6 +260,22 @@ const App = () => {
         ctx.beginPath();
         ctx.arc(ballCenterX, ballCenterY, scale * ballR, 0, 2 * Math.PI);
         ctx.fill();
+    }
+
+    // Goal probe: dim entire scene, then re-draw hovered goal at full brightness on top
+    if (pauseStateRef.current === 'awaiting_goal_click') {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.48)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const hg = hoveredGoalRef.current;
+        if (hg && sceneData.red_sensor && sceneData.green_sensor) {
+            const { counterbalance, red_sensor, green_sensor } = sceneData;
+            // The visual "red" region is at green_sensor when counterbalanced
+            const sensor = hg === 'red'
+                ? (counterbalance ? green_sensor : red_sensor)
+                : (counterbalance ? red_sensor : green_sensor);
+            ctx.fillStyle = hg;
+            ctx.fillRect(sensor.x * scale, sensor.y * scale, sensor.width * scale, sensor.height * scale);
+        }
     }
 
     ctx.restore();
@@ -274,6 +298,11 @@ const App = () => {
   useEffect(() => {
     clickPlacementRef.current = clickPlacement;
   }, [clickPlacement]);
+
+  // Keep pauseStateRef in sync for synchronous reads in renderFrame (avoids stale closure issues)
+  useEffect(() => {
+    pauseStateRef.current = pauseState;
+  }, [pauseState]);
 
   // Click-point: when placement is set (during 1s wait or after), redraw so blue circle appears (animation is stopped so no other redraws)
   useEffect(() => {
@@ -309,8 +338,12 @@ const renderCurrentPage = (showEarlyPressHint) => {
         pauseState={pauseState}
         clickPlacement={clickPlacement}
         clickInvalidReason={clickInvalidReason}
+        goalClickInvalidReason={goalClickInvalidReason}
         onValidPlacement={onValidPlacement}
         setClickInvalidReason={setClickInvalidReason}
+        setGoalClickInvalidReason={setGoalClickInvalidReason}
+        onGoalHoverChange={onGoalHoverChange}
+        onGoalClick={onGoalClick}
         canvasSize={canvasSize}
         handlePlayPause={handlePlayPause}
         fetchNextScene={fetchNextScene}
@@ -337,7 +370,7 @@ const renderCurrentPage = (showEarlyPressHint) => {
     fetchNextSceneInFlightRef.current = true;
     setIsFetchingNextScene(true);
     const t0 = performance.now();
-    console.log("fetchNextScene: requesting next scene...");
+    // console.log("fetchNextScene: requesting next scene...");
     try {
       const sessionId = sessionStorage.getItem('sessionId');
       if (!sessionId) {
@@ -354,24 +387,23 @@ const renderCurrentPage = (showEarlyPressHint) => {
       });
   
       if (!response.ok) throw new Error('Backend Failed to load next scene');
-  
+
       const data = await response.json();
       const t1 = performance.now();
-      console.log(
-        "fetchNextScene: scene payload received in",
-        (t1 - t0).toFixed(0),
-        "ms"
-      );
-  
+      // console.log("fetchNextScene: scene payload received in", (t1 - t0).toFixed(0), "ms");
       if (data.finish) {
         setFinished(false);
         setSavingStatus(null);
+        pauseStateRef.current = null;
         setPauseState(null);
         setClickPlacement(null);
         setClickInvalidReason(null);
+        setGoalClickInvalidReason(null);
         setClickTrialResult(null);
         observationOnlyPhaseRef.current = false;
         clickPauseStartedAtRef.current = null;
+        hoveredGoalRef.current = null;
+        goalProbeRtStartRef.current = null;
         setAverageScore(data.average_score);
         setProlificCompletionUrl(data.prolific_completion_url || null);
         navigate('post_feedback');
@@ -381,12 +413,16 @@ const renderCurrentPage = (showEarlyPressHint) => {
       if (data.fam_to_exp_page) {
         setFinished(false); // to disable spacebar pressing
         setSavingStatus(null);
+        pauseStateRef.current = null;
         setPauseState(null);
         setClickPlacement(null);
         setClickInvalidReason(null);
+        setGoalClickInvalidReason(null);
         setClickTrialResult(null);
         observationOnlyPhaseRef.current = false;
         clickPauseStartedAtRef.current = null;
+        hoveredGoalRef.current = null;
+        goalProbeRtStartRef.current = null;
         setIsTransitionPage(true);
         return;
       }
@@ -427,12 +463,16 @@ const renderCurrentPage = (showEarlyPressHint) => {
       recordedKeyStates.current = [];
       setFinished(false);
       setSavingStatus(null);
+      pauseStateRef.current = null;
       setPauseState(null);
       setClickPlacement(null);
       setClickInvalidReason(null);
+      setGoalClickInvalidReason(null);
       setClickTrialResult(null);
       observationOnlyPhaseRef.current = false;
       clickPauseStartedAtRef.current = null;
+      hoveredGoalRef.current = null;
+      goalProbeRtStartRef.current = null;
       currentFrameRef.current = 0;
       setIsTransitionPage(false);
   
@@ -616,12 +656,73 @@ const animate = (timestamp) => {
     }, 750);
   };
 
-  // Click-point variant: after valid placement, show blue circle and resume animation after 1s
+  // Click-point variant: after valid placement, either start goal probe or resume after 1s
   const onValidPlacement = (worldX, worldY) => {
     setClickPlacement({ worldX, worldY });
-    setPauseState('click_placed');
     setClickInvalidReason(null);
+    if (sceneData?.click_trial_with_goal_probe) {
+      // Enter goal probe phase: dim scene and wait for red/green click
+      pauseStateRef.current = 'awaiting_goal_click';
+      setPauseState('awaiting_goal_click');
+      goalProbeRtStartRef.current = performance.now();
+    } else {
+      pauseStateRef.current = 'click_placed';
+      setPauseState('click_placed');
+      setTimeout(() => {
+        pauseStateRef.current = null;
+        setPauseState(null);
+        observationOnlyPhaseRef.current = true;
+        isPlayingRef.current = true;
+        setIsPlaying(true);
+        animationRef.current = requestAnimationFrame(animate);
+      }, 1000);
+    }
+  };
+
+  // Goal probe: update hover state and redraw so the highlighted goal updates immediately
+  const onGoalHoverChange = (hoveredGoal) => {
+    hoveredGoalRef.current = hoveredGoal;
+    renderFrame(currentFrameRef.current);
+  };
+
+  // Goal probe: participant clicked a goal — save it, restore brightness, then resume after 1s
+  const onGoalClick = async (perceivedGoal) => {
+    // Correct for counterbalance: if swapped, the visually-red region is the physical green goal
+    const actualGoal = sceneData?.counterbalance
+      ? (perceivedGoal === 'red' ? 'green' : 'red')
+      : perceivedGoal;
+
+    const reactionTimeMs = goalProbeRtStartRef.current != null
+      ? Math.round(performance.now() - goalProbeRtStartRef.current)
+      : null;
+
+    // Restore brightness immediately: update ref before rendering so dim overlay is gone
+    hoveredGoalRef.current = null;
+    pauseStateRef.current = 'click_placed';
+    setPauseState('click_placed');
+    renderFrame(currentFrameRef.current); // redraws without dim overlay
+
+    // Save goal probe data (fire-and-forget; don't block the 1s resume)
+    try {
+      const sessionId = sessionStorage.getItem('sessionId');
+      if (sessionId) {
+        await fetch(getApiBase() + '/save_goal_probe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true', 'User-Agent': 'React-Experiment-App' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            trial_id: sceneData.unique_trial_id,
+            goal_choice: actualGoal,
+            reaction_time_ms: reactionTimeMs,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error('Failed to save goal probe:', err);
+    }
+
     setTimeout(() => {
+      pauseStateRef.current = null;
       setPauseState(null);
       observationOnlyPhaseRef.current = true;
       isPlayingRef.current = true;
