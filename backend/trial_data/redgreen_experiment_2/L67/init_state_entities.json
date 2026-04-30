@@ -3,71 +3,83 @@
     {
       "id": 1,
       "type": "target",
-      "x": 18.400000000000002,
-      "y": 11.9,
+      "x": 16.8,
+      "y": 1.0,
       "width": 1,
       "height": 1,
-      "direction": -2.6384758952629106
+      "direction": 2.498870471933011
     },
     {
       "id": 2,
       "type": "green_sensor",
-      "x": 0.9,
-      "y": 0.4,
-      "width": 18.400000000000002,
-      "height": 0.9,
+      "x": 1.8,
+      "y": 9.8,
+      "width": 0.8,
+      "height": 9.600000000000001,
       "direction": 0
     },
     {
       "id": 3,
       "type": "red_sensor",
-      "x": 1.7,
-      "y": 17.8,
-      "width": 16.8,
-      "height": 1.9000000000000001,
+      "x": 18.8,
+      "y": 3.9000000000000004,
+      "width": 0.9,
+      "height": 15.8,
       "direction": 0
     },
     {
       "id": 4,
       "type": "barrier",
-      "x": 7.5,
-      "y": 4.1000000000000005,
-      "width": 12.4,
-      "height": 1.4000000000000001,
+      "x": 3.2,
+      "y": 2.7,
+      "width": 2.2,
+      "height": 7.300000000000001,
       "direction": 0
     },
     {
       "id": 5,
       "type": "barrier",
-      "x": 0.1,
-      "y": 16.3,
-      "width": 1.3,
-      "height": 3.2,
+      "x": 3.7,
+      "y": 1.7000000000000002,
+      "width": 10.200000000000001,
+      "height": 1,
       "direction": 0
     },
     {
       "id": 6,
       "type": "barrier",
-      "x": 16.400000000000002,
-      "y": 5.5,
-      "width": 2.8000000000000003,
-      "height": 4.2,
+      "x": 4.6000000000000005,
+      "y": 17.5,
+      "width": 11.700000000000001,
+      "height": 2,
       "direction": 0
     },
     {
-      "id": 9,
+      "id": 7,
       "type": "occluder",
-      "x": 2.1,
-      "y": 5.5,
-      "width": 14.3,
-      "height": 10.4,
+      "x": 5.4,
+      "y": 3.7,
+      "width": 11.4,
+      "height": 12,
+      "direction": 0
+    },
+    {
+      "id": 8,
+      "type": "occluder",
+      "x": 16.8,
+      "y": 7.5,
+      "width": 1.1,
+      "height": 2.4000000000000004,
       "direction": 0
     }
   ],
   "simulationParams": {
     "videoLength": 10,
-    "ballSpeed": 3.6,
+    "ballSpeed": 0.9999999999999999,
     "fps": 30,
+    "res_multiplier": 1,
+    "physicsStepsPerFrame": 6,
+    "timestep": 0.02,
     "worldWidth": 20,
     "worldHeight": 20
   }
