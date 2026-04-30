@@ -48,7 +48,14 @@ except ImportError:
 
 
 # Table order respects foreign keys: parent tables first.
-TABLES = ["redgreen_session", "config", "trial", "keystate", "trial_pause_click"]
+TABLES = [
+    "redgreen_session",
+    "config",
+    "trial",
+    "keystate",
+    "trial_pause_click",
+    "trial_goal_probe",
+]
 
 
 def get_backend_dataset_and_version(script_dir):
@@ -311,6 +318,15 @@ CREATE TABLE IF NOT EXISTS trial_pause_click (
     ball_x REAL,
     ball_y REAL,
     diameters_away REAL,
+    reaction_time_ms REAL,
+    trial_name TEXT
+);
+
+CREATE TABLE IF NOT EXISTS trial_goal_probe (
+    id INTEGER PRIMARY KEY,
+    trial_id INTEGER NOT NULL,
+    session_id INTEGER NOT NULL,
+    goal_choice TEXT NOT NULL,
     reaction_time_ms REAL,
     trial_name TEXT
 );
