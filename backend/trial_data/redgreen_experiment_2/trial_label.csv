@@ -11,10 +11,10 @@ L9,Calibration (Occlusion)
 L10,Calibration (Occlusion)
 L11,Calibration (Occlusion)
 L12,Calibration (Occlusion)
-L13,Diagnostic
-L14,Diagnostic
-L15,Diagnostic
-L16,Diagnostic
+L13,Calibration (Occlusion)
+L14,Calibration (Occlusion)
+L15,Calibration (Occlusion)
+L16,Calibration (Occlusion)
 L17,Diagnostic
 L18,Diagnostic
 L19,Diagnostic
@@ -27,6 +27,10 @@ L25,Diagnostic
 L26,Diagnostic
 L27,Diagnostic
 L28,Diagnostic
+L29,Diagnostic
+L30,Diagnostic
+L31,Diagnostic
+L32,Diagnostic
 L71,Catch
 L72,Catch
 L73,Catch

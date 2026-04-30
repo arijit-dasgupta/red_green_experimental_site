@@ -37,7 +37,7 @@
       "y": 8.700000000000001,
       "width": 1,
       "height": 1,
-      "direction": -0.9372418083209549,
+      "direction": -0.890117918517108,
       "speed": 1
     },
     {
@@ -61,51 +61,51 @@
       "speed": 1
     },
     {
-      "id": "1736658885257-piece-1-piece-0-piece-0-piece-0",
+      "id": "1736658885257-piece-1-piece-0-piece-0",
       "type": "occluder",
       "x": 4.1000000000000005,
-      "y": 13.4,
+      "y": 12.3,
       "width": 11.899999999999999,
-      "height": 1,
+      "height": 2.0999999999999996,
       "direction": 0,
       "speed": 1
     },
     {
-      "id": "1736658885257-piece-1-piece-0-piece-0-piece-1",
+      "id": "1736658885257-piece-1-piece-0-piece-1",
       "type": "occluder",
       "x": 4.1000000000000005,
       "y": 3.9000000000000004,
       "width": 11.899999999999999,
-      "height": 8.1,
+      "height": 7,
       "direction": 0,
       "speed": 1
     },
     {
-      "id": "1736658885257-piece-1-piece-0-piece-0-piece-2",
+      "id": "1736658885257-piece-1-piece-0-piece-2",
       "type": "occluder",
       "x": 4.1000000000000005,
-      "y": 12,
-      "width": 4.8,
+      "y": 10.9,
+      "width": 5.7,
       "height": 1.4000000000000004,
       "direction": 0,
       "speed": 1
     },
     {
-      "id": "1736658885257-piece-1-piece-0-piece-0-piece-3",
+      "id": "1736658885257-piece-1-piece-0-piece-3",
       "type": "occluder",
-      "x": 11.200000000000001,
-      "y": 12,
-      "width": 4.799999999999999,
+      "x": 12.4,
+      "y": 10.9,
+      "width": 3.5999999999999996,
       "height": 1.4000000000000004,
       "direction": 0,
       "speed": 1
     },
     {
-      "id": 1772652590727,
+      "id": 1772652729315,
       "type": "window",
-      "x": 8.9,
-      "y": 12,
-      "width": 2.3000000000000003,
+      "x": 9.8,
+      "y": 10.9,
+      "width": 2.6,
       "height": 1.4000000000000001,
       "direction": 0
     }

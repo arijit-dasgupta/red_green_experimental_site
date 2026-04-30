@@ -80,6 +80,15 @@
       "width": 3.4000000000000004,
       "height": 3.2,
       "direction": 0
+    },
+    {
+      "id": 1772512250212,
+      "type": "occluder",
+      "x": 8.6,
+      "y": 3.9000000000000004,
+      "width": 6.2,
+      "height": 9.5,
+      "direction": 0
     }
   ],
   "simulationParams": {

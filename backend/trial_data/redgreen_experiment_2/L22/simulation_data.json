@@ -37,7 +37,7 @@
   "interval": 0.025,
   "num_barriers": 4,
   "num_frames": 283,
-  "num_occs": 2,
+  "num_occs": 3,
   "occluders": [
     {
       "height": 12.9,
@@ -50,6 +50,12 @@
       "width": 11.5,
       "x": 5.1000000000000005,
       "y": 13.399999999999999
+    },
+    {
+      "height": 9.5,
+      "width": 6.2,
+      "x": 8.6,
+      "y": 3.9000000000000004
     }
   ],
   "red_sensor": {

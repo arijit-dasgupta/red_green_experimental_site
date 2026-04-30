@@ -14,39 +14,39 @@ T14 -> L4
 
 # 2026-04-25 (random shuffle of T2C, T3B, T8A, T8B, T9, T13, T24, T28 -> L5..L12)
 T9  -> L5
-T3B -> L13
-T28 -> L26
+T3B -> L17
+T28 -> L30
 T13 -> L8
 T24 -> L9
 T2C -> L10
 T8B -> L11
 T8A -> L12
 
-# 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L13..L28; L15, L16 and L19 are new trials)
+# 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L17..L32; L19, L20 and L23 are new trials)
 T3A -> L6
-T2A -> L14
-T5E -> L17
-T4F -> L18
-T5F -> L20
-T7B -> L21
-T4E -> L22
-T1B -> L23
-T6B -> L24
-T21 -> L25
+T2A -> L18
+T5E -> L21
+T4F -> L22
+T5F -> L24
+T7B -> L25
+T4E -> L26
+T1B -> L27
+T6B -> L28
+T21 -> L29
 T29 -> L67
-T25 -> L27
-T5C -> L28
+T25 -> L31
+T5C -> L32
 
 # 2026-04-25 (newly introduced trials)
-L15
-L16
 L19
-L29
-L30
-L31
-L32
-L64
+L20
+L23
+L33
+L34
+L35
+L36
 L65
+L16
 L66
 L7
 L68
@@ -61,35 +61,35 @@ T31 -> L73
 T30 -> L74
 T33 -> L75
 
-# 2026-04-26 (random shuffle of 31 remaining T trials -> L33..L63)
-T26 -> L33
-T5B -> L34
-T8C -> L35
-T5A -> L36
-T6D -> L37
-T23 -> L38
-T1C -> L39
-T2B -> L40
-T3D -> L41
-T4D -> L42
-T12 -> L43
-T4B -> L44
-T6A -> L45
-T6C -> L46
-T1D -> L47
-T15 -> L48
-T27 -> L49
-T3C -> L50
-T20 -> L51
-T19 -> L52
-T7C -> L53
-T7A -> L54
-T1A -> L55
-T4C -> L56
-T5D -> L57
-T2D -> L58
-T4A -> L59
-T8D -> L60
-T16 -> L61
-T7D -> L62
-T10 -> L63
+# 2026-04-26 (random shuffle of 31 remaining T trials -> L37..L64)
+T26 -> L37
+T5B -> L15
+T8C -> L38
+T5A -> L39
+T6D -> L14
+T23 -> L40
+T1C -> L41
+T2B -> L42
+T3D -> L43
+T4D -> L44
+T12 -> L45
+T4B -> L46
+T6A -> L47
+T6C -> L48
+T1D -> L49
+T15 -> L50
+T27 -> L51
+T3C -> L52
+T20 -> L53
+T19 -> L13
+T7C -> L54
+T7A -> L55
+T1A -> L56
+T4C -> L57
+T5D -> L58
+T2D -> L59
+T4A -> L60
+T8D -> L61
+T16 -> L62
+T7D -> L63
+T10 -> L64
