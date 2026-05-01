@@ -2,6 +2,7 @@
 # the code here is primarily used for the analysis of the HUMAN empirical data
 
 import os
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, text
@@ -200,6 +201,173 @@ def _compute_session_exclusion_info(
         "excluded_session_ids": excluded_session_ids,
         "catch_failure_details": catch_failure_details,
     }
+
+
+def _supports_ansi_colors():
+    try:
+        return sys.stdout.isatty()
+    except Exception:
+        return False
+
+
+def _ansi(text, *, color=None, bold=False, use_color=False):
+    if not use_color:
+        return str(text)
+    codes = []
+    if bold:
+        codes.append("1")
+    if color == "red":
+        codes.append("31")
+    elif color == "green":
+        codes.append("32")
+    elif color == "yellow":
+        codes.append("33")
+    elif color == "blue":
+        codes.append("34")
+    elif color == "cyan":
+        codes.append("36")
+    if not codes:
+        return str(text)
+    return f"\033[{';'.join(codes)}m{text}\033[0m"
+
+
+def _format_table(headers, rows):
+    str_rows = [[str(cell) for cell in row] for row in rows]
+    widths = [len(str(h)) for h in headers]
+    for row in str_rows:
+        for idx, cell in enumerate(row):
+            widths[idx] = max(widths[idx], len(cell))
+
+    def _line(left, fill, sep, right):
+        return left + sep.join(fill * (w + 2) for w in widths) + right
+
+    lines = [_line("+", "-", "+", "+")]
+    lines.append(
+        "| " + " | ".join(str(h).ljust(widths[idx]) for idx, h in enumerate(headers)) + " |"
+    )
+    lines.append(_line("+", "-", "+", "+"))
+    for row in str_rows:
+        lines.append("| " + " | ".join(row[idx].ljust(widths[idx]) for idx in range(len(headers))) + " |")
+    lines.append(_line("+", "-", "+", "+"))
+    return "\n".join(lines)
+
+
+def _print_click_exclusion_summary(summary, *, use_color=None, participant_limit=10):
+    if use_color is None:
+        use_color = _supports_ansi_colors()
+
+    print(_ansi("Click / localization postprocess summary", color="cyan", bold=True, use_color=use_color))
+    print(
+        f"Total click trials before filtering: "
+        f"{_ansi(summary['total_click_trials'], color='blue', bold=True, use_color=use_color)}"
+    )
+    if summary.get("criterion_descriptions"):
+        print(_ansi("Criteria", color="cyan", bold=True, use_color=use_color))
+        for row in summary["criterion_descriptions"]:
+            print(f"  {row['criterion']}: {row['filtering']}")
+
+    overview_headers = ["Criterion", "Scope", "Removed", "% of total", "Remaining"]
+    overview_rows = []
+    for row in summary["overview_rows"]:
+        removed = _ansi(row["removed"], color="red", bold=True, use_color=use_color) if row["removed"] else str(row["removed"])
+        overview_rows.append([
+            row["criterion"],
+            row["scope"],
+            removed,
+            f"{row['percent_of_total']:.1f}%",
+            row["remaining_after"],
+        ])
+    print(_format_table(overview_headers, overview_rows))
+
+    final_kept = summary.get("final_click_trials", 0)
+    total = summary.get("total_click_trials", 0)
+    final_pct = (100.0 * float(final_kept) / float(total)) if total else 0.0
+    print(
+        _ansi(
+            f"Final retained click trials: {final_kept}/{total} ({final_pct:.1f}%)",
+            color="green",
+            bold=True,
+            use_color=use_color,
+        )
+    )
+
+    if summary.get("goal_probe_rows") is not None:
+        gp_total = summary.get("goal_probe_total_trials", 0)
+        gp_kept = summary.get("final_goal_probe_trials", 0)
+        gp_pct = (100.0 * float(gp_kept) / float(gp_total)) if gp_total else 0.0
+        print(
+            _ansi(
+                f"Final retained goal-probe rows: {gp_kept}/{gp_total} ({gp_pct:.1f}%)",
+                color="green",
+                bold=True,
+                use_color=use_color,
+            )
+        )
+
+    if summary.get("session_breakdowns"):
+        print(_ansi("Session-level breakdowns", color="cyan", bold=True, use_color=use_color))
+        for entry in summary["session_breakdowns"]:
+            print(
+                f"{entry['label']}: "
+                f"{_ansi(entry['session_ids'] or 'none', color='yellow', bold=True, use_color=use_color)} "
+                f"(n={entry['n_sessions']}, rows={entry['n_rows']}, {entry['percent_of_total']:.1f}% of total)"
+            )
+
+    if summary.get("criterion_3_participants"):
+        print(_ansi("Criterion 3 participant breakdown", color="cyan", bold=True, use_color=use_color))
+        rows = summary["criterion_3_participants"][:participant_limit]
+        if rows:
+            headers = ["session_id", "near_goal", "total_clicks", "% near goal", "status"]
+            table_rows = [
+                [
+                    row["session_id"],
+                    row["near_goal"],
+                    row["total_clicks"],
+                    f"{row['fraction'] * 100:.1f}%",
+                    row["status"],
+                ]
+                for row in rows
+            ]
+            print(_format_table(headers, table_rows))
+            omitted = len(summary["criterion_3_participants"]) - len(rows)
+            if omitted > 0:
+                print(f"... {omitted} more session(s) omitted from the criterion 3 breakdown.")
+
+    if summary.get("criterion_4_participants"):
+        print(_ansi("Criterion 4 participant breakdown", color="cyan", bold=True, use_color=use_color))
+        headers = ["session_id", "slow_trials", "total_clicks", "% slow", "status"]
+        rows = [
+            [
+                row["session_id"],
+                row["slow_trials"],
+                row["total_clicks"],
+                f"{row['fraction'] * 100:.1f}%",
+                row["status"],
+            ]
+            for row in summary["criterion_4_participants"][:participant_limit]
+        ]
+        print(_format_table(headers, rows))
+        omitted = len(summary["criterion_4_participants"]) - min(len(summary["criterion_4_participants"]), participant_limit)
+        if omitted > 0:
+            print(f"... {omitted} more session(s) omitted from the criterion 4 breakdown.")
+
+    if summary.get("criterion_5_participants"):
+        print(_ansi("Criterion 5 participant breakdown", color="cyan", bold=True, use_color=use_color))
+        headers = ["session_id", "slow_probes", "total_probes", "% slow", "status"]
+        rows = [
+            [
+                row["session_id"],
+                row["slow_probes"],
+                row["total_probes"],
+                f"{row['fraction'] * 100:.1f}%",
+                row["status"],
+            ]
+            for row in summary["criterion_5_participants"][:participant_limit]
+        ]
+        print(_format_table(headers, rows))
+        omitted = len(summary["criterion_5_participants"]) - min(len(summary["criterion_5_participants"]), participant_limit)
+        if omitted > 0:
+            print(f"... {omitted} more session(s) omitted from the criterion 5 breakdown.")
 
 
 def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial_prefixes=None, 
@@ -561,9 +729,15 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     # Filter folders based on experimental trial prefixes
     entries = os.listdir(path_to_data)
     e_folders = sorted([
-        entry for entry in entries 
+        entry for entry in entries
         if any(entry.startswith(prefix) for prefix in exp_trial_prefixes)
     ])
+    if len(e_folders) == 0 and 'L' not in exp_trial_prefixes:
+        fallback_folders = sorted([entry for entry in entries if entry.startswith('L')])
+        if fallback_folders:
+            print(f"Found 0 trial folders matching prefixes {exp_trial_prefixes}, falling back to prefix 'L'")
+            exp_trial_prefixes = ['L']
+            e_folders = fallback_folders
     print(f"Found {len(e_folders)} trial folders matching prefixes {exp_trial_prefixes}")
     if len(e_folders) > 0:
         print(f"Sample folder names: {e_folders[:5]}")
@@ -1016,7 +1190,7 @@ def save_goal_probe_data_by_trial(goal_probe_df, path_to_data):
     print(f"Saved goal probe data as CSV files in {path_to_data}")
 
 
-def filter_click_data_reaction_time(click_df, max_rt_ms=5000):
+def filter_click_data_reaction_time(click_df, max_rt_ms=5000, verbose=True):
     """
     Remove individual click data points where reaction_time_ms > max_rt_ms.
     Prints how many points were excluded and a breakdown by trial and participant.
@@ -1032,67 +1206,83 @@ def filter_click_data_reaction_time(click_df, max_rt_ms=5000):
     n_excluded = int(mask_too_slow.sum())
 
     if n_excluded == 0:
-        print(f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
+        if verbose:
+            print(f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
         return click_df
 
     excluded = click_df[mask_too_slow]
-    print(
-        f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): "
-        f"{n_excluded} data point(s) excluded out of {len(click_df)}."
-    )
+    if verbose:
+        print(
+            f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): "
+            f"{n_excluded} data point(s) excluded out of {len(click_df)}."
+        )
 
-    by_trial = (
-        excluded.groupby("global_trial_name").size()
-        .sort_values(ascending=False)
-        .reset_index(name="n_excluded")
-    )
-    print("  Excluded by trial:")
-    for _, row in by_trial.iterrows():
-        print(f"    {row['global_trial_name']}: {int(row['n_excluded'])} excluded")
-
-    if "session_id" in excluded.columns:
-        by_session = (
-            excluded.groupby("session_id").size()
+        by_trial = (
+            excluded.groupby("global_trial_name").size()
             .sort_values(ascending=False)
             .reset_index(name="n_excluded")
         )
-        print("  Excluded by participant (session_id):")
-        for _, row in by_session.iterrows():
-            print(f"    Session {int(row['session_id'])}: {int(row['n_excluded'])} excluded")
+        print("  Excluded by trial:")
+        for _, row in by_trial.iterrows():
+            print(f"    {row['global_trial_name']}: {int(row['n_excluded'])} excluded")
+
+        if "session_id" in excluded.columns:
+            by_session = (
+                excluded.groupby("session_id").size()
+                .sort_values(ascending=False)
+                .reset_index(name="n_excluded")
+            )
+            print("  Excluded by participant (session_id):")
+            for _, row in by_session.iterrows():
+                print(f"    Session {int(row['session_id'])}: {int(row['n_excluded'])} excluded")
 
     return click_df[~mask_too_slow].copy()
 
 
-def compute_click_goal_proximity_session_exclusions(
+def filter_goal_probe_data_reaction_time(goal_probe_df, max_rt_ms=5000, verbose=True):
+    """
+    Remove individual goal-probe rows where reaction_time_ms > max_rt_ms.
+    Returns the filtered DataFrame.
+    """
+    if goal_probe_df is None or goal_probe_df.empty:
+        return goal_probe_df
+    if "reaction_time_ms" not in goal_probe_df.columns:
+        if verbose:
+            print("Criterion 6 - goal-probe reaction time filter: 'reaction_time_ms' column not found; skipping.")
+        return goal_probe_df
+
+    mask_too_slow = goal_probe_df["reaction_time_ms"].notna() & (goal_probe_df["reaction_time_ms"] > max_rt_ms)
+    n_excluded = int(mask_too_slow.sum())
+    if verbose:
+        if n_excluded == 0:
+            print(f"Criterion 6 - goal-probe reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
+        else:
+            print(
+                f"Criterion 6 - goal-probe reaction time filter (>{max_rt_ms} ms): "
+                f"{n_excluded} data point(s) excluded out of {len(goal_probe_df)}."
+            )
+    return goal_probe_df[~mask_too_slow].copy()
+
+
+def _compute_click_goal_proximity_stats(
     click_df,
     path_to_data,
     max_diameters_from_goal_edge=2.0,
-    fraction_threshold=0.5,
 ):
     """
-    Criterion 4: Exclude participants where more than fraction_threshold of their
-    click trials have a click position (symmetry-corrected) within max_diameters_from_goal_edge
-    ball diameters of any goal region boundary.
-
-    Args:
-        click_df: DataFrame from load_click_data (positions in symmetry-transformed frame).
-        path_to_data: Path to trial data directory (for simulation_data.json per trial).
-        max_diameters_from_goal_edge: Distance threshold in ball diameters.
-        fraction_threshold: Exclude participant if flagged fraction exceeds this value.
+    Internal helper for criterion 4.
 
     Returns:
-        List of excluded session_ids.
+        (excluded_session_ids, per_participant_df)
     """
     if click_df is None or click_df.empty:
-        print("Criterion 4 - goal proximity filter: empty click_df; no exclusions.")
-        return []
+        return [], pd.DataFrame(columns=["n_near_goal", "n_total", "fraction"])
 
     required_cols = ["session_id", "global_trial_name", "click_bottom_left_x",
                      "click_bottom_left_y", "symmetry_transform"]
     missing = [c for c in required_cols if c not in click_df.columns]
     if missing:
-        print(f"Criterion 4 - goal proximity filter: missing columns {missing}; skipping.")
-        return []
+        return [], pd.DataFrame(columns=["n_near_goal", "n_total", "fraction"])
 
     def _inv_d4_idx(idx):
         if idx == 1:
@@ -1120,7 +1310,6 @@ def compute_click_goal_proximity_session_exclusions(
         ny = max(y0, min(py, y1))
         return np.hypot(px - nx, py - ny)
 
-    # Load sensor geometry and radius per trial from simulation_data.json
     trial_meta = {}
     for trial_name in sorted(click_df["global_trial_name"].dropna().unique()):
         sim_path = os.path.join(path_to_data, str(trial_name), "simulation_data.json")
@@ -1147,8 +1336,7 @@ def compute_click_goal_proximity_session_exclusions(
             print(f"Warning: could not load simulation_data.json for {trial_name}: {e}")
 
     if not trial_meta:
-        print("Criterion 4 - goal proximity filter: no trial metadata loaded; skipping.")
-        return []
+        return [], pd.DataFrame(columns=["n_near_goal", "n_total", "fraction"])
 
     def _is_near_goal(row):
         meta = trial_meta.get(row["global_trial_name"])
@@ -1186,23 +1374,404 @@ def compute_click_goal_proximity_session_exclusions(
         per_participant["n_near_goal"] / per_participant["n_total"].replace(0, np.nan)
     )
 
-    excluded_mask = per_participant["fraction"] > fraction_threshold
+    excluded_mask = per_participant["fraction"] > 0.5
     excluded_session_ids = sorted(per_participant[excluded_mask].index.tolist())
+    return excluded_session_ids, per_participant
 
-    print(
-        f"Criterion 4 - goal proximity (within {max_diameters_from_goal_edge} diameters of goal edge "
-        f"on more than {100 * fraction_threshold:.0f}% of click trials): "
-        f"{excluded_session_ids} (n={len(excluded_session_ids)})"
+
+def compute_click_goal_proximity_session_exclusions(
+    click_df,
+    path_to_data,
+    max_diameters_from_goal_edge=2.0,
+    fraction_threshold=0.5,
+    verbose=True,
+):
+    """
+    Criterion 4: Exclude participants where more than fraction_threshold of their
+    click trials have a click position (symmetry-corrected) within max_diameters_from_goal_edge
+    ball diameters of any goal region boundary.
+
+    Args:
+        click_df: DataFrame from load_click_data (positions in symmetry-transformed frame).
+        path_to_data: Path to trial data directory (for simulation_data.json per trial).
+        max_diameters_from_goal_edge: Distance threshold in ball diameters.
+        fraction_threshold: Exclude participant if flagged fraction exceeds this value.
+
+    Returns:
+        List of excluded session_ids.
+    """
+    excluded_session_ids, per_participant = _compute_click_goal_proximity_stats(
+        click_df,
+        path_to_data,
+        max_diameters_from_goal_edge=max_diameters_from_goal_edge,
     )
-    print("  Goal proximity stats by participant:")
-    for sid, row in per_participant.sort_values("fraction", ascending=False).iterrows():
-        status = "EXCLUDED" if row["fraction"] > fraction_threshold else "kept"
+
+    if verbose:
         print(
-            f"    Session {int(sid)}: {int(row['n_near_goal'])}/{int(row['n_total'])} "
-            f"near goal ({100 * row['fraction']:.1f}%) — {status}"
+            f"Criterion 4 - goal proximity (within {max_diameters_from_goal_edge} diameters of goal edge "
+            f"on more than {100 * fraction_threshold:.0f}% of click trials): "
+            f"{excluded_session_ids} (n={len(excluded_session_ids)})"
         )
+        print("  Goal proximity stats by participant:")
+        for sid, row in per_participant.sort_values("fraction", ascending=False).iterrows():
+            status = "EXCLUDED" if row["fraction"] > fraction_threshold else "kept"
+            print(
+                f"    Session {int(sid)}: {int(row['n_near_goal'])}/{int(row['n_total'])} "
+                f"near goal ({100 * row['fraction']:.1f}%) — {status}"
+            )
 
     return excluded_session_ids
+
+
+def apply_click_localization_exclusion_criteria(
+    session_df,
+    trial_df,
+    keystate_df,
+    click_df,
+    path_to_data,
+    goal_probe_df=None,
+    max_rt_ms=5000,
+    max_diameters_from_goal_edge=2.0,
+    fraction_threshold=0.5,
+    slow_rt_session_fraction_threshold=1.0 / 3.0,
+    participant_limit=10,
+    use_color=None,
+):
+    """
+    Apply click/localization-specific exclusions after session-level filtering.
+
+    The order is:
+    1. session exclusions: single-keypress-like sessions
+    2. session exclusions: failed catch sessions
+    3. session exclusions: >1/3 of click trials have RT > max_rt_ms
+    4. row filter: click RT > max_rt_ms
+    5. session exclusions: >fraction_threshold of click trials near goal edge
+    6. row filter: goal-probe RT > max_rt_ms
+
+    Returns:
+        If goal_probe_df is None:
+            (session_df, trial_df, keystate_df, click_df, summary_dict)
+        otherwise:
+            (session_df, trial_df, keystate_df, click_df, goal_probe_df, summary_dict)
+    """
+    if click_df is None:
+        empty_summary = {
+            "total_click_trials": 0,
+            "goal_probe_total_trials": int(len(goal_probe_df)) if goal_probe_df is not None else 0,
+            "overview_rows": [],
+            "session_breakdowns": [],
+            "criterion_3_participants": [],
+            "criterion_4_participants": [],
+            "final_click_trials": 0,
+            "final_goal_probe_trials": int(len(goal_probe_df)) if goal_probe_df is not None else 0,
+        }
+        if goal_probe_df is None:
+            return session_df, trial_df, keystate_df, click_df, empty_summary
+        return session_df, trial_df, keystate_df, click_df, goal_probe_df, empty_summary
+
+    session_df = session_df.copy()
+    trial_df = trial_df.copy()
+    keystate_df = keystate_df.copy()
+    click_df = click_df.copy()
+    if goal_probe_df is not None:
+        goal_probe_df = goal_probe_df.copy()
+
+    total_click_trials = int(len(click_df))
+    total_goal_probe_trials = int(len(goal_probe_df)) if goal_probe_df is not None else 0
+
+    c1_sessions = set(session_df.attrs.get("single_keypress_session_ids", []))
+    c2_sessions = set(session_df.attrs.get("catch_failure_session_ids", []))
+    session_ids_after_c12 = set(session_df["session_id"].tolist()) - c1_sessions - c2_sessions
+
+    c1_only_sessions = sorted(c1_sessions)
+    c2_only_sessions = sorted(c2_sessions - c1_sessions)
+
+    c1_rows = click_df[click_df["session_id"].isin(c1_only_sessions)].copy()
+    c2_rows = click_df[click_df["session_id"].isin(c2_only_sessions)].copy()
+
+    click_after_c12 = click_df[click_df["session_id"].isin(session_ids_after_c12)].copy()
+
+    # Criterion 5: participant-level goal proximity on the click set after criteria 1 and 2.
+    c5_excluded_session_ids = compute_click_goal_proximity_session_exclusions(
+        click_after_c12,
+        path_to_data,
+        max_diameters_from_goal_edge=max_diameters_from_goal_edge,
+        fraction_threshold=fraction_threshold,
+        verbose=False,
+    )
+    c5_rows = click_after_c12[click_after_c12["session_id"].isin(c5_excluded_session_ids)].copy()
+    click_after_c125 = click_after_c12[~click_after_c12["session_id"].isin(c5_excluded_session_ids)].copy()
+
+    # Criterion 3: participant-level exclusion if >1/3 of click trials are slow.
+    c3_per_session = click_after_c125.groupby("session_id").agg(
+        n_slow=("reaction_time_ms", lambda s: int((s.notna() & (s > max_rt_ms)).sum())),
+        n_total=("reaction_time_ms", "size"),
+    )
+    c3_per_session["fraction"] = c3_per_session["n_slow"] / c3_per_session["n_total"].replace(0, np.nan)
+    c3_excluded_session_ids = sorted(
+        c3_per_session[c3_per_session["fraction"] > slow_rt_session_fraction_threshold].index.tolist()
+    )
+    c3_rows = click_after_c125[click_after_c125["session_id"].isin(c3_excluded_session_ids)].copy()
+
+    # Criterion 5: session-level exclusion if >1/3 of goal-probe trials are slow.
+    sessions_after_c1234 = (
+        set(session_df["session_id"].tolist())
+        - c1_sessions - c2_sessions
+        - set(c5_excluded_session_ids)
+        - set(c3_excluded_session_ids)
+    )
+    c_new5_excluded_session_ids = []
+    c_new5_per_session = pd.DataFrame()
+    if goal_probe_df is not None and "reaction_time_ms" in goal_probe_df.columns:
+        gp_after_c1234 = goal_probe_df[goal_probe_df["session_id"].isin(sessions_after_c1234)].copy()
+        c_new5_per_session = gp_after_c1234.groupby("session_id").agg(
+            n_slow=("reaction_time_ms", lambda s: int((s.notna() & (s > max_rt_ms)).sum())),
+            n_total=("reaction_time_ms", "size"),
+        )
+        c_new5_per_session["fraction"] = c_new5_per_session["n_slow"] / c_new5_per_session["n_total"].replace(0, np.nan)
+        c_new5_excluded_session_ids = sorted(
+            c_new5_per_session[c_new5_per_session["fraction"] > slow_rt_session_fraction_threshold].index.tolist()
+        )
+    c_new5_rows = click_df[click_df["session_id"].isin(c_new5_excluded_session_ids)].copy()
+
+    # Remove ALL session-level exclusions before row-level filters.
+    excluded_sessions_pre_row = (
+        set(c1_sessions) | set(c2_sessions)
+        | set(c5_excluded_session_ids) | set(c3_excluded_session_ids)
+        | set(c_new5_excluded_session_ids)
+    )
+    click_after_c5 = click_df[click_df["session_id"].isin(set(session_df["session_id"].tolist()) - excluded_sessions_pre_row)].copy()
+
+    # Criterion 6: row-level click RT filter on the remaining click rows.
+    c6_mask = click_after_c5["reaction_time_ms"].notna() & (click_after_c5["reaction_time_ms"] > max_rt_ms)
+    c6_rows_click = click_after_c5[c6_mask].copy()
+    click_after_c6 = click_after_c5[~c6_mask].copy()
+
+    # Apply session-level removals to the other dataframes.
+    if excluded_sessions_pre_row:
+        session_df = session_df[~session_df["session_id"].isin(excluded_sessions_pre_row)].copy()
+        trial_df = trial_df[~trial_df["session_id"].isin(excluded_sessions_pre_row)].copy()
+        if "trial_id" in keystate_df.columns:
+            remaining_trial_ids = set(trial_df["trial_id"].tolist())
+            keystate_df = keystate_df[keystate_df["trial_id"].isin(remaining_trial_ids)].copy()
+
+    # Criterion 7: row-level goal-probe RT filter on the remaining rows.
+    goal_probe_final = None
+    c7_rows = pd.DataFrame()
+    click_final = click_after_c6.copy()
+    if goal_probe_df is not None:
+        goal_probe_after_sessions = goal_probe_df[goal_probe_df["session_id"].isin(session_df["session_id"].tolist())].copy()
+        if "trial_id" in click_final.columns and "trial_id" in goal_probe_after_sessions.columns:
+            key_cols = ["trial_id"]
+        else:
+            key_cols = [c for c in ["session_id", "global_trial_name", "repeat_instance_index"] if c in click_final.columns and c in goal_probe_after_sessions.columns]
+        slow_goal_probe = goal_probe_after_sessions[
+            goal_probe_after_sessions["reaction_time_ms"].notna()
+            & (goal_probe_after_sessions["reaction_time_ms"] > max_rt_ms)
+        ].copy()
+        goal_probe_final = goal_probe_after_sessions[
+            ~(goal_probe_after_sessions["reaction_time_ms"].notna()
+              & (goal_probe_after_sessions["reaction_time_ms"] > max_rt_ms))
+        ].copy()
+        if key_cols:
+            slow_keys = slow_goal_probe[key_cols].drop_duplicates()
+            if not slow_keys.empty:
+                c7_rows = click_final.merge(slow_keys, on=key_cols, how="inner")
+                click_final = click_final.merge(slow_keys, on=key_cols, how="left", indicator=True)
+                click_final = click_final[click_final["_merge"] == "left_only"].drop(columns=["_merge"]).copy()
+            # Align goal_probe_final to click_final: same trials only.
+            surviving_keys = click_final[key_cols].drop_duplicates()
+            goal_probe_final = goal_probe_final.merge(surviving_keys, on=key_cols, how="inner")
+        else:
+            c7_rows = pd.DataFrame()
+    elif goal_probe_df is not None:
+        goal_probe_final = goal_probe_df.copy()
+
+    def _pct(n, denom):
+        return (100.0 * float(n) / float(denom)) if denom else 0.0
+
+    remaining_after_c1 = total_click_trials - len(c1_rows)
+    remaining_after_c2 = remaining_after_c1 - len(c2_rows)
+    remaining_after_c3 = remaining_after_c2 - len(c5_rows)
+    remaining_after_c4 = remaining_after_c3 - len(c3_rows)
+    remaining_after_c5 = remaining_after_c4 - len(c_new5_rows)
+    remaining_after_c6 = remaining_after_c5 - len(c6_rows_click)
+    remaining_after_c7 = len(click_final)
+
+    summary = {
+        "total_click_trials": total_click_trials,
+        "goal_probe_total_trials": total_goal_probe_trials,
+        "criterion_descriptions": [
+            {
+                "criterion": "1",
+                "filtering": "Exclude single-keypress-like sessions (>50% of click scores in 15-25)",
+            },
+            {
+                "criterion": "2",
+                "filtering": "Exclude sessions failing catch trials (<4 of 5 above 40)",
+            },
+            {
+                "criterion": "3",
+                "filtering": f"Exclude sessions with >{100 * fraction_threshold:.0f}% click trials near goal edge",
+            },
+            {
+                "criterion": "4",
+                "filtering": f"Exclude sessions with >{int(round(slow_rt_session_fraction_threshold * 100))}% slow click RT trials (> {max_rt_ms} ms)",
+            },
+            {
+                "criterion": "5",
+                "filtering": f"Exclude sessions with >{int(round(slow_rt_session_fraction_threshold * 100))}% slow goal-probe RT trials (> {max_rt_ms} ms)",
+            },
+            {
+                "criterion": "6",
+                "filtering": f"Remove click rows with click RT > {max_rt_ms} ms",
+            },
+            {
+                "criterion": "7",
+                "filtering": f"Remove click rows whose matching goal-probe RT > {max_rt_ms} ms",
+            },
+        ],
+        "overview_rows": [
+            {
+                "criterion": "1",
+                "scope": "session rows",
+                "removed": int(len(c1_rows)),
+                "percent_of_total": _pct(len(c1_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c1),
+            },
+            {
+                "criterion": "2",
+                "scope": "session rows",
+                "removed": int(len(c2_rows)),
+                "percent_of_total": _pct(len(c2_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c2),
+            },
+            {
+                "criterion": "3",
+                "scope": "session rows",
+                "removed": int(len(c5_rows)),
+                "percent_of_total": _pct(len(c5_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c3),
+            },
+            {
+                "criterion": "4",
+                "scope": "session rows",
+                "removed": int(len(c3_rows)),
+                "percent_of_total": _pct(len(c3_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c4),
+            },
+            {
+                "criterion": "5",
+                "scope": "session rows",
+                "removed": int(len(c_new5_rows)),
+                "percent_of_total": _pct(len(c_new5_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c5),
+            },
+            {
+                "criterion": "6",
+                "scope": "click rows",
+                "removed": int(len(c6_rows_click)),
+                "percent_of_total": _pct(len(c6_rows_click), total_click_trials),
+                "remaining_after": int(remaining_after_c6),
+            },
+            {
+                "criterion": "7",
+                "scope": "click rows",
+                "removed": int(len(c7_rows)),
+                "percent_of_total": _pct(len(c7_rows), total_click_trials),
+                "remaining_after": int(remaining_after_c7),
+            },
+        ],
+        "session_breakdowns": [
+            {
+                "label": "Criterion 1 excluded sessions",
+                "session_ids": ", ".join(map(str, c1_only_sessions)) if c1_only_sessions else "none",
+                "n_sessions": int(len(c1_only_sessions)),
+                "n_rows": int(len(c1_rows)),
+                "percent_of_total": _pct(len(c1_rows), total_click_trials),
+            },
+            {
+                "label": "Criterion 2 excluded sessions",
+                "session_ids": ", ".join(map(str, c2_only_sessions)) if c2_only_sessions else "none",
+                "n_sessions": int(len(c2_only_sessions)),
+                "n_rows": int(len(c2_rows)),
+                "percent_of_total": _pct(len(c2_rows), total_click_trials),
+            },
+            {
+                "label": "Criterion 3 excluded sessions",
+                "session_ids": ", ".join(map(str, c5_excluded_session_ids)) if c5_excluded_session_ids else "none",
+                "n_sessions": int(len(c5_excluded_session_ids)),
+                "n_rows": int(len(c5_rows)),
+                "percent_of_total": _pct(len(c5_rows), total_click_trials),
+            },
+            {
+                "label": "Criterion 4 excluded sessions",
+                "session_ids": ", ".join(map(str, c3_excluded_session_ids)) if c3_excluded_session_ids else "none",
+                "n_sessions": int(len(c3_excluded_session_ids)),
+                "n_rows": int(len(c3_rows)),
+                "percent_of_total": _pct(len(c3_rows), total_click_trials),
+            },
+            {
+                "label": "Criterion 5 excluded sessions",
+                "session_ids": ", ".join(map(str, c_new5_excluded_session_ids)) if c_new5_excluded_session_ids else "none",
+                "n_sessions": int(len(c_new5_excluded_session_ids)),
+                "n_rows": int(len(c_new5_rows)),
+                "percent_of_total": _pct(len(c_new5_rows), total_click_trials),
+            },
+        ],
+        "criterion_3_participants": [
+            {
+                "session_id": int(sid),
+                "near_goal": int(row["n_near_goal"]),
+                "total_clicks": int(row["n_total"]),
+                "fraction": float(row["fraction"]) if pd.notna(row["fraction"]) else 0.0,
+                "status": "EXCLUDED" if int(sid) in c5_excluded_session_ids else "kept",
+            }
+            for sid, row in _compute_click_goal_proximity_stats(
+                click_after_c12,
+                path_to_data,
+                max_diameters_from_goal_edge=max_diameters_from_goal_edge,
+            )[1].sort_values("fraction", ascending=False).iterrows()
+        ],
+        "criterion_4_participants": [
+            {
+                "session_id": int(sid),
+                "slow_trials": int(row["n_slow"]),
+                "total_clicks": int(row["n_total"]),
+                "fraction": float(row["fraction"]) if pd.notna(row["fraction"]) else 0.0,
+                "status": "EXCLUDED" if int(sid) in c3_excluded_session_ids else "kept",
+            }
+            for sid, row in c3_per_session.sort_values("fraction", ascending=False).iterrows()
+        ],
+        "criterion_5_participants": [
+            {
+                "session_id": int(sid),
+                "slow_probes": int(row["n_slow"]),
+                "total_probes": int(row["n_total"]),
+                "fraction": float(row["fraction"]) if pd.notna(row["fraction"]) else 0.0,
+                "status": "EXCLUDED" if int(sid) in c_new5_excluded_session_ids else "kept",
+            }
+            for sid, row in c_new5_per_session.sort_values("fraction", ascending=False).iterrows()
+        ] if not c_new5_per_session.empty else [],
+        "final_click_trials": int(len(click_final)),
+        "final_goal_probe_trials": int(len(goal_probe_final)) if goal_probe_final is not None else 0,
+    }
+
+    if goal_probe_final is not None:
+        summary["goal_probe_rows"] = int(len(goal_probe_final))
+    else:
+        summary["goal_probe_rows"] = None
+
+    _print_click_exclusion_summary(summary, use_color=use_color, participant_limit=participant_limit)
+
+    session_df.attrs["click_exclusion_summary"] = summary
+    session_df.attrs["criterion_3_session_ids"] = c5_excluded_session_ids
+    session_df.attrs["criterion_4_session_ids"] = c3_excluded_session_ids
+    session_df.attrs["criterion_5_session_ids"] = c_new5_excluded_session_ids
+
+    if goal_probe_df is None:
+        return session_df, trial_df, keystate_df, click_final, summary
+    return session_df, trial_df, keystate_df, click_final, goal_probe_final, summary
 
 
 def find_duplicate_completed_trials(trial_df):

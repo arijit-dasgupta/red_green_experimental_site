@@ -1,109 +1,103 @@
 {
   "entities": [
     {
-      "id": 1772181557683,
+      "id": 1,
       "type": "target",
-      "x": 4.7,
-      "y": 0.5,
+      "x": 4.3,
+      "y": 18.1,
       "width": 1,
       "height": 1,
-      "direction": 0.7376245234114636
+      "direction": -0.8170186935579369
     },
     {
-      "id": 1772181571891,
-      "type": "barrier",
-      "x": 11.700000000000001,
-      "y": 0,
-      "width": 5.5,
-      "height": 7,
-      "direction": 0
-    },
-    {
-      "id": 1772181591380,
-      "type": "red_sensor",
-      "x": 12.3,
-      "y": 19,
-      "width": 4.5,
-      "height": 0.9,
-      "direction": 0
-    },
-    {
-      "id": 1772181596802,
+      "id": 2,
       "type": "green_sensor",
-      "x": 0.4,
-      "y": 19,
-      "width": 10.8,
-      "height": 0.7000000000000001,
+      "x": 17.400000000000002,
+      "y": 0.4,
+      "width": 1.9000000000000001,
+      "height": 7.5,
       "direction": 0
     },
     {
-      "id": 1772181608469,
+      "id": 3,
+      "type": "red_sensor",
+      "x": 0.5,
+      "y": 0.30000000000000004,
+      "width": 1,
+      "height": 17.6,
+      "direction": 0
+    },
+    {
+      "id": 4,
       "type": "barrier",
-      "x": 17.2,
-      "y": 0,
-      "width": 2.8000000000000003,
-      "height": 19.900000000000002,
+      "x": 14.5,
+      "y": 8.8,
+      "width": 1.5,
+      "height": 7.6000000000000005,
       "direction": 0
     },
     {
-      "id": 1772181695028,
+      "id": 5,
+      "type": "barrier",
+      "x": 12.600000000000001,
+      "y": 16.400000000000002,
+      "width": 6.4,
+      "height": 2.7,
+      "direction": 0
+    },
+    {
+      "id": 6,
+      "type": "barrier",
+      "x": 1,
+      "y": 18.7,
+      "width": 2.7,
+      "height": 1,
+      "direction": 0
+    },
+    {
+      "id": 7,
+      "type": "barrier",
+      "x": 2,
+      "y": 0.4,
+      "width": 14.5,
+      "height": 0.4,
+      "direction": 0
+    },
+    {
+      "id": 8,
+      "type": "barrier",
+      "x": 17.5,
+      "y": 12.8,
+      "width": 1,
+      "height": 3.6,
+      "direction": 0
+    },
+    {
+      "id": 9,
       "type": "occluder",
-      "x": 6.2,
-      "y": 2.3000000000000003,
-      "width": 5.5,
-      "height": 6.300000000000001,
-      "direction": 0
-    },
-    {
-      "id": 1772181728315,
-      "type": "barrier",
-      "x": 11.700000000000001,
-      "y": 11.9,
-      "width": 0.4,
-      "height": 8,
-      "direction": 0
-    },
-    {
-      "id": 1772181784209,
-      "type": "barrier",
-      "x": 3,
+      "x": 6,
       "y": 2.9000000000000004,
-      "width": 3.2,
-      "height": 9.700000000000001,
+      "width": 8.5,
+      "height": 12.9,
       "direction": 0
     },
     {
-      "id": 1772181796637,
-      "type": "barrier",
-      "x": 0,
-      "y": 12.600000000000001,
-      "width": 6.2,
-      "height": 1.1,
-      "direction": 0
-    },
-    {
-      "id": 1772182060138,
+      "id": 10,
       "type": "occluder",
-      "x": 6.2,
-      "y": 8.6,
-      "width": 5.5,
-      "height": 7.800000000000001,
-      "direction": 0
-    },
-    {
-      "id": 1772422123192,
-      "type": "barrier",
-      "x": 0.7000000000000001,
-      "y": 13.700000000000001,
-      "width": 5.5,
-      "height": 3.1,
+      "x": 3.9000000000000004,
+      "y": 2.9000000000000004,
+      "width": 2.1,
+      "height": 9,
       "direction": 0
     }
   ],
   "simulationParams": {
     "videoLength": 10,
-    "ballSpeed": 3.6,
+    "ballSpeed": 1.0,
     "fps": 30,
+    "res_multiplier": 1,
+    "physicsStepsPerFrame": 6,
+    "timestep": 0.02,
     "worldWidth": 20,
     "worldHeight": 20
   }

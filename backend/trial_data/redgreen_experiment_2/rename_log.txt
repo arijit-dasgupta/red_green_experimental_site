@@ -6,18 +6,12 @@
 #
 # --- Renames ---
 
-# 2026-04-25 (random shuffle of T11, T14, T17, T18 -> L1..L4)
-T18 -> L1
-T11 -> L2
-T17 -> L3
-T14 -> L4
-
 # 2026-04-25 (random shuffle of T2C, T3B, T8A, T8B, T9, T13, T24, T28 -> L5..L12)
-T9  -> L5
+T9  -> L21
 T3B -> L17
 T28 -> L30
 T13 -> L8
-T24 -> L9
+T24 -> L25
 T2C -> L10
 T8B -> L11
 T8A -> L12
@@ -25,10 +19,10 @@ T8A -> L12
 # 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L17..L32; L19, L20 and L23 are new trials)
 T3A -> L6
 T2A -> L18
-T5E -> L21
+T5E -> L5
 T4F -> L22
 T5F -> L24
-T7B -> L25
+T7B -> L9
 T4E -> L26
 T1B -> L27
 T6B -> L28

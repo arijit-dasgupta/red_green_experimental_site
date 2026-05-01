@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ' *)",
+      "Bash(git -C /Users/arijitdasgupta/Desktop/projects/red_green_projects/red_green_experimental_site status --short backend/trial_data/redgreen_experiment_2/L1/goal_probe_data.csv)"
+    ]
+  }
+}
