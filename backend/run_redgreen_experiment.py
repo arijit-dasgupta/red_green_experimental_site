@@ -101,7 +101,7 @@ DATASET_NAME = 'redgreen_experiment_2'  # Specific dataset folder name within PA
 FAM_TRIAL_PREFIXES = ['F']  # Prefixes for familiarization trial folders
 # EXP_TRIAL_PREFIXES = ['CC_control', 'CC_surprise', 'UC_positive', 'UC_negative']  # Prefixes for experimental trial folders
 EXP_TRIAL_PREFIXES = ['L']  # Prefixes for experimental trial folders
-EXPERIMENT_RUN_VERSION = 'pilot_apr29_v0'  # Version identifier for this experiment run
+EXPERIMENT_RUN_VERSION = 'debug_mode'  # Version identifier for this experiment run
 COUNTERBALANCE_OUTCOMES = True # if True, then we randomly swap the red and green goals per trial, and save that data. If False, then we follow the red/green assignment as dictated in each JSON file
 # If True, each participant gets a different randomized experimental trial order.
 # If False, everyone gets the same deterministic randomized order.
