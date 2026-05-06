@@ -1,0 +1,89 @@
+# Trial Rename Log
+# Format: OLD_NAME -> NEW_NAME  (date)
+# Each rename touches: folder/, folder/OLD_stimulus.mp4->NEW_stimulus.mp4,
+#   trial_label.csv, trial_order_details.csv,
+#   catch_trials.txt (if catch trial), repeat.csv (if repeat trial)
+#
+# --- Renames ---
+
+# 2026-04-25 (random shuffle of T2C, T3B, T8A, T8B, T9, T13, T24, T28 -> L5..L12)
+T9  -> L21
+T3B -> L17
+T28 -> L30
+T13 -> L8
+T24 -> L25
+T2C -> L10
+T8B -> L11
+T8A -> L12
+
+# 2026-04-25 (random shuffle of T1B, T2A, T3A, T4E, T4F, T5E, T5F, T6B, T22, T25, T29, T5C, T7B, T21 -> L17..L32; L19, L20 and L23 are new trials)
+T3A -> L6
+T2A -> L18
+T5E -> L5
+T4F -> L22
+T5F -> L24
+T7B -> L9
+T4E -> L26
+T1B -> L27
+T6B -> L28
+T21 -> L29
+T29 -> L67
+T25 -> L31
+T5C -> L32
+
+# 2026-04-25 (newly introduced trials)
+L19
+L20
+L23
+L33
+L34
+L35
+L36
+L65
+L16
+L66
+L7
+L68
+L69
+L70
+
+
+# 2026-04-26 (random shuffle of catch trials T30..T34 -> L71..L75)
+T32 -> L71
+T34 -> L72
+T31 -> L73
+T30 -> L74
+T33 -> L75
+
+# 2026-04-26 (random shuffle of 31 remaining T trials -> L37..L64)
+T26 -> L37
+T5B -> L15
+T8C -> L38
+T5A -> L39
+T6D -> L14
+T23 -> L40
+T1C -> L41
+T2B -> L42
+T3D -> L43
+T4D -> L44
+T12 -> L45
+T4B -> L46
+T6A -> L47
+T6C -> L48
+T1D -> L49
+T15 -> L50
+T27 -> L51
+T3C -> L52
+T20 -> L53
+T19 -> L13
+T7C -> L54
+T7A -> L55
+T1A -> L56
+T4C -> L57
+T5D -> L58
+T2D -> L59
+T4A -> L60
+T8D -> L61
+T16 -> L62
+T7D -> L63
+T10 -> L64
