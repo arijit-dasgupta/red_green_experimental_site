@@ -16,6 +16,39 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Rectangle
 
 
+def _drop_duplicate_trial_response_rows(df, *, table_label, response_label):
+    """
+    Keep the earliest response row for each trial_id and report any duplicate cleanup.
+    Earliest is defined by the smallest response-table id.
+    """
+    if df is None or df.empty or "trial_id" not in df.columns or "id" not in df.columns:
+        return df
+
+    duplicate_mask = df.duplicated("trial_id", keep=False)
+    if not duplicate_mask.any():
+        return df
+
+    duplicate_rows = df[duplicate_mask].copy()
+    sorted_df = df.sort_values(["trial_id", "id"], kind="mergesort")
+    kept = sorted_df.drop_duplicates("trial_id", keep="first")
+    dropped = sorted_df[sorted_df.duplicated("trial_id", keep="first")].copy()
+
+    print(f"\nData cleaning - duplicate {response_label} rows detected in {table_label}:")
+    print(f"  Kept earliest row per trial_id; removed {len(dropped)} duplicate row(s).")
+    for trial_id, group in duplicate_rows.sort_values(["trial_id", "id"]).groupby("trial_id"):
+        kept_id = int(group["id"].min())
+        dropped_ids = [int(row_id) for row_id in group.loc[group["id"] != kept_id, "id"].tolist()]
+        session_bits = []
+        if "session_id" in group.columns:
+            session_bits.append(f"session_id={group['session_id'].iloc[0]}")
+        if "global_trial_name" in group.columns:
+            session_bits.append(f"trial={group['global_trial_name'].iloc[0]}")
+        context = f" ({', '.join(session_bits)})" if session_bits else ""
+        print(f"  trial_id={trial_id}{context}: kept id={kept_id}; dropped id(s)={dropped_ids}")
+
+    return kept.sort_index().copy()
+
+
 def _load_allowed_repeat_trial_names(path_to_data):
     """
     Load set of global_trial_names that are allowed to repeat (from repeat.csv in path_to_data).
@@ -252,6 +285,53 @@ def _format_table(headers, rows):
     return "\n".join(lines)
 
 
+def _time_taken_summary_rows(before_time_by_session, after_session_df):
+    if not before_time_by_session and (
+        after_session_df is None or after_session_df.empty or "time_taken" not in after_session_df.columns
+    ):
+        return []
+
+    before = pd.Series(before_time_by_session, dtype="float64") if before_time_by_session else pd.Series(dtype="float64")
+    if before.empty and after_session_df is not None and "time_taken" in after_session_df.columns:
+        before = pd.to_numeric(after_session_df.set_index("session_id")["time_taken"], errors="coerce")
+    before = pd.to_numeric(before, errors="coerce").dropna()
+
+    if after_session_df is None or after_session_df.empty or "time_taken" not in after_session_df.columns:
+        after = pd.Series(dtype="float64")
+    else:
+        after = pd.to_numeric(after_session_df.set_index("session_id")["time_taken"], errors="coerce").dropna()
+
+    excluded = before[~before.index.isin(after.index)]
+
+    def _summarize(label, values):
+        values = values.dropna()
+        if values.empty:
+            return {
+                "group": label,
+                "n": 0,
+                "mean": None,
+                "median": None,
+                "std": None,
+                "min": None,
+                "max": None,
+            }
+        return {
+            "group": label,
+            "n": int(values.count()),
+            "mean": float(values.mean()),
+            "median": float(values.median()),
+            "std": float(values.std(ddof=1)) if len(values) > 1 else 0.0,
+            "min": float(values.min()),
+            "max": float(values.max()),
+        }
+
+    return [
+        _summarize("Before exclusions", before),
+        _summarize("After exclusions", after),
+        _summarize("Excluded only", excluded),
+    ]
+
+
 def _print_click_exclusion_summary(summary, *, use_color=None, participant_limit=10):
     if use_color is None:
         use_color = _supports_ansi_colors()
@@ -303,6 +383,27 @@ def _print_click_exclusion_summary(summary, *, use_color=None, participant_limit
                 use_color=use_color,
             )
         )
+
+    if summary.get("time_taken_summary"):
+        print(_ansi("Participant time_taken summary", color="cyan", bold=True, use_color=use_color))
+        headers = ["Group", "n", "mean", "median", "std", "min", "max"]
+
+        def _fmt(value):
+            return "NA" if value is None else f"{value:.2f}"
+
+        rows = [
+            [
+                row["group"],
+                row["n"],
+                _fmt(row["mean"]),
+                _fmt(row["median"]),
+                _fmt(row["std"]),
+                _fmt(row["min"]),
+                _fmt(row["max"]),
+            ]
+            for row in summary["time_taken_summary"]
+        ]
+        print(_format_table(headers, rows))
 
     if summary.get("session_breakdowns"):
         print(_ansi("Session-level breakdowns", color="cyan", bold=True, use_color=use_color))
@@ -593,6 +694,14 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
                 f"(correct={detail['n_correct']}{missing_text})"
             )
 
+    pre_exclusion_time_taken_by_session = {}
+    if "time_taken" in session_df.columns:
+        pre_exclusion_time_taken_by_session = (
+            pd.to_numeric(session_df.set_index("session_id")["time_taken"], errors="coerce")
+            .dropna()
+            .to_dict()
+        )
+
     if apply_session_exclusion_criteria and excluded_session_ids:
         session_df = session_df[~session_df["session_id"].isin(excluded_session_ids)].copy()
         trial_df = trial_df[~trial_df["session_id"].isin(excluded_session_ids)].copy()
@@ -610,6 +719,7 @@ def extract_human_data(db_path, path_to_data, exp_trial_prefixes=None, fam_trial
     session_df.attrs["catch_failure_session_ids"] = catch_failure_session_ids
     session_df.attrs["excluded_session_ids"] = excluded_session_ids
     session_df.attrs["catch_failure_details"] = catch_failure_details
+    session_df.attrs["pre_exclusion_time_taken_by_session"] = pre_exclusion_time_taken_by_session
 
     # Symmetry may be randomized per participant. Keep the old consistency check optional.
     if "symmetry_transform" in trial_df.columns and enforce_shared_symmetry_transform:
@@ -1207,13 +1317,13 @@ def filter_click_data_reaction_time(click_df, max_rt_ms=5000, verbose=True):
 
     if n_excluded == 0:
         if verbose:
-            print(f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
+            print(f"Click reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
         return click_df
 
     excluded = click_df[mask_too_slow]
     if verbose:
         print(
-            f"Criterion 3 - reaction time filter (>{max_rt_ms} ms): "
+            f"Click reaction time filter (>{max_rt_ms} ms): "
             f"{n_excluded} data point(s) excluded out of {len(click_df)}."
         )
 
@@ -1248,17 +1358,17 @@ def filter_goal_probe_data_reaction_time(goal_probe_df, max_rt_ms=5000, verbose=
         return goal_probe_df
     if "reaction_time_ms" not in goal_probe_df.columns:
         if verbose:
-            print("Criterion 6 - goal-probe reaction time filter: 'reaction_time_ms' column not found; skipping.")
+            print("Goal-probe reaction time filter: 'reaction_time_ms' column not found; skipping.")
         return goal_probe_df
 
     mask_too_slow = goal_probe_df["reaction_time_ms"].notna() & (goal_probe_df["reaction_time_ms"] > max_rt_ms)
     n_excluded = int(mask_too_slow.sum())
     if verbose:
         if n_excluded == 0:
-            print(f"Criterion 6 - goal-probe reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
+            print(f"Goal-probe reaction time filter (>{max_rt_ms} ms): 0 data points excluded.")
         else:
             print(
-                f"Criterion 6 - goal-probe reaction time filter (>{max_rt_ms} ms): "
+                f"Goal-probe reaction time filter (>{max_rt_ms} ms): "
                 f"{n_excluded} data point(s) excluded out of {len(goal_probe_df)}."
             )
     return goal_probe_df[~mask_too_slow].copy()
@@ -1268,9 +1378,10 @@ def _compute_click_goal_proximity_stats(
     click_df,
     path_to_data,
     max_diameters_from_goal_edge=2.0,
+    fraction_threshold=0.5,
 ):
     """
-    Internal helper for criterion 4.
+    Internal helper for click criterion 3: participant-level goal-proximity exclusion.
 
     Returns:
         (excluded_session_ids, per_participant_df)
@@ -1374,7 +1485,7 @@ def _compute_click_goal_proximity_stats(
         per_participant["n_near_goal"] / per_participant["n_total"].replace(0, np.nan)
     )
 
-    excluded_mask = per_participant["fraction"] > 0.5
+    excluded_mask = per_participant["fraction"] > fraction_threshold
     excluded_session_ids = sorted(per_participant[excluded_mask].index.tolist())
     return excluded_session_ids, per_participant
 
@@ -1387,7 +1498,7 @@ def compute_click_goal_proximity_session_exclusions(
     verbose=True,
 ):
     """
-    Criterion 4: Exclude participants where more than fraction_threshold of their
+    Click criterion 3: exclude participants where more than fraction_threshold of their
     click trials have a click position (symmetry-corrected) within max_diameters_from_goal_edge
     ball diameters of any goal region boundary.
 
@@ -1404,11 +1515,12 @@ def compute_click_goal_proximity_session_exclusions(
         click_df,
         path_to_data,
         max_diameters_from_goal_edge=max_diameters_from_goal_edge,
+        fraction_threshold=fraction_threshold,
     )
 
     if verbose:
         print(
-            f"Criterion 4 - goal proximity (within {max_diameters_from_goal_edge} diameters of goal edge "
+            f"Criterion 3 - goal proximity (within {max_diameters_from_goal_edge} diameters of goal edge "
             f"on more than {100 * fraction_threshold:.0f}% of click trials): "
             f"{excluded_session_ids} (n={len(excluded_session_ids)})"
         )
@@ -1433,7 +1545,7 @@ def apply_click_localization_exclusion_criteria(
     max_rt_ms=5000,
     max_diameters_from_goal_edge=2.0,
     fraction_threshold=0.5,
-    slow_rt_session_fraction_threshold=1.0 / 3.0,
+    slow_rt_session_min_trials=11,
     participant_limit=10,
     use_color=None,
 ):
@@ -1443,10 +1555,11 @@ def apply_click_localization_exclusion_criteria(
     The order is:
     1. session exclusions: single-keypress-like sessions
     2. session exclusions: failed catch sessions
-    3. session exclusions: >1/3 of click trials have RT > max_rt_ms
-    4. row filter: click RT > max_rt_ms
-    5. session exclusions: >fraction_threshold of click trials near goal edge
-    6. row filter: goal-probe RT > max_rt_ms
+    3. session exclusions: >fraction_threshold of click trials near goal edge
+    4. session exclusions: at least slow_rt_session_min_trials click trials have RT > max_rt_ms
+    5. session exclusions: at least slow_rt_session_min_trials goal-probe trials have RT > max_rt_ms
+    6. row filter: click RT > max_rt_ms
+    7. row filter: goal-probe RT > max_rt_ms
 
     Returns:
         If goal_probe_df is None:
@@ -1476,6 +1589,26 @@ def apply_click_localization_exclusion_criteria(
     if goal_probe_df is not None:
         goal_probe_df = goal_probe_df.copy()
 
+    click_df = _drop_duplicate_trial_response_rows(
+        click_df,
+        table_label="trial_pause_click",
+        response_label="click",
+    )
+    if goal_probe_df is not None:
+        goal_probe_df = _drop_duplicate_trial_response_rows(
+            goal_probe_df,
+            table_label="trial_goal_probe",
+            response_label="goal-probe",
+        )
+
+    before_time_taken_by_session = session_df.attrs.get("pre_exclusion_time_taken_by_session", {})
+    if not before_time_taken_by_session and "time_taken" in session_df.columns:
+        before_time_taken_by_session = (
+            pd.to_numeric(session_df.set_index("session_id")["time_taken"], errors="coerce")
+            .dropna()
+            .to_dict()
+        )
+
     total_click_trials = int(len(click_df))
     total_goal_probe_trials = int(len(goal_probe_df)) if goal_probe_df is not None else 0
 
@@ -1491,7 +1624,7 @@ def apply_click_localization_exclusion_criteria(
 
     click_after_c12 = click_df[click_df["session_id"].isin(session_ids_after_c12)].copy()
 
-    # Criterion 5: participant-level goal proximity on the click set after criteria 1 and 2.
+    # Criterion 3: participant-level goal proximity on the click set after criteria 1 and 2.
     c5_excluded_session_ids = compute_click_goal_proximity_session_exclusions(
         click_after_c12,
         path_to_data,
@@ -1502,18 +1635,18 @@ def apply_click_localization_exclusion_criteria(
     c5_rows = click_after_c12[click_after_c12["session_id"].isin(c5_excluded_session_ids)].copy()
     click_after_c125 = click_after_c12[~click_after_c12["session_id"].isin(c5_excluded_session_ids)].copy()
 
-    # Criterion 3: participant-level exclusion if >1/3 of click trials are slow.
+    # Criterion 4: participant-level exclusion if too many click trials are slow.
     c3_per_session = click_after_c125.groupby("session_id").agg(
         n_slow=("reaction_time_ms", lambda s: int((s.notna() & (s > max_rt_ms)).sum())),
         n_total=("reaction_time_ms", "size"),
     )
     c3_per_session["fraction"] = c3_per_session["n_slow"] / c3_per_session["n_total"].replace(0, np.nan)
     c3_excluded_session_ids = sorted(
-        c3_per_session[c3_per_session["fraction"] > slow_rt_session_fraction_threshold].index.tolist()
+        c3_per_session[c3_per_session["n_slow"] >= slow_rt_session_min_trials].index.tolist()
     )
     c3_rows = click_after_c125[click_after_c125["session_id"].isin(c3_excluded_session_ids)].copy()
 
-    # Criterion 5: session-level exclusion if >1/3 of goal-probe trials are slow.
+    # Criterion 5: participant-level exclusion if too many goal-probe trials are slow.
     sessions_after_c1234 = (
         set(session_df["session_id"].tolist())
         - c1_sessions - c2_sessions
@@ -1530,7 +1663,7 @@ def apply_click_localization_exclusion_criteria(
         )
         c_new5_per_session["fraction"] = c_new5_per_session["n_slow"] / c_new5_per_session["n_total"].replace(0, np.nan)
         c_new5_excluded_session_ids = sorted(
-            c_new5_per_session[c_new5_per_session["fraction"] > slow_rt_session_fraction_threshold].index.tolist()
+            c_new5_per_session[c_new5_per_session["n_slow"] >= slow_rt_session_min_trials].index.tolist()
         )
     c_new5_rows = click_df[click_df["session_id"].isin(c_new5_excluded_session_ids)].copy()
 
@@ -1604,7 +1737,7 @@ def apply_click_localization_exclusion_criteria(
         "criterion_descriptions": [
             {
                 "criterion": "1",
-                "filtering": "Exclude single-keypress-like sessions (>50% of click scores in 15-25)",
+                "filtering": "Exclude single-keypress-like sessions (>50% of non-click experimental trial scores in 15-25)",
             },
             {
                 "criterion": "2",
@@ -1616,11 +1749,11 @@ def apply_click_localization_exclusion_criteria(
             },
             {
                 "criterion": "4",
-                "filtering": f"Exclude sessions with >{int(round(slow_rt_session_fraction_threshold * 100))}% slow click RT trials (> {max_rt_ms} ms)",
+                "filtering": f"Exclude sessions with >= {slow_rt_session_min_trials} slow click RT trials (> {max_rt_ms} ms)",
             },
             {
                 "criterion": "5",
-                "filtering": f"Exclude sessions with >{int(round(slow_rt_session_fraction_threshold * 100))}% slow goal-probe RT trials (> {max_rt_ms} ms)",
+                "filtering": f"Exclude sessions with >= {slow_rt_session_min_trials} slow goal-probe RT trials (> {max_rt_ms} ms)",
             },
             {
                 "criterion": "6",
@@ -1731,6 +1864,7 @@ def apply_click_localization_exclusion_criteria(
                 click_after_c12,
                 path_to_data,
                 max_diameters_from_goal_edge=max_diameters_from_goal_edge,
+                fraction_threshold=fraction_threshold,
             )[1].sort_values("fraction", ascending=False).iterrows()
         ],
         "criterion_4_participants": [
@@ -1753,6 +1887,7 @@ def apply_click_localization_exclusion_criteria(
             }
             for sid, row in c_new5_per_session.sort_values("fraction", ascending=False).iterrows()
         ] if not c_new5_per_session.empty else [],
+        "time_taken_summary": _time_taken_summary_rows(before_time_taken_by_session, session_df),
         "final_click_trials": int(len(click_final)),
         "final_goal_probe_trials": int(len(goal_probe_final)) if goal_probe_final is not None else 0,
     }

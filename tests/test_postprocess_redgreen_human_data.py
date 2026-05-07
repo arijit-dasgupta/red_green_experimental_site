@@ -3,9 +3,11 @@ from pathlib import Path
 import sqlite3
 
 import pandas as pd
+import pytest
 
 from backend.postprocess_redgreen_human_data import (
     apply_click_localization_exclusion_criteria,
+    compute_click_goal_proximity_session_exclusions,
     extract_human_data,
     load_click_data,
     load_goal_probe_data,
@@ -286,6 +288,131 @@ def test_load_click_data_undoes_symmetry_transform_for_click_locations(tmp_path)
     assert row["ball_y"] == pytest.approx(3.0)
 
 
+def test_click_postprocessing_keeps_earliest_duplicate_click_and_goal_probe_rows(tmp_path, capsys):
+    path_to_data = tmp_path / "dataset"
+    _write_minimal_trial_dataset(path_to_data, "T1A", rg_outcome="red")
+
+    db_path = tmp_path / "clicks.db"
+    _create_minimal_postprocess_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        """
+        INSERT INTO trial_pause_click (
+            id, trial_id, session_id, pause_frame, click_bottom_left_x,
+            click_bottom_left_y, ball_x, ball_y, diameters_away, reaction_time_ms, trial_name
+        ) VALUES (32, 11, 1, 12, 7.0, 7.0, 5.0, 2.0, 3.0, 999.0, 'T1A')
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO trial_goal_probe (
+            id, trial_id, session_id, goal_choice, reaction_time_ms, trial_name
+        ) VALUES (42, 11, 1, 'green', 900.0, 'T1A')
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    click_df = load_click_data(str(db_path))
+    goal_probe_df = load_goal_probe_data(str(db_path))
+    session_df = pd.DataFrame({"session_id": [1]})
+    session_df.attrs["single_keypress_session_ids"] = []
+    session_df.attrs["catch_failure_session_ids"] = []
+    trial_df = pd.DataFrame(
+        [{"trial_id": 11, "session_id": 1, "global_trial_name": "T1A", "trial_index": 0}]
+    )
+    keystate_df = pd.DataFrame([{"trial_id": 11, "frame": 0}])
+
+    _, _, _, click_final, goal_probe_final, summary = apply_click_localization_exclusion_criteria(
+        session_df,
+        trial_df,
+        keystate_df,
+        click_df,
+        str(path_to_data),
+        goal_probe_df=goal_probe_df,
+        use_color=False,
+    )
+
+    captured = capsys.readouterr().out
+    assert "duplicate click rows detected in trial_pause_click" in captured
+    assert "trial_id=11" in captured
+    assert "kept id=31" in captured
+    assert "dropped id(s)=[32]" in captured
+    assert "duplicate goal-probe rows detected in trial_goal_probe" in captured
+    assert "kept id=41" in captured
+    assert "dropped id(s)=[42]" in captured
+    assert click_final["id"].tolist() == [31]
+    assert goal_probe_final["id"].tolist() == [41]
+    assert summary["total_click_trials"] == 1
+    assert summary["goal_probe_total_trials"] == 1
+
+
+def test_click_goal_proximity_uses_fraction_threshold(tmp_path):
+    path_to_data = tmp_path / "dataset"
+    sensors = {
+        "green_sensor": {"x": 0, "y": 0, "width": 2, "height": 2},
+    }
+    for trial_name in ["L1", "L2", "L3"]:
+        _write_minimal_trial_dataset(
+            path_to_data,
+            trial_name,
+            world_width=10,
+            world_height=10,
+            radius=1,
+            sensors=sensors,
+        )
+
+    click_df = pd.DataFrame(
+        [
+            {
+                "id": 1,
+                "trial_id": 101,
+                "session_id": 1,
+                "global_trial_name": "L1",
+                "repeat_instance_index": 0,
+                "click_bottom_left_x": 0.0,
+                "click_bottom_left_y": 0.0,
+                "symmetry_transform": 0,
+            },
+            {
+                "id": 2,
+                "trial_id": 102,
+                "session_id": 1,
+                "global_trial_name": "L2",
+                "repeat_instance_index": 0,
+                "click_bottom_left_x": 0.0,
+                "click_bottom_left_y": 0.0,
+                "symmetry_transform": 0,
+            },
+            {
+                "id": 3,
+                "trial_id": 103,
+                "session_id": 1,
+                "global_trial_name": "L3",
+                "repeat_instance_index": 0,
+                "click_bottom_left_x": 9.0,
+                "click_bottom_left_y": 9.0,
+                "symmetry_transform": 0,
+            },
+        ]
+    )
+
+    assert compute_click_goal_proximity_session_exclusions(
+        click_df,
+        str(path_to_data),
+        max_diameters_from_goal_edge=2.0,
+        fraction_threshold=0.75,
+        verbose=False,
+    ) == []
+    assert compute_click_goal_proximity_session_exclusions(
+        click_df,
+        str(path_to_data),
+        max_diameters_from_goal_edge=2.0,
+        fraction_threshold=0.5,
+        verbose=False,
+    ) == [1]
+
+
 def test_click_localization_criterion3_and_6_use_the_right_rows(tmp_path):
     path_to_data = tmp_path / "dataset"
     sensors = {
@@ -389,8 +516,8 @@ def test_click_localization_criterion3_and_6_use_the_right_rows(tmp_path):
             id, trial_id, session_id, pause_frame, click_bottom_left_x,
             click_bottom_left_y, ball_x, ball_y, diameters_away, reaction_time_ms, trial_name
         ) VALUES
-            (31, 11, 1, 12, 6.0, 6.0, 6.0, 6.0, 8.0, 250.0, 'L1'),
-            (32, 12, 2, 12, 0.0, 0.0, 0.0, 0.0, 0.0, 6001.0, 'L1'),
+            (31, 11, 1, 12, 0.0, 0.0, 0.0, 0.0, 0.0, 250.0, 'L1'),
+            (32, 12, 2, 12, 4.0, 4.0, 4.0, 4.0, 0.0, 6001.0, 'L1'),
             (33, 13, 3, 12, 4.0, 4.0, 4.0, 4.0, 1.0, 180.0, 'L1')
         """
     )
@@ -441,15 +568,97 @@ def test_click_localization_criterion3_and_6_use_the_right_rows(tmp_path):
     )
 
     assert summary["total_click_trials"] == 3
-    assert summary["overview_rows"][2]["removed"] == 0
-    assert summary["overview_rows"][3]["removed"] == 1
+    assert summary["overview_rows"][2]["removed"] == 1
+    assert summary["overview_rows"][3]["removed"] == 0
     assert summary["overview_rows"][4]["removed"] == 0
     assert summary["overview_rows"][5]["removed"] == 1
-    assert summary["criterion_3_participants"][0]["session_id"] == 2
+    assert summary["criterion_descriptions"][0]["filtering"] == (
+        "Exclude single-keypress-like sessions (>50% of non-click experimental trial scores in 15-25)"
+    )
+    assert summary["criterion_descriptions"][3]["filtering"] == (
+        "Exclude sessions with >= 11 slow click RT trials (> 5000 ms)"
+    )
+    assert summary["criterion_3_participants"][0]["session_id"] == 1
     assert summary["criterion_3_participants"][0]["status"] == "EXCLUDED"
     assert summary["criterion_4_participants"]
-    assert session_df2["session_id"].tolist() == [3]
-    assert trial_df2["session_id"].tolist() == [3]
+    assert session_df2["session_id"].tolist() == [2, 3]
+    assert trial_df2["session_id"].tolist() == [2, 3]
     assert click_final["session_id"].tolist() == [3]
     assert summary["final_goal_probe_trials"] == 1
     assert goal_probe_final["reaction_time_ms"].tolist() == [180.0]
+
+
+def test_click_rt_session_exclusion_uses_minimum_slow_trial_count(tmp_path):
+    path_to_data = tmp_path / "dataset"
+    trial_rows = []
+    click_rows = []
+    goal_probe_rows = []
+    keystate_rows = []
+
+    trial_id = 100
+    click_id = 200
+    goal_probe_id = 300
+    for session_id, n_slow in [(1, 11), (2, 10)]:
+        for trial_index in range(11):
+            trial_name = f"L{session_id}_{trial_index}"
+            _write_minimal_trial_dataset(path_to_data, trial_name, sensors=None)
+            reaction_time_ms = 6001.0 if trial_index < n_slow else 250.0
+            trial_rows.append(
+                {
+                    "trial_id": trial_id,
+                    "session_id": session_id,
+                    "global_trial_name": trial_name,
+                    "trial_index": trial_index,
+                }
+            )
+            click_rows.append(
+                {
+                    "id": click_id,
+                    "trial_id": trial_id,
+                    "session_id": session_id,
+                    "global_trial_name": trial_name,
+                    "repeat_instance_index": 0,
+                    "click_bottom_left_x": 4.0,
+                    "click_bottom_left_y": 4.0,
+                    "symmetry_transform": 0,
+                    "reaction_time_ms": reaction_time_ms,
+                }
+            )
+            goal_probe_rows.append(
+                {
+                    "id": goal_probe_id,
+                    "trial_id": trial_id,
+                    "session_id": session_id,
+                    "global_trial_name": trial_name,
+                    "repeat_instance_index": 0,
+                    "reaction_time_ms": 250.0,
+                }
+            )
+            keystate_rows.append({"trial_id": trial_id, "frame": 0})
+            trial_id += 1
+            click_id += 1
+            goal_probe_id += 1
+
+    session_df = pd.DataFrame({"session_id": [1, 2]})
+    session_df.attrs["single_keypress_session_ids"] = []
+    session_df.attrs["catch_failure_session_ids"] = []
+
+    session_df2, _, _, click_final, _, summary = apply_click_localization_exclusion_criteria(
+        session_df,
+        pd.DataFrame(trial_rows),
+        pd.DataFrame(keystate_rows),
+        pd.DataFrame(click_rows),
+        str(path_to_data),
+        goal_probe_df=pd.DataFrame(goal_probe_rows),
+        max_rt_ms=5000,
+        max_diameters_from_goal_edge=2.0,
+        use_color=False,
+    )
+
+    assert summary["overview_rows"][3]["removed"] == 11
+    assert summary["criterion_4_participants"][0]["session_id"] == 1
+    assert summary["criterion_4_participants"][0]["status"] == "EXCLUDED"
+    assert summary["criterion_4_participants"][1]["session_id"] == 2
+    assert summary["criterion_4_participants"][1]["status"] == "kept"
+    assert session_df2["session_id"].tolist() == [2]
+    assert len(click_final) == 1
